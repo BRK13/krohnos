@@ -8,10 +8,8 @@ import unittest
 from pathlib import Path
 
 SITE = Path(__file__).resolve().parent.parent
-# BRU-1121: project names and the legal entity are authorized on the site.
-# Harness-code neutrality is enforced separately, in its own repository.
-FORBIDDEN = ["schwab", "whatsapp pessoal", "start for free", "pricing", "see it in action"]
-ALLOWED = []
+sys.path.insert(0, str(SITE.parent / "tests"))
+import neutro_lib  # noqa: E402  (shared term list: tests/neutro_termos.txt, also used by the repo-wide gate)
 
 
 class Build(unittest.TestCase):
@@ -120,22 +118,14 @@ class Build(unittest.TestCase):
             self.assertIn(u, t)
 
     def test_no_forbidden_terms(self):
+        """Every built text file, content.json and nginx.conf: none of the terms in tests/neutro_termos.txt."""
+        regras, permitidos = neutro_lib.carregar()
         files = [p for p in self.out.rglob("*") if p.is_file() and p.suffix in
                  (".html", ".md", ".txt", ".xml", ".css", ".js", ".svg")]
         files += [SITE / "content.json", SITE / "nginx.conf"]
         for p in files:
-            text = p.read_text(encoding="utf-8")
-            for a in ALLOWED:
-                text = text.replace(a, "")
-            low = text.lower()
-            for w in FORBIDDEN:
-                if w == "acta":
-                    hit = re.search(r"\bacta\b", low)
-                elif w == "krohn":  # a marca é Krohnos (BRU-1069); "krohn" sozinho (sobrenome) continua proibido
-                    hit = re.search(r"krohn(?!os)", low)
-                else:
-                    hit = w in low
-                self.assertFalse(hit, "%s contains %r" % (p.name, w))
+            hits = neutro_lib.achados(p.read_text(encoding="utf-8"), regras, permitidos)
+            self.assertEqual(hits, [], "%s contains %s" % (p.name, hits))
 
     def test_no_external_assets(self):
         for rel in ["index.html", "pt/index.html"]:

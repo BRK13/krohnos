@@ -1,0 +1,48 @@
+# Termos que não podem aparecer em nenhum arquivo versionado deste repositório público (nem em nomes de arquivo).
+# Fonte única: lida por tests/test_neutro.py (repo inteiro) e por site/tests/test_build.py (saída do site).
+# Formato: uma regra por linha, sem diferenciar maiúsculas e minúsculas.
+#   texto       termo literal
+#   re:EXPR     expressão regular
+#   allow:TEXTO trecho removido antes de procurar (ex.: BRK13/krohnos, o endereço do repositório)
+# Linhas em branco e as que começam com # são ignoradas. Este arquivo é o único isento da busca.
+
+# Identificadores de tarefa internos
+re:BRU-\d+
+
+# Nome antigo da marca
+kronos
+
+# Dono e operação privada
+BRK13
+allow:BRK13/krohnos
+bruno
+re:krohn(?!os)
+whatsapp pessoal
+o dono mediu
+
+# Outros produtos e clientes do dono
+actacontrol
+acta control
+re:\bacta\b
+fisiogentil
+fisio gentil
+fernanda
+precedentes
+jurimetria
+psiporai
+psi por aí
+psi por ai
+schwab
+jpschwab
+
+# Estratégia e material interno
+docs/marketing
+mensagem-2026
+estratégia interna
+estrategia interna
+mensagem de marca
+
+# Promessas de marketing que o projeto não sustenta
+start for free
+pricing
+see it in action

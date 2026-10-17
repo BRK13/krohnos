@@ -3,7 +3,7 @@
   var d = document.documentElement;
   d.classList.add('js');
   try {
-    var t = localStorage.getItem('kronos-theme');
+    var t = localStorage.getItem('krohnos-theme');
     if (t === 'dark' || t === 'light') d.setAttribute('data-theme', t);
   } catch (e) {}
 })();

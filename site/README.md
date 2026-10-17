@@ -1,4 +1,4 @@
-# Kronos Hub: self-host site
+# Krohnos: self-host site
 
 Static, bilingual (en, pt-BR) page for the self-host install. No framework, no npm, no external assets.
 

@@ -11,7 +11,7 @@ SITE = Path(__file__).resolve().parent.parent
 FORBIDDEN = ["actacontrol", "acta", "precedentes", "jurimetria", "psiporai", "psi por aí", "psi por ai",
              "fisiogentil", "fisio gentil", "fernanda", "schwab", "bruno", "krohn", "whatsapp pessoal",
              "start for free", "pricing", "see it in action"]
-# "krohn" is forbidden as a word, but the public repo and domain are named krohnos: those two exact strings are allowed.
+# "krohn" is forbidden (owner surname), but the brand is Krohnos: "krohn" followed by "os" is allowed.
 ALLOWED = ["BRK13/krohnos", "krohnos.com"]
 
 
@@ -64,7 +64,7 @@ class Build(unittest.TestCase):
             for c in cmds:
                 self.assertIn(c, text, (rel, c))
         # real commands from the install guide
-        self.assertIn("git clone https://github.com/BRK13/krohnos.git kronos && cd kronos", cmds)
+        self.assertIn("git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos", cmds)
         self.assertIn("docker compose up -d", cmds)
 
     def test_all_code_blocks_same_in_html_and_md(self):
@@ -96,7 +96,7 @@ class Build(unittest.TestCase):
 
     def test_llms_txt(self):
         t = self.read("llms.txt")
-        self.assertTrue(t.startswith("# Kronos Hub\n\n> "))
+        self.assertTrue(t.startswith("# Krohnos\n\n> "))
         for u in ["https://krohnos.com/install.md", "https://krohnos.com/install.pt.md",
                   "https://github.com/BRK13/krohnos", "https://github.com/BRK13/krohnos/releases",
                   "https://github.com/BRK13/krohnos/blob/main/LICENSE",
@@ -122,6 +122,8 @@ class Build(unittest.TestCase):
             for w in FORBIDDEN:
                 if w == "acta":
                     hit = re.search(r"\bacta\b", low)
+                elif w == "krohn":  # a marca é Krohnos (BRU-1069); "krohn" sozinho (sobrenome) continua proibido
+                    hit = re.search(r"krohn(?!os)", low)
                 else:
                     hit = w in low
                 self.assertFalse(hit, "%s contains %r" % (p.name, w))

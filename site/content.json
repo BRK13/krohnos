@@ -11,7 +11,7 @@
   },
   "install_steps": [
     {
-      "cmd": "git clone https://github.com/BRK13/krohnos.git kronos && cd kronos",
+      "cmd": "git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos",
       "en": "get the code",
       "pt": "baixe o código"
     },
@@ -21,9 +21,9 @@
       "pt": "construa a imagem (uma só serve os 4 serviços)"
     },
     {
-      "cmd": "docker compose run --rm --no-deps --entrypoint kronos painel init",
-      "en": "configure: `kronos init` creates kronos.toml (volume `config`), the master key, the vault and YOUR owner user",
-      "pt": "configure: o `kronos init` cria o kronos.toml (volume `config`), a chave mestra, o cofre e o SEU usuário de dono"
+      "cmd": "docker compose run --rm --no-deps --entrypoint krohnos painel init",
+      "en": "configure: `krohnos init` creates krohnos.toml (volume `config`), the master key, the vault and YOUR owner user",
+      "pt": "configure: o `krohnos init` cria o krohnos.toml (volume `config`), a chave mestra, o cofre e o SEU usuário de dono"
     },
     {
       "cmd": "docker compose up -d",
@@ -38,11 +38,11 @@
   ],
   "en": {
     "lang": "en",
-    "name": "Kronos Hub",
-    "meta_title": "Kronos Hub: coding agents that prove the work is done",
+    "name": "Krohnos",
+    "meta_title": "Krohnos: coding agents that prove the work is done",
     "meta_description": "Open source (AGPL-3.0), self-hosted harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Docker Compose install.",
-    "summary": "Kronos Hub is a harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Open source (AGPL-3.0), self-hosted with Docker Compose.",
-    "md_title": "Kronos Hub: self-host install",
+    "summary": "Krohnos is a harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Open source (AGPL-3.0), self-hosted with Docker Compose.",
+    "md_title": "Krohnos: self-host install",
     "nav": {"install": "Install", "docs": "Docs", "github": "GitHub", "changelog": "Changelog", "menu": "Menu", "close": "Close", "theme": "Theme", "language": "Português", "language_label": "Leia em português"},
     "ui": {
       "copy": "Copy", "copied": "Copied", "copy_failed": "Select and copy manually",
@@ -90,19 +90,19 @@
           {"t": "p", "x": "Five steps, from a clean server to the panel running."},
           {"t": "install"},
           {"t": "p", "x": "Then open the panel (see Reverse proxy below), sign in with the owner email and password, and follow the assistant at `/comecar`."},
-          {"t": "warn", "x": "Do not put the panel on the internet before running `kronos init` (step 3). While an install has no owner, whoever opens `/comecar` first becomes the owner. `kronos init` creates the owner before the panel starts; when the assistant finishes, `/comecar` answers 404."}
+          {"t": "warn", "x": "Do not put the panel on the internet before running `krohnos init` (step 3). While an install has no owner, whoever opens `/comecar` first becomes the owner. `krohnos init` creates the owner before the panel starts; when the assistant finishes, `/comecar` answers 404."}
         ]
       },
       {
         "id": "config",
         "title": "Configuration",
         "blocks": [
-          {"t": "p", "x": "`kronos.toml` lives in the `config` volume (writable: the `/comecar` assistant rewrites it). Secrets never go in the toml: the master key and the vault live in the `cofre` volume; panel users (password hash only), the project and the examples live in `dados`."},
-          {"t": "p", "x": "`kronos init` asks everything (domain, owner name and email, password, GitHub organization, first project). To skip the questions, change the end of the step 3 command to `init --sim ...`:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint kronos painel init --sim --dominio kronos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
+          {"t": "p", "x": "`krohnos.toml` lives in the `config` volume (writable: the `/comecar` assistant rewrites it). Secrets never go in the toml: the master key and the vault live in the `cofre` volume; panel users (password hash only), the project and the examples live in `dados`."},
+          {"t": "p", "x": "`krohnos init` asks everything (domain, owner name and email, password, GitHub organization, first project). To skip the questions, change the end of the step 3 command to `init --sim ...`:"},
+          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --sim --dominio krohnos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
           {"t": "p", "x": "Use `--exemplo` instead of `--projeto-dominio` for the demonstration projects. The password never goes on the command line: let `init` generate one (it is shown once, keep it) or use `--dono-senha-env VARIABLE_NAME`."},
           {"t": "p", "x": "Running `init` again is safe: an existing toml, key, vault, users and project are kept. To change the panel port:"},
-          {"t": "code", "x": "KRONOS_PAINEL_PORTA=9000 docker compose up -d"}
+          {"t": "code", "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"}
         ]
       },
       {
@@ -111,7 +111,7 @@
         "blocks": [
           {"t": "p", "x": "The panel speaks HTTP on port 8787. Put a TLS proxy in front of it. The session cookie is `Secure`: the browser only keeps it over HTTPS (or `http://localhost`). The Linear webhook (8790) and the MCP server (4181) stay on the server's `127.0.0.1`."},
           {"t": "p", "x": "Caddy, two lines, automatic certificate:"},
-          {"t": "code", "lang": "caddy", "x": "kronos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
+          {"t": "code", "lang": "caddy", "x": "krohnos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
         ]
       },
       {
@@ -120,7 +120,7 @@
         "blocks": [
           {"t": "p", "x": "The first-run assistant at `/comecar` walks through four things: GitHub, Linear, your first project and your first Claude account. Everything but the first project can be skipped and done later."},
           {"t": "p", "x": "To see the panel full before you configure your own, run the demo. It fills a fresh install with invented, marked data (`demo --limpar` removes only that data, and it refuses to run on a data folder that already holds real data). Restart the panel afterwards so it reads the new projects:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint kronos painel demo\ndocker compose restart painel"}
+          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel demo\ndocker compose restart painel"}
         ]
       },
       {
@@ -160,11 +160,11 @@
   },
   "pt": {
     "lang": "pt-BR",
-    "name": "Kronos Hub",
-    "meta_title": "Kronos Hub: agentes de código que provam que terminaram",
+    "name": "Krohnos",
+    "meta_title": "Krohnos: agentes de código que provam que terminaram",
     "meta_description": "Harness open source (AGPL-3.0) e auto-hospedado que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Instalação com Docker Compose.",
-    "summary": "O Kronos Hub é um harness que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Open source (AGPL-3.0), auto-hospedado com Docker Compose.",
-    "md_title": "Kronos Hub: instalação self-host",
+    "summary": "O Krohnos é um harness que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Open source (AGPL-3.0), auto-hospedado com Docker Compose.",
+    "md_title": "Krohnos: instalação self-host",
     "nav": {"install": "Instalar", "docs": "Docs", "github": "GitHub", "changelog": "Changelog", "menu": "Menu", "close": "Fechar", "theme": "Tema", "language": "English", "language_label": "Read in English"},
     "ui": {
       "copy": "Copiar", "copied": "Copiado", "copy_failed": "Selecione e copie à mão",
@@ -212,19 +212,19 @@
           {"t": "p", "x": "Cinco passos, do servidor limpo ao painel no ar."},
           {"t": "install"},
           {"t": "p", "x": "Depois abra o painel (veja Proxy TLS abaixo), entre com o e-mail e a senha do dono e siga o assistente em `/comecar`."},
-          {"t": "warn", "x": "Não ponha o painel na internet antes de rodar o `kronos init` (passo 3). Enquanto a instalação não tem dono, quem abrir `/comecar` primeiro vira o dono. O `kronos init` cria o dono antes de o painel subir; quando o assistente termina, `/comecar` passa a dar 404."}
+          {"t": "warn", "x": "Não ponha o painel na internet antes de rodar o `krohnos init` (passo 3). Enquanto a instalação não tem dono, quem abrir `/comecar` primeiro vira o dono. O `krohnos init` cria o dono antes de o painel subir; quando o assistente termina, `/comecar` passa a dar 404."}
         ]
       },
       {
         "id": "config",
         "title": "Configuração",
         "blocks": [
-          {"t": "p", "x": "O `kronos.toml` fica no volume `config` (gravável: o assistente `/comecar` o reescreve). Segredos nunca entram no toml: a chave mestra e o cofre ficam no volume `cofre`; os usuários do painel (só o hash da senha), o projeto e os exemplos ficam em `dados`."},
-          {"t": "p", "x": "O `kronos init` pergunta tudo (domínio, nome e e-mail do dono, senha, organização do GitHub, primeiro projeto). Para pular as perguntas, troque o final do comando do passo 3 por `init --sim ...`:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint kronos painel init --sim --dominio kronos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
+          {"t": "p", "x": "O `krohnos.toml` fica no volume `config` (gravável: o assistente `/comecar` o reescreve). Segredos nunca entram no toml: a chave mestra e o cofre ficam no volume `cofre`; os usuários do painel (só o hash da senha), o projeto e os exemplos ficam em `dados`."},
+          {"t": "p", "x": "O `krohnos init` pergunta tudo (domínio, nome e e-mail do dono, senha, organização do GitHub, primeiro projeto). Para pular as perguntas, troque o final do comando do passo 3 por `init --sim ...`:"},
+          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --sim --dominio krohnos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
           {"t": "p", "x": "Use `--exemplo` no lugar de `--projeto-dominio` para os projetos de demonstração. A senha nunca vai pela linha de comando: deixe o `init` gerar uma (aparece uma vez, guarde) ou use `--dono-senha-env NOME_DA_VARIAVEL`."},
           {"t": "p", "x": "Rodar o `init` de novo é seguro: toml, chave, cofre, usuários e projeto que já existem são mantidos. Para mudar a porta do painel:"},
-          {"t": "code", "x": "KRONOS_PAINEL_PORTA=9000 docker compose up -d"}
+          {"t": "code", "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"}
         ]
       },
       {
@@ -233,7 +233,7 @@
         "blocks": [
           {"t": "p", "x": "O painel fala HTTP na porta 8787. Ponha um proxy com TLS na frente. O cookie de sessão é `Secure`: o navegador só o guarda em HTTPS (ou em `http://localhost`). O webhook do Linear (8790) e o MCP (4181) ficam só no `127.0.0.1` do servidor."},
           {"t": "p", "x": "Caddy, duas linhas, certificado automático:"},
-          {"t": "code", "lang": "caddy", "x": "kronos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
+          {"t": "code", "lang": "caddy", "x": "krohnos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
         ]
       },
       {
@@ -242,7 +242,7 @@
         "blocks": [
           {"t": "p", "x": "O assistente de primeira execução em `/comecar` passa por quatro coisas: GitHub, Linear, o primeiro projeto e a primeira conta do Claude. Tudo, menos o primeiro projeto, pode ser pulado e feito depois."},
           {"t": "p", "x": "Para ver o painel cheio antes de configurar o seu, rode a demonstração. Ela enche uma instalação nova com dados inventados e marcados (`demo --limpar` remove só eles, e ela recusa uma pasta de dados que já tem dado real). Reinicie o painel depois para ele ler os novos projetos:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint kronos painel demo\ndocker compose restart painel"}
+          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel demo\ndocker compose restart painel"}
         ]
       },
       {

@@ -174,10 +174,10 @@
     },
     "hero": {
       "badge": "Open source · AGPL-3.0 · self-hosted",
-      "line1_before": "Ponha seus ",
+      "line1_before": "Seus ",
       "line1_em": "agentes de código",
       "line1_after": "",
-      "line2": "para trabalhar numa fila.",
+      "line2": "trabalhando numa fila.",
       "sub": "Um harness que leva contas de agente de código por um só fluxo: contrato, fila, contas, revisão, CI, merge, deploy, recibo.",
       "status": "Status: o repositório público ainda está recebendo o código (hoje tem o README e o roadmap). O snapshot com o `compose.yml` chega com a publicação; os comandos de instalação desta página são os passos que ele vai rodar."
     },

@@ -106,3 +106,7 @@ Por que A: é o único eixo sustentado por falha medida (2.3 e lições) e por r
 1. **"Isso é um wrapper de prompts com fila; não tem moat."** → O ponto não é o modelo, é o ambiente: contrato, segundo revisor, recibo, alarme. Falha do agente é de ambiente (tese salva). Porém, o código ainda não está público para conferir; até lá a defesa é só texto. [dado: README; hipótese: valor percebido]
 2. **"1.309 PRs em 7 dias é vaidade, quantidade sem qualidade."** → Ataque correto: o número não foi reproduzido (744 no mínimo local) e PR não mede valor. A resposta é não usar o número como argumento principal e mostrar o que o recibo prova (no ar, checagem passando) e as falhas registradas (1.046). [dado: seção 2]
 3. **"Quem é o cliente? Só você usa."** → Verdade hoje: não há usuário externo medido. A resposta honesta é publicar isso e usar o primeiro lote de conversas (próximo passo 4) para decidir se o alvo é dev solo, time pequeno ou outro. [dado: topo do documento]
+
+
+## Atualização (17/10/2026, BRU-1078)
+README e site passaram de 1.309 para **1.313** (`gh api -X GET search/issues -f q='user:BRK13 is:pr is:merged merged:2026-10-07..2026-10-14' --jq .total_count`, 17/10). Os trechos acima sobre 1.309 descrevem o estado anterior. A ressalva de não usar o número em manchete continua.

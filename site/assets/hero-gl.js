@@ -63,7 +63,7 @@
     '  float g=hash(gl_FragCoord.xy+uK*vec2(37.,17.))-.5;',
     '  lum+=g*.085*sqrt(lum);',                           // grain rides the light, black stays pure black
     '  lum=max(lum,0.);',
-    '  gl_FragColor=vec4(vec3(.93,.95,1.)*lum,1.);',
+    '  gl_FragColor=vec4(vec3(.16,.72,.44)*lum,1.);',
     '}'
   ].join('\n');
 

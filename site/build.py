@@ -184,9 +184,11 @@ def page_html(data, lang):
 <link rel="stylesheet" href="/assets/style.css">
 <script src="/assets/boot.js"></script>
 <script src="/assets/app.js" defer></script>
+<script src="/assets/hero-gl.js" defer></script>
 
 </head>
 <body>
+<canvas id="hero-gl" aria-hidden="true"></canvas>
 <a class="skip" href="#main">{html.escape(ui['skip'])}</a>
 <header class="top">
   <a class="brand" href="{'/' if lang == 'en' else '/pt/'}" aria-label="{html.escape(c['name'])}"><img src="/assets/krohnos-mark.svg" width="32" height="38" alt=""><span>{html.escape(c['name'])}</span></a>

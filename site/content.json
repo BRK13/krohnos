@@ -39,7 +39,7 @@
   "en": {
     "lang": "en",
     "name": "Kronos Hub",
-    "meta_title": "Kronos Hub: self-host a harness for your coding agents",
+    "meta_title": "Kronos Hub: coding agents that prove the work is done",
     "meta_description": "Open source (AGPL-3.0), self-hosted harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Docker Compose install.",
     "summary": "Kronos Hub is a harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Open source (AGPL-3.0), self-hosted with Docker Compose.",
     "md_title": "Kronos Hub: self-host install",
@@ -52,11 +52,11 @@
     },
     "hero": {
       "badge": "Open source · AGPL-3.0 · self-hosted",
-      "line1_before": "Put your ",
-      "line1_em": "coding agents",
+      "line1_before": "Coding agents that ",
+      "line1_em": "prove",
       "line1_after": "",
-      "line2": "to work on a queue.",
-      "sub": "A harness that runs coding-agent accounts through one flow: contract, queue, accounts, review, CI, merge, deploy, receipt.",
+      "line2": "the work is done.",
+      "sub": "Self-hosted harness for coding-agent accounts: a task is done only with evidence (merged, live, checks passing) and a receipt. Contract, queue, review, CI, merge, deploy.",
       "status": "Status: the public repository is still receiving the code (today it has the README and the roadmap). The snapshot with `compose.yml` arrives with the publication; the install commands on this page are the steps it will run."
     },
     "terminal": [
@@ -161,7 +161,7 @@
   "pt": {
     "lang": "pt-BR",
     "name": "Kronos Hub",
-    "meta_title": "Kronos Hub: hospede o harness dos seus agentes de código",
+    "meta_title": "Kronos Hub: agentes de código que provam que terminaram",
     "meta_description": "Harness open source (AGPL-3.0) e auto-hospedado que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Instalação com Docker Compose.",
     "summary": "O Kronos Hub é um harness que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Open source (AGPL-3.0), auto-hospedado com Docker Compose.",
     "md_title": "Kronos Hub: instalação self-host",
@@ -174,11 +174,11 @@
     },
     "hero": {
       "badge": "Open source · AGPL-3.0 · self-hosted",
-      "line1_before": "Seus ",
-      "line1_em": "agentes de código",
+      "line1_before": "Agentes de código que ",
+      "line1_em": "provam",
       "line1_after": "",
-      "line2": "trabalhando numa fila.",
-      "sub": "Um harness que leva contas de agente de código por um só fluxo: contrato, fila, contas, revisão, CI, merge, deploy, recibo.",
+      "line2": "que o trabalho está pronto.",
+      "sub": "Harness auto-hospedado para contas de agente de código: tarefa só está pronta com evidência (integrada, no ar, checagens passando) e recibo. Contrato, fila, revisão, CI, merge, deploy.",
       "status": "Status: o repositório público ainda está recebendo o código (hoje tem o README e o roadmap). O snapshot com o `compose.yml` chega com a publicação; os comandos de instalação desta página são os passos que ele vai rodar."
     },
     "terminal": [

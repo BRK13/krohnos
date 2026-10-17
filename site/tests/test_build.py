@@ -173,6 +173,21 @@ class Build(unittest.TestCase):
             self.assertNotRegex(t, r"(?i)for free|free plan|free tier|free trial")
             self.assertNotRegex(t, r"(?i)sign.?up|log.?in required|systemd")
 
+    def test_message_in_title_and_h1(self):
+        """BRU-1078: the message (docs/marketing/mensagem-2026-10.md) is in <title>, og:title and <h1>; title <= 60."""
+        import html as h
+        cases = (("index.html", "prove the work is done", "Coding agents that prove the work is done."),
+                 ("pt/index.html", "provam que terminaram", "Agentes de código que provam que o trabalho está pronto."))
+        for rel, in_title, h1_text in cases:
+            page = self.read(rel)
+            title = h.unescape(re.search(r"<title>(.*?)</title>", page, re.S).group(1))
+            self.assertIn(in_title, title, rel)
+            self.assertLessEqual(len(title), 60, rel)
+            self.assertIn('property="og:title" content="%s"' % h.escape(title), page, rel)
+            h1 = re.search(r"<h1[^>]*>(.*?)</h1>", page, re.S).group(1)
+            h1 = re.sub(r"\s+", " ", h.unescape(re.sub(r"<[^>]+>", "", h1))).strip()
+            self.assertEqual(h1, h1_text, rel)
+
 
 if __name__ == "__main__":
     unittest.main()

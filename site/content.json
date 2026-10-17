@@ -57,7 +57,7 @@
       "line1_after": "",
       "line2": "the work is done.",
       "sub": "Self-hosted harness for coding-agent accounts: a task is done only with evidence (merged, live, checks passing) and a receipt. Contract, queue, review, CI, merge, deploy.",
-      "status": "Status: the public repository is still receiving the code (today it has the README and the roadmap). The snapshot with `compose.yml` arrives with the publication; the install commands on this page are the steps it will run."
+      "status": ""
     },
     "terminal": [
       ["contract", "outcome, scope, proof of done"],
@@ -179,7 +179,7 @@
       "line1_after": "",
       "line2": "que o trabalho está pronto.",
       "sub": "Harness auto-hospedado para contas de agente de código: tarefa só está pronta com evidência (integrada, no ar, checagens passando) e recibo. Contrato, fila, revisão, CI, merge, deploy.",
-      "status": "Status: o repositório público ainda está recebendo o código (hoje tem o README e o roadmap). O snapshot com o `compose.yml` chega com a publicação; os comandos de instalação desta página são os passos que ele vai rodar."
+      "status": ""
     },
     "terminal": [
       ["contrato", "resultado, escopo, prova de pronto"],

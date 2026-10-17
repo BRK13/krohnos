@@ -3,12 +3,12 @@
 
 :root{
   color-scheme:dark;
-  --bg:#000;--bg2:#0b0b0c;--tx:#f4f5f6;--tx2:#c3c6cb;--tx3:#8f949b;--line:#26282c;
-  --code-bg:#0c0d0f;--bar:#15171a;--bar2:#24272c;--bar3:#31353b;--code-tx:#e9ebee;--alt:#9a9ea5;
-  --pill-a:#2d3035;--pill-b:#131417;--pill-bd:#8d939c;--pill-tx:#eceef0;
+  --bg:#010805;--bg2:#04120b;--tx:#f1f6f3;--tx2:#bfd0c6;--tx3:#86a091;--line:#123324;
+  --code-bg:#030e08;--bar:#071a10;--bar2:#0d2a1b;--bar3:#143a26;--code-tx:#e6f1ea;--alt:#8fae9c;
+  --pill-a:#0f3322;--pill-b:#051509;--pill-bd:#2f7a52;--pill-tx:#e9f5ee;
   --solid-bg:#f1f2f4;--solid-tx:#0a0a0b;
-  --ghost-bg:rgba(255,255,255,.07);--ghost-bd:rgba(255,255,255,.22);--ghost-tx:#f4f5f6;
-  --focus:#9cc2ff;--ok:#8ee0a8;--warn-bg:#16110a;--warn-bd:#8a6a2e;
+  --ghost-bg:rgba(30,140,85,.10);--ghost-bd:rgba(80,200,130,.28);--ghost-tx:#f1f6f3;
+  --focus:#5fe0a0;--ok:#8ee0a8;--warn-bg:#16110a;--warn-bd:#8a6a2e;
   --grain:.09;
   --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --serif:"Instrument Serif",Georgia,serif;
@@ -51,7 +51,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:90;opa
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1.4 -.2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
 
 /* header */
-.top{position:fixed;z-index:60;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px clamp(16px,3vw,40px)}
+.top{position:fixed;z-index:60;top:0;left:0;right:0;background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px clamp(16px,3vw,40px)}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;letter-spacing:-.01em}
 .brand{white-space:nowrap}
 .brand svg{flex:none}
@@ -74,7 +74,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:90;opa
 .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;padding:96px clamp(16px,3vw,40px) 36px}
 @media (min-width:901px){.hero{height:100svh;min-height:0;overflow:hidden}}
 /* WebGL ribbon behind the hero: dark theme only, no overlay, black until the first frame (or forever without WebGL) */
-.hero-gl{position:absolute;inset:0;width:100%;height:100%;display:block;background:#000;opacity:0;pointer-events:none;z-index:0;transition:opacity 1.4s ease}
+.hero-gl{position:absolute;inset:0;width:100%;height:100%;display:block;background:var(--bg);opacity:0;pointer-events:none;z-index:0;transition:opacity 1.4s ease}
 .hero-gl.on{opacity:1}
 :root[data-theme=light] .hero-gl{display:none}
 @media (prefers-color-scheme:light){:root:not([data-theme=dark]) .hero-gl{display:none}}

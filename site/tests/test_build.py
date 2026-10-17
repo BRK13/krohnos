@@ -90,9 +90,9 @@ class Build(unittest.TestCase):
             self.assertIn("docker compose down -v", t)
 
     def test_status_notice(self):
-        self.assertIn("Status:", self.read("index.html"))
-        self.assertIn("compose.yml", self.read("index.html"))
-        self.assertIn("Status:", self.read("pt/index.html"))
+        # aviso de status tirado a pedido do Bruno (17/10)
+        self.assertNotIn("Status:", self.read("index.html"))
+        self.assertNotIn("Status:", self.read("pt/index.html"))
 
     def test_llms_txt(self):
         t = self.read("llms.txt")

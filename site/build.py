@@ -73,7 +73,7 @@ def section_md(sec, data, lang):
 
 def page_md(data, lang):
     c = data[lang]
-    head = "# %s\n\n> %s\n\n%s\n" % (c["md_title"], c["summary"], c["hero"]["status"])
+    head = "# %s\n\n> %s\n\n%s\n" % (c["md_title"], c["summary"], c["hero"]["status"]) if c["hero"]["status"] else "# %s\n\n> %s\n" % (c["md_title"], c["summary"])
     return head + "\n" + "\n".join(section_md(s, data, lang) for s in c["sections"])
 
 
@@ -204,7 +204,7 @@ def page_html(data, lang):
       <a class="btn solid" href="{s['repo']}" rel="noopener">{html.escape(ui['star'])}</a>
       <button class="btn ghost" type="button" data-md="md-page" data-label="{html.escape(ui['copy_md'])}" data-done="{html.escape(ui['copied_md'])}">{html.escape(ui['copy_md'])}</button>
     </div>
-    <p class="status ap a6">{inline_html(hero['status'])}</p>
+    {f'<p class="status ap a6">{inline_html(hero["status"])}</p>' if hero['status'] else ''}
   </div>
 </section>
 <div class="rest">

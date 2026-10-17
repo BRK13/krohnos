@@ -35,12 +35,12 @@ python3 tests/browser_test.py                # Playwright (chromium, software We
 `<canvas id="hero-gl">` behind the hero text, drawn by `assets/hero-gl.js`: two twisting sinusoidal surfaces,
 fresnel alpha, soft blurred borders, fine animated grain, monochrome on pure black. 0 bytes of video or image, sharp at any size.
 
-- Perfect loop: all time enters through the phase (period T = 12 s, integer harmonics); the grain is seeded by an integer frame index in [0, 360).
+- Perfect loop (tested: the frame at t = T equals the frame at t = 0): all time enters through the phase (period T = 12 s, integer harmonics); the grain is seeded by an integer frame index in [0, 360).
 - Cap of 30 fps; paused when the tab is hidden (`visibilitychange`), when the hero is scrolled away, or when the canvas is hidden.
-- DPR capped at 2; the render scale drops (down to 0.5) when the average frame cost passes 20 ms.
+- DPR capped at 2; the render scale drops (down to 0.5) when the median frame cost passes 20 ms (and grows back when it stays under 8 ms). The loop clock only advances while frames run, so pause/resume has no jump.
 - `prefers-reduced-motion`: one still frame, no loop. No WebGL (or shader failure): the canvas stays transparent over the black page.
 - Dark theme only: in the light theme the canvas is `display:none` and the hero is a flat background (decision: a white ribbon on a light page would not read).
-- Legibility without an overlay: the shader draws only in the free band above the hero text (`uFree`, measured from `.hero-in`), so no line of text sits on the ribbon; `browser_test.py` measures WCAG AA against the brightest canvas pixel under each text line.
+- Legibility without an overlay: the shader draws only in the free band above the hero text (`uFree`, measured from `.hero-in`), so no line of text sits on the ribbon; `browser_test.py` measures WCAG AA against the brightest canvas pixel under each text line, in samples of the loop (5 moments on desktop, 3 on mobile, plus the still frames), not in every frame; the band keeps the ribbon off the text by construction.
 - CSP unchanged (no `unsafe-eval`, no inline script): a canvas and `gl.shaderSource` need no relaxation.
 
 ## Deploy on Dokploy

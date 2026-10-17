@@ -12,8 +12,10 @@
   var FPS = 30;               // frame cap
   var STEPS = T * FPS;        // grain frames per loop
   var STATIC_PHASE = 0.14;    // fraction of the loop shown when motion is reduced
-  var SLOW_MS = 20;           // above this average frame cost the resolution scale drops
+  var SLOW_MS = 20;           // above this median frame cost the resolution scale drops
+  var FAST_MS = 8;            // below this the scale may grow back toward 1
   var MIN_SCALE = 0.5;
+  var WARM = 4, WINDOW = 12, IDLE = 90;   // frames: skipped, sampled, left alone
 
   var VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   var FRAG = [
@@ -68,7 +70,7 @@
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var gl = null, prog = null, loc = {}, buf = null;
   var onScreen = false, running = false, raf = 0;
-  var scale = 1, last = 0, t0 = 0, cost = 0, frames = 0, lost = false;
+  var scale = 1, last = 0, elapsed = STATIC_PHASE * T * 1000, frames = 0, samples = [], lost = false;
 
   function compile(type, src) {
     var sh = gl.createShader(type);
@@ -132,25 +134,40 @@
 
   function shown() { canvas.classList.add('on'); }
 
+  /* Resolution scale: sample the real GPU cost (gl.finish) on a window of frames, skipping the warm-up ones, and use
+     the median. Above SLOW_MS render smaller; well under FAST_MS (with room to grow back) render bigger again. */
+  function adapt(a) {
+    var ph = frames++ % (WARM + WINDOW + IDLE);
+    if (ph < WARM) return;
+    if (ph < WARM + WINDOW) {
+      gl.finish();
+      samples.push(performance.now() - a);
+      return;
+    }
+    if (ph === WARM + WINDOW) {
+      samples.sort(function (x, y) { return x - y; });
+      var med = samples[samples.length >> 1];
+      samples = [];
+      if (med > SLOW_MS && scale > MIN_SCALE) scale = Math.max(MIN_SCALE, scale * 0.75);
+      else if (med < FAST_MS && scale < 1) scale = Math.min(1, scale / 0.75);
+    }
+  }
+
   function tick(now) {
     raf = 0;
     if (!running) return;
     raf = requestAnimationFrame(tick);
     if (now - last < 1000 / FPS - 2) return;           // cap at 30 fps
+    // The loop clock only advances while frames run, so pausing and resuming never makes the picture jump.
+    if (last) elapsed += Math.min(now - last, 100);
     last = now;
     var a = performance.now();
-    draw((((now - t0) / 1000) % T) / T);
+    draw(phase());
     shown();
-    // Frame cost: gl.finish() on 6 of every 60 frames gives the real GPU time; too slow, so render smaller.
-    var ph = frames++ % 60;
-    if (ph < 6) {
-      gl.finish();
-      cost += performance.now() - a;
-    } else if (ph === 6) {
-      if (cost / 6 > SLOW_MS && scale > MIN_SCALE) scale = Math.max(MIN_SCALE, scale * 0.75);
-      cost = 0;
-    }
+    adapt(a);
   }
+
+  function phase() { return ((elapsed / 1000) % T) / T; }
 
   function stop() {
     running = false;
@@ -160,10 +177,7 @@
   function start() {
     if (running || !gl || lost) return;
     running = true;
-    last = 0;
-    frames = 0;
-    cost = 0;
-    t0 = performance.now() - STATIC_PHASE * T * 1000;
+    last = 0;                                          // elapsed is kept: resume where it stopped
     raf = requestAnimationFrame(tick);
   }
 
@@ -199,6 +213,9 @@
     lost = false;
     if (setup()) update();
   });
+
+  // Handle for tests and debugging: draw any point of the loop, read the loop position.
+  canvas.heroGL = { render: function (frac) { draw(frac); }, phase: phase };
 
   document.addEventListener('visibilitychange', update);
   if (reduce.addEventListener) reduce.addEventListener('change', update);

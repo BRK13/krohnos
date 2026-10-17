@@ -302,8 +302,9 @@ def main():
         rm.close()
 
         # ---- WebGL ribbon in the hero ----
-        def new_page(width=1440, height=900, scheme="dark", motion="no-preference", init=COUNT_JS):
-            c = browser.new_context(viewport={"width": width, "height": height}, color_scheme=scheme, reduced_motion=motion)
+        def new_page(width=1440, height=900, scheme="dark", motion="no-preference", init=COUNT_JS, dsf=1):
+            c = browser.new_context(viewport={"width": width, "height": height}, color_scheme=scheme, reduced_motion=motion,
+                                    device_scale_factor=dsf)
             p = c.new_page()
             p.add_init_script(init)
             errs = []
@@ -333,7 +334,6 @@ def main():
         check("webgl: canvas aria-hidden and pointer-events none", info["aria"] == "true" and info["pe"] == "none", info)
         check("webgl: context created and alive", info["gl"] == "on" and info["ctx"] and not info["lost"], info)
         check("webgl: canvas covers the hero, no overlay (opacity 1)", info["ch"] == info["heroH"] and info["cw"] == 1440 and info["op"] == "1", info)
-        check("webgl: DPR capped at 2", info["w"] <= 1440 * 2, info)
         clip = hero_bounds(p)
         top = dict(clip, height=clip["height"] * 0.3)
         mx, frac = lit(p.screenshot(clip=top))
@@ -344,20 +344,25 @@ def main():
         a2 = p.screenshot(clip=top)
         check("webgl: animates (two frames differ)", a1 != a2)
         d0 = p.evaluate("window.__draws")
-        p.wait_for_timeout(2000)
+        p.wait_for_timeout(3000)
         d1 = p.evaluate("window.__draws")
-        check("webgl: capped at 30 fps (%d draws in 2 s)" % (d1 - d0), 5 <= d1 - d0 <= 63, d1 - d0)
+        check("webgl: capped at 30 fps and really running (%d draws in 3 s)" % (d1 - d0), 18 <= d1 - d0 <= 96, d1 - d0)
         # pause on visibilitychange
         p.evaluate("""() => { Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
           document.dispatchEvent(new Event('visibilitychange')); }""")
         p.wait_for_timeout(300)
+        ph_hidden = p.evaluate("document.getElementById('hero-gl').heroGL.phase()")
         d0 = p.evaluate("window.__draws")
-        p.wait_for_timeout(800)
+        p.wait_for_timeout(1500)
         check("webgl: paused while the tab is hidden", p.evaluate("window.__draws") == d0)
         p.evaluate("""() => { Object.defineProperty(document, 'hidden', {configurable: true, get: () => false});
           document.dispatchEvent(new Event('visibilitychange')); }""")
         p.wait_for_timeout(600)
         check("webgl: resumes when the tab is back", p.evaluate("window.__draws") > d0)
+        ph_back = p.evaluate("document.getElementById('hero-gl').heroGL.phase()")
+        adv = (ph_back - ph_hidden) % 1.0
+        check("webgl: resume keeps the loop position, no jump (advanced %.3f of the loop in ~0.6 s)" % adv,
+              0 <= adv <= 1.5 / 12, (ph_hidden, ph_back))
         # paused when the hero is off screen
         p.evaluate("window.scrollTo(0, document.querySelector('.hero').offsetHeight + 400)")
         p.wait_for_timeout(500)
@@ -368,6 +373,33 @@ def main():
         check("webgl: no layout shift (canvas is out of flow)", p.evaluate(
             "getComputedStyle(document.getElementById('hero-gl')).position") == "absolute")
         check("webgl: no console/page errors", not errs, errs)
+        c.close()
+
+
+        # perfect loop: the frame at the end of the period equals the frame at the start; a quarter period does not
+        c, p, _ = new_page(800, 600, motion="reduce")
+        r = p.evaluate("""() => {
+          const c = document.getElementById('hero-gl'), gl = c.getContext('webgl');
+          const read = f => { c.heroGL.render(f); const a = new Uint8Array(c.width * c.height * 4);
+            gl.readPixels(0, 0, c.width, c.height, gl.RGBA, gl.UNSIGNED_BYTE, a); return a; };
+          const a0 = read(0), a1 = read(1), aq = read(0.25), a2 = read(1 / 360);
+          const cmp = (x, y) => { let sum = 0, big = 0; for (let i = 0; i < x.length; i += 4) {
+            const d = Math.abs(x[i] - y[i]); sum += d; if (d > 3) big++; }
+            return {mean: sum / (x.length / 4), big: big / (x.length / 4)}; };
+          return {end: cmp(a0, a1), quarter: cmp(a0, aq), step: cmp(a0, a2)};
+        }""")
+        check("loop: frame at t=T equals frame at t=0 (mean diff %.3f, %.4f%% of pixels off by >3)" % (
+              r["end"]["mean"], r["end"]["big"] * 100), r["end"]["mean"] < 0.5 and r["end"]["big"] < 0.001, r)
+        check("loop: the check is sensitive (t=T/4 differs, mean diff %.1f)" % r["quarter"]["mean"],
+              r["quarter"]["mean"] > 2.0, r)
+        c.close()
+
+        # DPR cap: a 3x screen renders at 2x the CSS size at most
+        c, p, _ = new_page(1000, 700, motion="reduce", dsf=3)
+        m = p.evaluate("(() => { const c = document.getElementById('hero-gl');"
+                       " return {w: c.width, h: c.height, cw: c.clientWidth, ch: c.clientHeight}; })()")
+        check("webgl: DPR capped at 2 on a 3x screen (canvas %dx%d for %dx%d css)" % (m["w"], m["h"], m["cw"], m["ch"]),
+              m["w"] == 2 * m["cw"] and m["h"] == 2 * m["ch"], m)
         c.close()
 
         # contrast over the moving ribbon: 5 moments of the loop

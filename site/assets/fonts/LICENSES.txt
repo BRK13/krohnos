@@ -1,0 +1,2 @@
+Inter (variable, latin) by The Inter Project Authors, and Instrument Serif Italic (latin) by Instrument, both SIL OFL 1.1.
+Files obtained from the Fontsource npm packages (@fontsource-variable/inter, @fontsource/instrument-serif). Full licences: OFL-inter.txt, OFL-instrument-serif.txt.

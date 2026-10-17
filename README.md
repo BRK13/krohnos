@@ -9,7 +9,7 @@
 ---
 
 **One person. Six live products. Four Claude Code accounts and Codex as reviewer.
-1,309 pull requests merged in 7 days (Oct 7 to 14, 2026), driven from a phone.**
+1,313 pull requests merged in 7 days (Oct 7 to 14, 2026), driven from a phone.**
 
 Kronos Hub is the system behind those numbers. It is not a new model or a new agent. It is the *harness* around the
 agents: the queue, the rules, the gates and the memory that make many agents produce work you can trust.
@@ -60,7 +60,7 @@ the standalone **`kronos-harness`** plugin for Claude Code, then the full hub wi
 ## Português
 
 **Uma pessoa. Seis produtos no ar. Quatro contas do Claude Code e o Codex revisando.
-1.309 pull requests mergeados em 7 dias (7 a 14/10/2026), comandados pelo celular.**
+1.313 pull requests mergeados em 7 dias (7 a 14/10/2026), comandados pelo celular.**
 
 O Kronos Hub é o sistema por trás desses números. Não é um modelo nem um agente novo: é o *harness* em volta dos
 agentes. A fila, as regras, os portões e a memória que fazem vários agentes entregarem trabalho confiável.

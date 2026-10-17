@@ -146,7 +146,7 @@
         "id": "links",
         "title": "Project",
         "blocks": [
-          {"t": "p", "x": "Every task goes through `contract → queue → agents → review → CI → merge → deploy`. The README of the project reports 1,309 pull requests merged in 7 days (Oct 7 to 14, 2026), made with four Claude Code accounts and Codex as reviewer."},
+          {"t": "p", "x": "Every task goes through `contract → queue → agents → review → CI → merge → deploy`. The README of the project reports 1,313 pull requests merged in 7 days (Oct 7 to 14, 2026), made with four Claude Code accounts and Codex as reviewer."},
           {"t": "ul", "x": [
             "[GitHub](https://github.com/BRK13/krohnos)",
             "[License: AGPL-3.0](https://github.com/BRK13/krohnos/blob/main/LICENSE)",
@@ -268,7 +268,7 @@
         "id": "links",
         "title": "Projeto",
         "blocks": [
-          {"t": "p", "x": "Toda tarefa passa por `contract → queue → agents → review → CI → merge → deploy`. O README do projeto relata 1.309 pull requests integrados em 7 dias (7 a 14 de outubro de 2026), feitos com quatro contas do Claude Code e o Codex como revisor."},
+          {"t": "p", "x": "Toda tarefa passa por `contract → queue → agents → review → CI → merge → deploy`. O README do projeto relata 1.313 pull requests integrados em 7 dias (7 a 14 de outubro de 2026), feitos com quatro contas do Claude Code e o Codex como revisor."},
           {"t": "ul", "x": [
             "[GitHub](https://github.com/BRK13/krohnos)",
             "[Licença: AGPL-3.0](https://github.com/BRK13/krohnos/blob/main/LICENSE)",

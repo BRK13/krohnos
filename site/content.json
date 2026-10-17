@@ -5,7 +5,7 @@
     "docs": "https://github.com/BRK13/krohnos/tree/main/docs",
     "releases": "https://github.com/BRK13/krohnos/releases",
     "license": "https://github.com/BRK13/krohnos/blob/main/LICENSE",
-    "security": "https://github.com/BRK13/krohnos/blob/main/SECURITY.md",
+    "security": "https://github.com/BRK13/krohnos/blob/main/docs/security.md",
     "advisories": "https://github.com/BRK13/krohnos/security/advisories/new",
     "roadmap": "https://github.com/BRK13/krohnos/blob/main/ROADMAP.md"
   },
@@ -111,8 +111,34 @@
             "x": "**Six businesses in operation** Krohnos has operated six businesses for at least one week, with execution history since October 8, 2026 and a project registry verified on October 17, 2026. Explore five of the projects in production."
           },
           {
-            "t": "p",
-            "x": "[Precedentes](https://precedentes.com.br) · [Acta Control](https://actacontrol.com) · [Fisio Gentil](https://fisiogentil.com) · [Fernanda Ferro](https://fernandaferro.com) · [Psi Por Aí](https://psiporai.com)"
+            "t": "projects",
+            "items": [
+              {
+                "name": "Precedentes",
+                "url": "https://precedentes.com.br",
+                "slug": "precedentes"
+              },
+              {
+                "name": "Acta Control",
+                "url": "https://actacontrol.com",
+                "slug": "acta"
+              },
+              {
+                "name": "Fisio Gentil",
+                "url": "https://fisiogentil.com",
+                "slug": "fisio"
+              },
+              {
+                "name": "Fernanda Ferro",
+                "url": "https://fernandaferro.com",
+                "slug": "fernanda"
+              },
+              {
+                "name": "Psi Por Aí",
+                "url": "https://psiporai.com",
+                "slug": "psiporai"
+              }
+            ]
           },
           {
             "t": "p",
@@ -126,11 +152,11 @@
         "blocks": [
           {
             "t": "p",
-            "x": "**Follow the self-hosted distribution** Krohnos operates on Krohn Capital infrastructure. The public distribution is in preparation. Follow updates on GitHub or contact us for early access information."
+            "x": "**Follow the launch on GitHub** Krohnos operates on Krohn Capital infrastructure. The public self-hosted distribution is in preparation. Enable Watch for updates or Star to follow the project."
           },
           {
             "t": "p",
-            "x": "[Follow on GitHub](https://github.com/BRK13/krohnos) · [Ask about early access](mailto:brunokrohn@gmail.com)"
+            "x": "[Follow the launch on GitHub](https://github.com/BRK13/krohnos)"
           }
         ]
       }
@@ -237,8 +263,34 @@
             "x": "**Seis negócios em operação** O Krohnos opera seis negócios há pelo menos uma semana, com histórico de execução desde 08/10/2026 e cadastro verificado em 17/10/2026. Conheça cinco dos projetos em produção."
           },
           {
-            "t": "p",
-            "x": "[Precedentes](https://precedentes.com.br) · [Acta Control](https://actacontrol.com) · [Fisio Gentil](https://fisiogentil.com) · [Fernanda Ferro](https://fernandaferro.com) · [Psi Por Aí](https://psiporai.com)"
+            "t": "projects",
+            "items": [
+              {
+                "name": "Precedentes",
+                "url": "https://precedentes.com.br",
+                "slug": "precedentes"
+              },
+              {
+                "name": "Acta Control",
+                "url": "https://actacontrol.com",
+                "slug": "acta"
+              },
+              {
+                "name": "Fisio Gentil",
+                "url": "https://fisiogentil.com",
+                "slug": "fisio"
+              },
+              {
+                "name": "Fernanda Ferro",
+                "url": "https://fernandaferro.com",
+                "slug": "fernanda"
+              },
+              {
+                "name": "Psi Por Aí",
+                "url": "https://psiporai.com",
+                "slug": "psiporai"
+              }
+            ]
           },
           {
             "t": "p",
@@ -252,11 +304,11 @@
         "blocks": [
           {
             "t": "p",
-            "x": "**Acompanhe a distribuição self-hosted** O Krohnos está em operação na infraestrutura da Krohn Capital. A distribuição pública está em preparação. Acompanhe as atualizações pelo GitHub ou entre em contato para informações sobre acesso antecipado."
+            "x": "**Acompanhe o lançamento no GitHub** O Krohnos está em operação na infraestrutura da Krohn Capital. A distribuição pública self-hosted está em preparação. Ative Watch para receber atualizações ou Star para acompanhar o projeto."
           },
           {
             "t": "p",
-            "x": "[Acompanhar no GitHub](https://github.com/BRK13/krohnos) · [Falar sobre acesso antecipado](mailto:brunokrohn@gmail.com)"
+            "x": "[Acompanhar o lançamento no GitHub](https://github.com/BRK13/krohnos)"
           }
         ]
       }

@@ -1,56 +1,46 @@
-# Krohnos: self-host site
+# Krohnos · site institucional
 
-Static, bilingual (en, pt-BR) page for the self-host install. No framework, no npm, no external assets.
+Página estática bilíngue, em inglês e português, sobre o orquestrador multiagente self-hosted.
+O site apresenta a operação atual; a distribuição pública está em acesso antecipado.
+Não publica comandos de instalação sem teste em máquina limpa.
 
-- `content.json`: the single source of the text (en + pt-BR) and the 5 install commands.
-- `build.py`: Python stdlib, deterministic. Writes `dist/` with `index.html`, `pt/index.html`, `install.md`,
-  `install.pt.md`, `llms.txt`, `robots.txt`, `sitemap.xml`, `favicon.svg`, `assets/`.
-- `assets/hero-gl.js`: hero background, a ribbon of light drawn by a WebGL1 fragment shader (see below).
-- `assets/`: CSS, JS and the self-hosted fonts (Inter and Instrument Serif, SIL OFL 1.1; see `assets/fonts/LICENSES.txt`).
-- `Dockerfile` + `nginx.conf`: build with `python:3.12-alpine`, serve with `nginx:alpine` (correct types for
-  `.md`/`.txt`/`.xml`, asset cache, security headers with a strict CSP, gzip, `www` to apex 301).
+- `content.json`: fonte única do conteúdo nas duas línguas.
+- `build.py`: gerador determinístico em Python stdlib, utilizado no CI e no Dockerfile.
+- `EVIDENCE.md`: fontes, data, limites e metodologia das métricas publicadas.
+- `assets/`: fontes locais Inter e Instrument Serif, ampulheta aprovada e capturas dos cinco projetos autorizados.
+- `assets/hero-gl.js`: ativo legado preservado, sem carregamento na página.
+- `Dockerfile` e `nginx.conf`: geração e publicação pelo Dokploy, com CSP restrita e sem CDN.
 
-## Build and preview
-
-```bash
-cd site
-python3 build.py                  # writes site/dist
-python3 -m http.server 8099 -d dist
-```
-
-Paths in the HTML are absolute (`/assets/...`), so serve `dist/` from a web root, not from `file://`.
-
-## Tests
+## Validação focada
 
 ```bash
-cd site
-python3 -m unittest discover -s tests -v     # build output, commands, links, forbidden terms, no CDN
-python3 tests/browser_test.py                # Playwright (chromium, software WebGL): copy buttons, i18n, theme, hero, mobile menu, WebGL ribbon; screenshots
+python3 -m unittest discover -s site/tests -p test_build.py -v
+SHOTS_DIR=/caminho/para/prints python3 site/tests/browser_test.py
 ```
 
-`browser_test.py` writes screenshots to `$SHOTS_DIR` (default `./shots`, ignored by git).
+Os testes geram o site em uma pasta temporária. O teste de navegador verifica as duas línguas
+em 320, 390, 768 e 1440 px, menu, navegação, ausência de sobreposição/transbordamento,
+marca, tema, funcionamento sem JavaScript e links de acesso antecipado.
+O ambiente precisa de Playwright e Chromium.
 
-## Hero background (WebGL shader)
+Para executar também a inspeção visual, defina `INSPECT_SCRIPT` com o caminho para `inspect.mjs`.
+Nenhuma regra é dispensada. As capturas são gravadas em `SHOTS_DIR` e devem ser conferidas visualmente.
+Build de produção e suíte completa pertencem ao runner e ao deploy.
 
-`<canvas id="hero-gl">` behind the hero text, drawn by `assets/hero-gl.js`: two twisting sinusoidal surfaces,
-fresnel alpha, soft blurred borders, fine animated grain, monochrome on pure black. 0 bytes of video or image, sharp at any size.
+## Publicação
 
-- Perfect loop (tested: the frame at t = T equals the frame at t = 0): all time enters through the phase (period T = 12 s, integer harmonics); the grain is seeded by an integer frame index in [0, 360).
-- Cap of 30 fps; paused when the tab is hidden (`visibilitychange`), when the hero is scrolled away, or when the canvas is hidden.
-- DPR capped at 2; the render scale drops (down to 0.5) when the median frame cost passes 20 ms (and grows back when it stays under 8 ms). The loop clock only advances while frames run, so pause/resume has no jump.
-- `prefers-reduced-motion`: one still frame, no loop. No WebGL (or shader failure): the canvas stays transparent over the black page.
-- Dark theme only: in the light theme the canvas is `display:none` and the hero is a flat background (decision: a white ribbon on a light page would not read).
-- Legibility without an overlay: the shader draws only in the free band above the hero text (`uFree`, measured from `.hero-in`), so no line of text sits on the ribbon; `browser_test.py` measures WCAG AA against the brightest canvas pixel under each text line, in samples of the loop (5 moments on desktop, 3 on mobile, plus the still frames), not in every frame; the band keeps the ribbon off the text by construction.
-- CSP unchanged (no `unsafe-eval`, no inline script): a canvas and `gl.shaderSource` need no relaxation.
+Dokploy: aplicação `app-compress-digital-capacitor-setuzd`, repositório `BRK13/krohnos`,
+branch `main`, contexto `site`, Dockerfile `Dockerfile`, porta 80.
+Domínios `krohnos.com` e `www.krohnos.com`, com redirecionamento para o domínio principal.
 
-## Deploy on Dokploy
+A ativação do autodeploy exige operação administrativa no Dokploy pela fronteira de propostas.
+Depois de ativar, validar um merge na main conferindo o deploy correspondente e o HTML servido.
+O estado só pode ser considerado concluído após essa prova, sem disparo manual.
 
-Create an application from the repository `BRK13/krohnos`, branch `main`:
+## Decisões visuais
 
-- Build type: Dockerfile
-- Build path: `site`
-- Dockerfile: `Dockerfile`
-- Port: 80
-- Domains: `krohnos.com` and `www.krohnos.com` (nginx redirects `www` to the root with a 301; TLS comes from Dokploy).
-
-No GitHub Actions, no Vercel. To change the text, edit `content.json` and redeploy.
+Preto e verde profundo conforme atualização do Bruno em 17/10/2026 na BRU-1121.
+Ampulheta original, com a mesma geometria e cores adaptadas à paleta.
+Cabeçalho no fluxo do documento e menu expansível que desloca o conteúdo.
+Sem fita de luz; apenas entrada breve de elementos, desativada por `prefers-reduced-motion`.
+Capturas reais das páginas iniciais dos projetos, sem imagens de painel simuladas.

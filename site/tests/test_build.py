@@ -93,13 +93,23 @@ class Build(unittest.TestCase):
                 for link in links:
                     self.assertNotRegex(link, "nofollow|sponsored|ugc")
 
+    def test_institutional_homepage(self):
+        for rel in ["index.html", "pt/index.html"]:
+            text = self.read(rel)
+            for term in ["Atenção", "Status:", "/comecar", "404"]:
+                self.assertNotIn(term, text)
+            self.assertLessEqual(text.count("<pre>"), 1)
+        for lang in ("pt", "en"):
+            inside = next(s for s in self.data[lang]["sections"] if s["id"] == "inside")
+            self.assertTrue(3 <= len(inside["blocks"]) <= 6)
+
     def test_llms_txt(self):
         t = self.read("llms.txt")
         self.assertTrue(t.startswith("# Krohnos\n\n> "))
         for u in ["https://krohnos.com/install.md", "https://krohnos.com/install.pt.md",
                   "https://github.com/BRK13/krohnos", "https://github.com/BRK13/krohnos/releases",
                   "https://github.com/BRK13/krohnos/blob/main/LICENSE",
-                  "https://github.com/BRK13/krohnos/blob/main/SECURITY.md",
+                  "https://github.com/BRK13/krohnos/blob/main/docs/security.md",
                   "https://github.com/BRK13/krohnos/blob/main/ROADMAP.md"]:
             self.assertIn(u, t)
 

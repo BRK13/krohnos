@@ -53,6 +53,8 @@ def install_short(data):
 # ---------- markdown ----------
 def block_md(b, data, lang):
     t = b["t"]
+    if t == "projects":
+        return " · ".join("[%s](%s)" % (x["name"], x["url"]) for x in b["items"])
     if t == "p":
         return b["x"]
     if t == "ul":
@@ -90,6 +92,11 @@ def code_block(cid, text, ui, label):
 def block_html(b, data, lang, sid, idx):
     ui = data[lang]["ui"]
     t = b["t"]
+    if t == "projects":
+        return '<div class="project-grid">' + ''.join(
+            '<a class="project" href="%s"><img src="/assets/projects/%s.jpg" width="1000" height="650" loading="lazy" alt="%s"><span>%s <span aria-hidden="true">↗</span></span></a>' %
+            (html.escape(x["url"], quote=True), html.escape(x["slug"], quote=True), html.escape(x["name"], quote=True), html.escape(x["name"]))
+            for x in b["items"]) + '</div>'
     if t == "p":
         return "<p>%s</p>" % inline_html(b["x"])
     if t == "ul":
@@ -154,6 +161,7 @@ def page_html(data, lang):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="krohnos-release" content="bru-1121">
 <meta name="color-scheme" content="dark light">
 <title>{html.escape(c['meta_title'])}</title>
 <meta name="description" content="{html.escape(c['meta_description'])}">

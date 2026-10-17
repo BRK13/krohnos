@@ -18,3 +18,7 @@
 @media(min-width:761px) and (max-width:1100px){#proof{margin:16px 0;padding:30px}.top{gap:12px}.links{gap:12px}.tools{gap:6px}.pill.small{padding:9px}.brand{font-size:21px}}
 
 #inside .sec-body p:last-child{grid-column:auto}
+#proof .sec-body{grid-template-columns:1fr}#proof .sec-body>p:first-child{max-width:850px}.project-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}.project{display:block;text-decoration:none;color:var(--tx);font-size:15px}.project img{width:100%;height:auto;display:block;border-radius:3px;aspect-ratio:1000/650;object-fit:cover}.project>span{display:flex;justify-content:space-between;padding:12px 0}.project>span>span{color:var(--gold)}#proof .sec-body>p:last-child{max-width:900px}.project:hover{color:var(--gold)}
+@media(max-width:1100px){.project-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.project-grid{grid-template-columns:1fr;gap:20px}}
+@media(prefers-reduced-motion:no-preference){.hero-in>h1,.hero-in>.sub,.hero-in>.cta{animation:arrive .65s both}.hero-in>.sub{animation-delay:.12s}.hero-in>.cta{animation-delay:.24s}}

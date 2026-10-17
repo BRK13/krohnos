@@ -59,3 +59,7 @@ Comandos só devem voltar com a publicação do código e teste de instalação 
 (clone e inicialização), ligado às BRU-1052/BRU-1102.
 
 Atualização de identidade em 17/10/2026: preto e verde profundo, conforme decisão do Bruno na BRU-1121. A geometria da ampulheta aprovada foi preservada, com as cores ajustadas à nova paleta.
+
+## Capturas dos projetos
+
+Capturas das páginas iniciais públicas em 17/10/2026, viewport 1000 × 650, JPEG local. As imagens não representam a interface do Krohnos; cada uma está ligada ao respectivo projeto.

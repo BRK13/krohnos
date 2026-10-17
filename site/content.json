@@ -9,151 +9,129 @@
     "advisories": "https://github.com/BRK13/krohnos/security/advisories/new",
     "roadmap": "https://github.com/BRK13/krohnos/blob/main/ROADMAP.md"
   },
-  "install_steps": [
-    {
-      "cmd": "git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos",
-      "en": "get the code",
-      "pt": "baixe o código"
-    },
-    {
-      "cmd": "docker compose build painel",
-      "en": "build the image (one image serves the 4 services)",
-      "pt": "construa a imagem (uma só serve os 4 serviços)"
-    },
-    {
-      "cmd": "docker compose run --rm --no-deps --entrypoint krohnos painel init",
-      "en": "configure: `krohnos init` creates krohnos.toml (volume `config`), the master key, the vault and YOUR owner user",
-      "pt": "configure: o `krohnos init` cria o krohnos.toml (volume `config`), a chave mestra, o cofre e o SEU usuário de dono"
-    },
-    {
-      "cmd": "docker compose up -d",
-      "en": "start the 4 services (panel, schedule, webhook, mcp)",
-      "pt": "suba os 4 serviços (painel, agenda, webhook, mcp)"
-    },
-    {
-      "cmd": "curl -fsS http://127.0.0.1:8787/saude",
-      "en": "check: must answer ok",
-      "pt": "confira: deve responder ok"
-    }
-  ],
+  "install_steps": [],
   "en": {
     "lang": "en",
     "name": "Krohnos",
-    "meta_title": "Krohnos: coding agents that prove the work is done",
-    "meta_description": "Open source (AGPL-3.0), self-hosted harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Docker Compose install.",
-    "summary": "Krohnos is a harness that puts coding-agent accounts to work on a queue: contract, queue, accounts, review, CI, merge, deploy, receipt. Open source (AGPL-3.0), self-hosted with Docker Compose.",
-    "md_title": "Krohnos: self-host install",
-    "nav": {"install": "Install", "docs": "Docs", "github": "GitHub", "changelog": "Changelog", "menu": "Menu", "close": "Close", "theme": "Theme", "language": "Português", "language_label": "Leia em português"},
+    "meta_title": "Krohnos · Self-hosted multi-agent AI orchestrator",
+    "meta_description": "Your AI agent team, on your server. Lead from your phone; receive reviewed, live deliveries with evidence. Multiple projects, SEO and a second brain.",
+    "summary": "Krohnos is a self-hosted multi-agent AI orchestrator that connects projects, SEO and knowledge to deliver reviewed, verified results, managed through WhatsApp or its panel.",
+    "md_title": "Krohnos · Self-hosted multi-agent AI orchestrator",
+    "nav": {
+      "install": "Early access",
+      "docs": "What is inside",
+      "github": "GitHub",
+      "changelog": "Changelog",
+      "menu": "Menu",
+      "close": "Close",
+      "theme": "Theme",
+      "language": "Português",
+      "language_label": "Leia em português"
+    },
     "ui": {
-      "copy": "Copy", "copied": "Copied", "copy_failed": "Select and copy manually",
-      "copy_md": "Copy as Markdown", "copy_md_short": "Markdown", "copied_md": "Markdown copied",
-      "star": "Star on GitHub", "skip": "Skip to content", "command_label": "Install commands",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copy_failed": "Select and copy manually",
+      "copy_md": "Copy as Markdown",
+      "copy_md_short": "Markdown",
+      "copied_md": "Markdown copied",
+      "star": "Follow on GitHub",
+      "skip": "Skip to content",
+      "command_label": "Install commands",
       "terminal_label": "The flow of one task"
     },
     "hero": {
-      "badge": "Open source · AGPL-3.0 · self-hosted",
-      "line1_before": "Coding agents that ",
-      "line1_em": "prove",
+      "badge": "MULTIAGENTE · SELF-HOSTED",
+      "line1_before": "Multi-agent AI.",
+      "line1_em": "",
       "line1_after": "",
-      "line2": "the work is done.",
-      "sub": "Self-hosted harness for coding-agent accounts: a task is done only with evidence (merged, live, checks passing) and a receipt. Contract, queue, review, CI, merge, deploy.",
-      "status": "Status: the public repository is still receiving the code (today it has the README and the roadmap). The snapshot with `compose.yml` arrives with the publication; the install commands on this page are the steps it will run."
+      "line2": "Local control.",
+      "sub": "Krohnos is a self-hosted multi-agent AI orchestrator that connects projects, SEO and knowledge to deliver reviewed, verified results, managed through WhatsApp or its panel.",
+      "status": ""
     },
     "terminal": [
-      ["contract", "outcome, scope, proof of done"],
-      ["queue", "the task waits for an account"],
-      ["agents", "one git worktree per account"],
-      ["review", "a second model reads the diff"],
-      ["CI", "tests must pass"],
-      ["merge", "only after review and CI"],
-      ["deploy", "then check that it is live"],
-      ["receipt", "what changed, the evidence, what is open"]
+      [
+        "01",
+        "Request"
+      ],
+      [
+        "02",
+        "Orchestrator"
+      ],
+      [
+        "03",
+        "Parallel agents"
+      ],
+      [
+        "04",
+        "Review + checks"
+      ],
+      [
+        "05",
+        "Live, with evidence"
+      ]
     ],
     "sections": [
       {
-        "id": "requirements",
-        "title": "Requirements",
+        "id": "inside",
+        "title": "What is inside",
         "blocks": [
-          {"t": "ul", "x": [
-            "A Linux machine (VPS or PC) with **Docker 24+** and the **Docker Compose v2** plugin (`docker compose version`).",
-            "2 GB of free RAM and about 4 GB of disk (the image carries Python, Node 22, `git`, `gh` and the Claude Code CLI).",
-            "Optional: a domain (or subdomain) pointing at the server, if you want to open the panel over the internet with TLS.",
-            "Optional, later: a GitHub token and a Linear API key (the assistant asks; you can skip them)."
-          ]},
-          {"t": "p", "x": "No secret goes into the image. They live in Docker volumes (`cofre`, `dados`, `home`)."}
+          {
+            "t": "p",
+            "x": "**Orchestration and parallel execution** The orchestrator plans and dispatches tasks through a Linear queue. Claude Code and Codex accounts work in building, operating and reviewing lanes, with automatic handover to another available account when a quota is exhausted. Parallel execution reduces waiting time between requests."
+          },
+          {
+            "t": "p",
+            "x": "**Review and the Done gate** Review by another model, such as Codex, is part of the CI, merge and deployment workflow. The Done gate requires evidence of integration, publication and passing checks and reopens tasks closed without delivery. Each completion represents a verifiable result."
+          },
+          {
+            "t": "p",
+            "x": "**Second brain and recipe library** The knowledge graph, compiled wiki and visual map preserve decisions and connect lessons. The library injects relevant recipes into task dispatch to reduce repeated work and maintain continuity across projects."
+          },
+          {
+            "t": "p",
+            "x": "**Multi-project management** One panel brings sites and businesses together, with BI per project and integrations for Google Search Console, GA4, Clarity, Meta and CRM. Each integration follows the configuration of the business, providing a consolidated view for decisions."
+          },
+          {
+            "t": "p",
+            "x": "**SEO and field performance** SEOmator auditing provides weekly coverage per section, while Clarity and RUM track real browsing experience. The system monitors rankings and visibility across ChatGPT, Claude, Gemini and Perplexity and routes eligible findings to automatic fixes with review and verification."
+          },
+          {
+            "t": "p",
+            "x": "**Monitoring and operational efficiency** Watchers and the debugger identify failures and route repairs. Model selection considers the task, and CI, review and deployment waits can resume without another AI call, reducing operational consumption."
+          }
+        ]
+      },
+      {
+        "id": "proof",
+        "title": "Production operations",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Six businesses in operation** Krohnos has operated six businesses for at least one week, with execution history since October 8, 2026 and a project registry verified on October 17, 2026. Explore five of the projects in production."
+          },
+          {
+            "t": "p",
+            "x": "[Precedentes](https://precedentes.com.br) · [Acta Control](https://actacontrol.com) · [Fisio Gentil](https://fisiogentil.com) · [Fernanda Ferro](https://fernandaferro.com) · [Psi Por Aí](https://psiporai.com)"
+          },
+          {
+            "t": "p",
+            "x": "**1,038 successful executions** On October 16, 2026, the usage log recorded 1,038 agent and routine executions completed successfully without interruption. [Measurement source and methodology](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
+          }
         ]
       },
       {
         "id": "install",
-        "title": "Install",
+        "title": "Early access",
         "blocks": [
-          {"t": "p", "x": "Five steps, from a clean server to the panel running."},
-          {"t": "install"},
-          {"t": "p", "x": "Then open the panel (see Reverse proxy below), sign in with the owner email and password, and follow the assistant at `/comecar`."},
-          {"t": "warn", "x": "Do not put the panel on the internet before running `krohnos init` (step 3). While an install has no owner, whoever opens `/comecar` first becomes the owner. `krohnos init` creates the owner before the panel starts; when the assistant finishes, `/comecar` answers 404."}
-        ]
-      },
-      {
-        "id": "config",
-        "title": "Configuration",
-        "blocks": [
-          {"t": "p", "x": "`krohnos.toml` lives in the `config` volume (writable: the `/comecar` assistant rewrites it). Secrets never go in the toml: the master key and the vault live in the `cofre` volume; panel users (password hash only), the project and the examples live in `dados`."},
-          {"t": "p", "x": "`krohnos init` asks everything (domain, owner name and email, password, GitHub organization, first project). To skip the questions, change the end of the step 3 command to `init --sim ...`:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --sim --dominio krohnos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
-          {"t": "p", "x": "Use `--exemplo` instead of `--projeto-dominio` for the demonstration projects. The password never goes on the command line: let `init` generate one (it is shown once, keep it) or use `--dono-senha-env VARIABLE_NAME`."},
-          {"t": "p", "x": "Running `init` again is safe: an existing toml, key, vault, users and project are kept. To change the panel port:"},
-          {"t": "code", "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"}
-        ]
-      },
-      {
-        "id": "proxy",
-        "title": "Reverse proxy (TLS)",
-        "blocks": [
-          {"t": "p", "x": "The panel speaks HTTP on port 8787. Put a TLS proxy in front of it. The session cookie is `Secure`: the browser only keeps it over HTTPS (or `http://localhost`). The Linear webhook (8790) and the MCP server (4181) stay on the server's `127.0.0.1`."},
-          {"t": "p", "x": "Caddy, two lines, automatic certificate:"},
-          {"t": "code", "lang": "caddy", "x": "krohnos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
-        ]
-      },
-      {
-        "id": "accounts",
-        "title": "Connect your agent accounts",
-        "blocks": [
-          {"t": "p", "x": "The first-run assistant at `/comecar` walks through four things: GitHub, Linear, your first project and your first Claude account. Everything but the first project can be skipped and done later."},
-          {"t": "p", "x": "To see the panel full before you configure your own, run the demo. It fills a fresh install with invented, marked data (`demo --limpar` removes only that data, and it refuses to run on a data folder that already holds real data). Restart the panel afterwards so it reads the new projects:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel demo\ndocker compose restart painel"}
-        ]
-      },
-      {
-        "id": "update",
-        "title": "Update",
-        "blocks": [
-          {"t": "p", "x": "These are the standard Docker Compose commands for this install (they are not part of the project's install guide). Pull the code, rebuild the image, restart the services; volumes keep your data."},
-          {"t": "code", "x": "git pull && docker compose build painel && docker compose up -d"}
-        ]
-      },
-      {
-        "id": "uninstall",
-        "title": "Uninstall",
-        "blocks": [
-          {"t": "p", "x": "Again the standard Docker Compose commands for this install. The first stops and removes the containers and keeps the volumes:"},
-          {"t": "code", "x": "docker compose down"},
-          {"t": "p", "x": "The second also deletes the volumes:"},
-          {"t": "code", "x": "docker compose down -v"},
-          {"t": "warn", "x": "`-v` deletes the vault, the data and the config volumes, including the master key and the panel logins. There is no undo: back them up first."}
-        ]
-      },
-      {
-        "id": "links",
-        "title": "Project",
-        "blocks": [
-          {"t": "p", "x": "Every task goes through `contract → queue → agents → review → CI → merge → deploy`. The README of the project reports 1,313 pull requests merged in 7 days (Oct 7 to 14, 2026), made with four Claude Code accounts and Codex as reviewer."},
-          {"t": "ul", "x": [
-            "[GitHub](https://github.com/BRK13/krohnos)",
-            "[License: AGPL-3.0](https://github.com/BRK13/krohnos/blob/main/LICENSE)",
-            "[Security policy](https://github.com/BRK13/krohnos/blob/main/SECURITY.md): report vulnerabilities privately with [GitHub Security Advisories](https://github.com/BRK13/krohnos/security/advisories/new)",
-            "[Roadmap](https://github.com/BRK13/krohnos/blob/main/ROADMAP.md)",
-            "[Releases (changelog)](https://github.com/BRK13/krohnos/releases)"
-          ]}
+          {
+            "t": "p",
+            "x": "**Follow the self-hosted distribution** Krohnos operates on Krohn Capital infrastructure. The public distribution is in preparation. Follow updates on GitHub or contact us for early access information."
+          },
+          {
+            "t": "p",
+            "x": "[Follow on GitHub](https://github.com/BRK13/krohnos) · [Ask about early access](mailto:brunokrohn@gmail.com)"
+          }
         ]
       }
     ]
@@ -161,121 +139,125 @@
   "pt": {
     "lang": "pt-BR",
     "name": "Krohnos",
-    "meta_title": "Krohnos: agentes de código que provam que terminaram",
-    "meta_description": "Harness open source (AGPL-3.0) e auto-hospedado que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Instalação com Docker Compose.",
-    "summary": "O Krohnos é um harness que coloca contas de agente de código para trabalhar numa fila: contrato, fila, contas, revisão, CI, merge, deploy, recibo. Open source (AGPL-3.0), auto-hospedado com Docker Compose.",
-    "md_title": "Krohnos: instalação self-host",
-    "nav": {"install": "Instalar", "docs": "Docs", "github": "GitHub", "changelog": "Changelog", "menu": "Menu", "close": "Fechar", "theme": "Tema", "language": "English", "language_label": "Read in English"},
+    "meta_title": "Krohnos · Orquestrador multiagente de IA self-hosted",
+    "meta_description": "Seu time de agentes de IA, no seu servidor. Comande pelo celular; receba entregas revisadas, no ar e com prova. Multi-projeto, SEO e segundo cérebro.",
+    "summary": "O Krohnos é um orquestrador multiagente de IA self-hosted que integra projetos, SEO e conhecimento para entregar resultados revisados e comprovados, com gestão pelo WhatsApp ou painel.",
+    "md_title": "Krohnos · Orquestrador multiagente de IA self-hosted",
+    "nav": {
+      "install": "Acesso antecipado",
+      "docs": "O que tem dentro",
+      "github": "GitHub",
+      "changelog": "Changelog",
+      "menu": "Menu",
+      "close": "Fechar",
+      "theme": "Tema",
+      "language": "English",
+      "language_label": "Read in English"
+    },
     "ui": {
-      "copy": "Copiar", "copied": "Copiado", "copy_failed": "Selecione e copie à mão",
-      "copy_md": "Copiar como Markdown", "copy_md_short": "Markdown", "copied_md": "Markdown copiado",
-      "star": "Star no GitHub", "skip": "Ir para o conteúdo", "command_label": "Comandos de instalação",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copy_failed": "Selecione e copie à mão",
+      "copy_md": "Copiar como Markdown",
+      "copy_md_short": "Markdown",
+      "copied_md": "Markdown copiado",
+      "star": "Acompanhar no GitHub",
+      "skip": "Ir para o conteúdo",
+      "command_label": "Comandos de instalação",
       "terminal_label": "O fluxo de uma tarefa"
     },
     "hero": {
-      "badge": "Open source · AGPL-3.0 · self-hosted",
-      "line1_before": "Agentes de código que ",
-      "line1_em": "provam",
+      "badge": "MULTIAGENTE · SELF-HOSTED",
+      "line1_before": "IA multiagente.",
+      "line1_em": "",
       "line1_after": "",
-      "line2": "que o trabalho está pronto.",
-      "sub": "Harness auto-hospedado para contas de agente de código: tarefa só está pronta com evidência (integrada, no ar, checagens passando) e recibo. Contrato, fila, revisão, CI, merge, deploy.",
-      "status": "Status: o repositório público ainda está recebendo o código (hoje tem o README e o roadmap). O snapshot com o `compose.yml` chega com a publicação; os comandos de instalação desta página são os passos que ele vai rodar."
+      "line2": "Controle local.",
+      "sub": "O Krohnos é um orquestrador multiagente de IA self-hosted que integra projetos, SEO e conhecimento para entregar resultados revisados e comprovados, com gestão pelo WhatsApp ou painel.",
+      "status": ""
     },
     "terminal": [
-      ["contrato", "resultado, escopo, prova de pronto"],
-      ["fila", "a tarefa espera uma conta"],
-      ["agentes", "um git worktree por conta"],
-      ["revisão", "um segundo modelo lê o diff"],
-      ["CI", "os testes precisam passar"],
-      ["merge", "só depois da revisão e do CI"],
-      ["deploy", "e então confere se está no ar"],
-      ["recibo", "o que mudou, a evidência, o que segue aberto"]
+      [
+        "01",
+        "Pedido"
+      ],
+      [
+        "02",
+        "Orquestrador"
+      ],
+      [
+        "03",
+        "Agentes em paralelo"
+      ],
+      [
+        "04",
+        "Revisão + checagens"
+      ],
+      [
+        "05",
+        "No ar, com prova"
+      ]
     ],
     "sections": [
       {
-        "id": "requirements",
-        "title": "Requisitos",
+        "id": "inside",
+        "title": "O que tem dentro",
         "blocks": [
-          {"t": "ul", "x": [
-            "Uma máquina Linux (VPS ou PC) com **Docker 24+** e o plugin **Docker Compose v2** (`docker compose version`).",
-            "2 GB de RAM livres e uns 4 GB de disco (a imagem leva Python, Node 22, `git`, `gh` e o CLI do Claude Code).",
-            "Opcional: um domínio (ou subdomínio) apontado para o servidor, se quiser abrir o painel pela internet com TLS.",
-            "Opcional, depois: um token do GitHub e uma chave de API do Linear (o assistente pede; dá para pular)."
-          ]},
-          {"t": "p", "x": "Nenhum segredo entra na imagem. Eles vivem em volumes do Docker (`cofre`, `dados`, `home`)."}
+          {
+            "t": "p",
+            "x": "**Orquestração e execução paralela** O orquestrador planeja e distribui as tarefas pela fila do Linear. Contas Claude Code e Codex atuam nas faixas de construção, operação e revisão, com transferência automática para outra conta disponível quando a cota se esgota. A execução paralela reduz o tempo de espera entre demandas."
+          },
+          {
+            "t": "p",
+            "x": "**Revisão e portão de Done** A revisão por outro modelo, como o Codex, integra o fluxo de CI, merge e deploy. O portão de Done exige evidências de integração, publicação e checagens aprovadas e reabre tarefas encerradas sem entrega. Cada conclusão representa um resultado verificável."
+          },
+          {
+            "t": "p",
+            "x": "**Segundo cérebro e biblioteca de receitas** O grafo de conhecimento, a wiki compilada e o mapa visual preservam decisões e conectam aprendizados. A biblioteca injeta receitas relevantes no despacho das tarefas para reduzir retrabalho e manter a continuidade entre projetos."
+          },
+          {
+            "t": "p",
+            "x": "**Gestão de múltiplos projetos** Um painel reúne os sites e negócios, com BI por projeto e integrações com Google Search Console, GA4, Clarity, Meta e CRM. A disponibilidade de cada integração acompanha a configuração do negócio, oferecendo uma visão consolidada para a tomada de decisão."
+          },
+          {
+            "t": "p",
+            "x": "**SEO e desempenho em campo** A auditoria SEOmator mantém cobertura semanal por seção, enquanto Clarity e RUM acompanham a experiência real de navegação. O sistema monitora ranking e visibilidade em ChatGPT, Claude, Gemini e Perplexity e encaminha falhas elegíveis para correção automática, com revisão e comprovação."
+          },
+          {
+            "t": "p",
+            "x": "**Monitoramento e eficiência operacional** Vigia e debugger identificam falhas e encaminham consertos. A escolha do modelo considera a tarefa, e as esperas de CI, revisão e deploy podem ser retomadas sem nova chamada de IA, reduzindo consumo operacional."
+          }
+        ]
+      },
+      {
+        "id": "proof",
+        "title": "Operação em produção",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Seis negócios em operação** O Krohnos opera seis negócios há pelo menos uma semana, com histórico de execução desde 08/10/2026 e cadastro verificado em 17/10/2026. Conheça cinco dos projetos em produção."
+          },
+          {
+            "t": "p",
+            "x": "[Precedentes](https://precedentes.com.br) · [Acta Control](https://actacontrol.com) · [Fisio Gentil](https://fisiogentil.com) · [Fernanda Ferro](https://fernandaferro.com) · [Psi Por Aí](https://psiporai.com)"
+          },
+          {
+            "t": "p",
+            "x": "**1.038 execuções bem-sucedidas** Em 16/10/2026, o registro de uso contabilizou 1.038 execuções de agentes e rotinas concluídas com sucesso e sem interrupção. [Fonte e metodologia de medição](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
+          }
         ]
       },
       {
         "id": "install",
-        "title": "Instalar",
+        "title": "Acesso antecipado",
         "blocks": [
-          {"t": "p", "x": "Cinco passos, do servidor limpo ao painel no ar."},
-          {"t": "install"},
-          {"t": "p", "x": "Depois abra o painel (veja Proxy TLS abaixo), entre com o e-mail e a senha do dono e siga o assistente em `/comecar`."},
-          {"t": "warn", "x": "Não ponha o painel na internet antes de rodar o `krohnos init` (passo 3). Enquanto a instalação não tem dono, quem abrir `/comecar` primeiro vira o dono. O `krohnos init` cria o dono antes de o painel subir; quando o assistente termina, `/comecar` passa a dar 404."}
-        ]
-      },
-      {
-        "id": "config",
-        "title": "Configuração",
-        "blocks": [
-          {"t": "p", "x": "O `krohnos.toml` fica no volume `config` (gravável: o assistente `/comecar` o reescreve). Segredos nunca entram no toml: a chave mestra e o cofre ficam no volume `cofre`; os usuários do painel (só o hash da senha), o projeto e os exemplos ficam em `dados`."},
-          {"t": "p", "x": "O `krohnos init` pergunta tudo (domínio, nome e e-mail do dono, senha, organização do GitHub, primeiro projeto). Para pular as perguntas, troque o final do comando do passo 3 por `init --sim ...`:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --sim --dominio krohnos.minhaempresa.com --dono-email ana@exemplo.test --projeto-dominio meusite.com.br"},
-          {"t": "p", "x": "Use `--exemplo` no lugar de `--projeto-dominio` para os projetos de demonstração. A senha nunca vai pela linha de comando: deixe o `init` gerar uma (aparece uma vez, guarde) ou use `--dono-senha-env NOME_DA_VARIAVEL`."},
-          {"t": "p", "x": "Rodar o `init` de novo é seguro: toml, chave, cofre, usuários e projeto que já existem são mantidos. Para mudar a porta do painel:"},
-          {"t": "code", "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"}
-        ]
-      },
-      {
-        "id": "proxy",
-        "title": "Proxy TLS",
-        "blocks": [
-          {"t": "p", "x": "O painel fala HTTP na porta 8787. Ponha um proxy com TLS na frente. O cookie de sessão é `Secure`: o navegador só o guarda em HTTPS (ou em `http://localhost`). O webhook do Linear (8790) e o MCP (4181) ficam só no `127.0.0.1` do servidor."},
-          {"t": "p", "x": "Caddy, duas linhas, certificado automático:"},
-          {"t": "code", "lang": "caddy", "x": "krohnos.minhaempresa.com {\n    reverse_proxy 127.0.0.1:8787\n}"}
-        ]
-      },
-      {
-        "id": "accounts",
-        "title": "Conectar as contas de agente",
-        "blocks": [
-          {"t": "p", "x": "O assistente de primeira execução em `/comecar` passa por quatro coisas: GitHub, Linear, o primeiro projeto e a primeira conta do Claude. Tudo, menos o primeiro projeto, pode ser pulado e feito depois."},
-          {"t": "p", "x": "Para ver o painel cheio antes de configurar o seu, rode a demonstração. Ela enche uma instalação nova com dados inventados e marcados (`demo --limpar` remove só eles, e ela recusa uma pasta de dados que já tem dado real). Reinicie o painel depois para ele ler os novos projetos:"},
-          {"t": "code", "x": "docker compose run --rm --no-deps --entrypoint krohnos painel demo\ndocker compose restart painel"}
-        ]
-      },
-      {
-        "id": "update",
-        "title": "Atualizar",
-        "blocks": [
-          {"t": "p", "x": "Estes são os comandos padrão do Docker Compose para esta instalação (não fazem parte do guia de instalação do projeto). Baixe o código, reconstrua a imagem e reinicie os serviços; os volumes guardam seus dados."},
-          {"t": "code", "x": "git pull && docker compose build painel && docker compose up -d"}
-        ]
-      },
-      {
-        "id": "uninstall",
-        "title": "Desinstalar",
-        "blocks": [
-          {"t": "p", "x": "De novo os comandos padrão do Docker Compose para esta instalação. O primeiro para e remove os contêineres e mantém os volumes:"},
-          {"t": "code", "x": "docker compose down"},
-          {"t": "p", "x": "O segundo apaga também os volumes:"},
-          {"t": "code", "x": "docker compose down -v"},
-          {"t": "warn", "x": "`-v` apaga o cofre, os dados e a config, incluindo a chave mestra e os logins do painel. Não tem como desfazer: faça backup antes."}
-        ]
-      },
-      {
-        "id": "links",
-        "title": "Projeto",
-        "blocks": [
-          {"t": "p", "x": "Toda tarefa passa por `contract → queue → agents → review → CI → merge → deploy`. O README do projeto relata 1.313 pull requests integrados em 7 dias (7 a 14 de outubro de 2026), feitos com quatro contas do Claude Code e o Codex como revisor."},
-          {"t": "ul", "x": [
-            "[GitHub](https://github.com/BRK13/krohnos)",
-            "[Licença: AGPL-3.0](https://github.com/BRK13/krohnos/blob/main/LICENSE)",
-            "[Política de segurança](https://github.com/BRK13/krohnos/blob/main/SECURITY.md): relate vulnerabilidades em privado pelos [GitHub Security Advisories](https://github.com/BRK13/krohnos/security/advisories/new)",
-            "[Roadmap](https://github.com/BRK13/krohnos/blob/main/ROADMAP.md)",
-            "[Releases (changelog)](https://github.com/BRK13/krohnos/releases)"
-          ]}
+          {
+            "t": "p",
+            "x": "**Acompanhe a distribuição self-hosted** O Krohnos está em operação na infraestrutura da Krohn Capital. A distribuição pública está em preparação. Acompanhe as atualizações pelo GitHub ou entre em contato para informações sobre acesso antecipado."
+          },
+          {
+            "t": "p",
+            "x": "[Acompanhar no GitHub](https://github.com/BRK13/krohnos) · [Falar sobre acesso antecipado](mailto:brunokrohn@gmail.com)"
+          }
         ]
       }
     ]

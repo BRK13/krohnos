@@ -26,7 +26,7 @@ def inline_html(text):
     out = html.escape(text, quote=False)
     out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
     out = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", out)
-    out = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+    out = re.sub(r"\[([^\]]+)\]\(((?:https?://|mailto:)[^)\s]+)\)",
                  lambda m: '<a href="%s" rel="noopener">%s</a>' % (m.group(2), m.group(1)), out)
     return out
 
@@ -122,9 +122,9 @@ def section_html(sec, data, lang):
 def terminal_html(c):
     rows = []
     for i, (k, v) in enumerate(c["terminal"]):
-        rows.append('<li class="t%d"><span class="tk">%s</span><span class="tv">%s</span></li>' % (
-            i, html.escape(k), html.escape(v)))
-    return '<ol class="term" aria-hidden="true">%s</ol>' % "".join(rows)
+        rows.append('<li class="t%d"><span class="tv">%s</span></li>' % (
+            i, html.escape(v)))
+    return '<ol class="term">%s</ol>' % "".join(rows)
 
 
 def page_html(data, lang):
@@ -145,7 +145,7 @@ def page_html(data, lang):
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
-    ) % (html.escape(nav["install"]), s["docs"], html.escape(nav["docs"]), s["repo"],
+    ) % (html.escape(nav["install"]), "#inside", html.escape(nav["docs"]), s["repo"],
          html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
     sections = "\n".join(section_html(sec, data, lang) for sec in c["sections"])
     other_href = "/pt/" if lang == "en" else "/"
@@ -176,12 +176,12 @@ def page_html(data, lang):
 <link rel="stylesheet" href="/assets/style.css">
 <script src="/assets/boot.js"></script>
 <script src="/assets/app.js" defer></script>
-<script src="/assets/hero-gl.js" defer></script>
+
 </head>
 <body>
 <a class="skip" href="#main">{html.escape(ui['skip'])}</a>
 <header class="top">
-  <a class="brand" href="{'/' if lang == 'en' else '/pt/'}" aria-label="{html.escape(c['name'])}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="mk" d="M6 3h12M6 21h12M7 3c0 5 3 7 5 9-2 2-5 4-5 9M17 3c0 5-3 7-5 9 2 2 5 4 5 9"/><path class="mf" d="M12 13l-3.2 6h6.4z"/></svg><span>{html.escape(c['name'])}</span></a>
+  <a class="brand" href="{'/' if lang == 'en' else '/pt/'}" aria-label="{html.escape(c['name'])}"><img src="/assets/krohnos-mark.svg" width="32" height="38" alt=""><span>{html.escape(c['name'])}</span></a>
   <nav class="links" id="nav" aria-label="Main">{links}</nav>
   <div class="tools">
     <a class="pill small" href="{other_href}" hreflang="{'pt-BR' if lang == 'en' else 'en'}" lang="{'pt-BR' if lang == 'en' else 'en'}" aria-label="{html.escape(nav['language_label'])}">{html.escape(nav['language'])}</a>
@@ -191,27 +191,30 @@ def page_html(data, lang):
 </header>
 <main id="main">
 <section class="hero" aria-labelledby="h1">
-  <canvas class="hero-gl" id="hero-gl" aria-hidden="true"></canvas>
-  <div class="term-wrap" aria-hidden="true">{terminal_html(c)}</div>
+
+
   <div class="hero-in">
-    <p class="badge ap a1">{html.escape(hero['badge'])}</p>
+
     <h1 id="h1"><span class="ln"><span class="ln-in l1">{h1_l1}</span></span> <span class="ln"><span class="ln-in l2">{html.escape(hero['line2'])}</span></span></h1>
     <p class="sub ap a3">{html.escape(hero['sub'])}</p>
-    <div class="hero-cmd ap a4" role="group" aria-label="{html.escape(ui['command_label'])}">
-      {code_block('c-hero', install_short(data), ui, 'bash')}
-    </div>
     <div class="cta ap a5">
-      <a class="btn solid" href="{s['repo']}" rel="noopener">{html.escape(ui['star'])}</a>
+      <a class="btn solid" href="#install">{html.escape(nav['install'])} <span aria-hidden="true">↗</span></a>
+      <a class="btn ghost" href="#inside">{html.escape(nav['docs'])}</a>
       <button class="btn ghost" type="button" data-md="md-page" data-label="{html.escape(ui['copy_md'])}" data-done="{html.escape(ui['copied_md'])}">{html.escape(ui['copy_md'])}</button>
     </div>
-    <p class="status ap a6">{inline_html(hero['status'])}</p>
+
   </div>
+  <div class="flow-preview"><p class="eyebrow">{"Da direção à entrega" if lang == "pt" else "From direction to delivery"}</p>{terminal_html(c)}<p class="flow-note">{"Claude Code + Codex · WhatsApp + painel" if lang == "pt" else "Claude Code + Codex · WhatsApp + panel"}</p></div>
 </section>
 <div class="rest">
 {sections}
 </div>
 </main>
 <footer class="foot">
+  <p class="footer-brand">Krohnos</p>
+  <p>Krohn Capital &amp; Participações Ltda. · CNPJ 62.101.237/0001-16</p>
+  <p><a href="mailto:brunokrohn@gmail.com">brunokrohn@gmail.com</a></p>
+  <p><a href="https://precedentes.com.br">Precedentes</a> · <a href="https://actacontrol.com">Acta Control</a> · <a href="https://fisiogentil.com">Fisio Gentil</a> · <a href="https://fernandaferro.com">Fernanda Ferro</a> · <a href="https://psiporai.com">Psi Por Aí</a></p>
   <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a></p>
 </footer>
 <div class="sr" id="live" role="status" aria-live="polite"></div>
@@ -229,12 +232,12 @@ def llms_txt(data):
 
 > {en['summary']}
 
-The public repository is still receiving the code (today: README and roadmap); the install steps below are the plan it will run.
+Early access: the described system runs on our server. Follow the public repository with Watch or Star for the self-hosted distribution. No installation commands are published until a clean-machine install is verified.
 
-## Install
+## Early access
 
-- [Install guide (Markdown, English)]({d}/install.md): requirements, the 5 install steps, configuration, TLS proxy, agent accounts, update, uninstall
-- [Guia de instalação (Markdown, português)]({d}/install.pt.md): requisitos, os 5 passos, configuração, proxy TLS, contas de agente, atualizar, desinstalar
+- [Install guide (Markdown, English)]({d}/install.md): capabilities, production evidence and early access
+- [Guia de instalação (Markdown, português)]({d}/install.pt.md): funcionalidades, provas de produção e acesso antecipado
 
 ## Project
 

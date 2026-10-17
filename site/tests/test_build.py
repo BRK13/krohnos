@@ -8,11 +8,10 @@ import unittest
 from pathlib import Path
 
 SITE = Path(__file__).resolve().parent.parent
-FORBIDDEN = ["actacontrol", "acta", "precedentes", "jurimetria", "psiporai", "psi por aí", "psi por ai",
-             "fisiogentil", "fisio gentil", "fernanda", "schwab", "bruno", "krohn", "whatsapp pessoal",
-             "start for free", "pricing", "see it in action"]
-# "krohn" is forbidden (owner surname), but the brand is Krohnos: "krohn" followed by "os" is allowed.
-ALLOWED = ["BRK13/krohnos", "krohnos.com"]
+# BRU-1121: project names and the legal entity are authorized on the site.
+# Harness-code neutrality is enforced separately, in its own repository.
+FORBIDDEN = ["schwab", "whatsapp pessoal", "start for free", "pricing", "see it in action"]
+ALLOWED = []
 
 
 class Build(unittest.TestCase):
@@ -53,19 +52,15 @@ class Build(unittest.TestCase):
             self.assertIn('hreflang="x-default"', page)
             self.assertIn('property="og:title"', page)
 
-    def test_install_commands_identical_everywhere(self):
-        cmds = [s["cmd"] for s in self.data["install_steps"]]
-        self.assertEqual(len(cmds), 5)
-        import html as h
-        for rel in ["install.md", "install.pt.md", "index.html", "pt/index.html"]:
+    def test_early_access_without_unverified_commands(self):
+        self.assertEqual(self.data["install_steps"], [])
+        for rel in ["install.md", "install.pt.md", "index.html", "pt/index.html", "llms.txt"]:
             text = self.read(rel)
-            if rel.endswith(".html"):
-                text = h.unescape(text)
-            for c in cmds:
-                self.assertIn(c, text, (rel, c))
-        # real commands from the install guide
-        self.assertIn("git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos", cmds)
-        self.assertIn("docker compose up -d", cmds)
+            for command in ("git clone", "krohnos init", "docker compose", "docker compose down"):
+                self.assertNotIn(command, text)
+            self.assertIn("https://github.com/BRK13/krohnos", text)
+        self.assertIn("Acesso antecipado", self.read("pt/index.html"))
+        self.assertIn("Early access", self.read("index.html"))
 
     def test_all_code_blocks_same_in_html_and_md(self):
         import html as h
@@ -83,16 +78,20 @@ class Build(unittest.TestCase):
             self.assertEqual(m.group(1), self.read(md))
             self.assertNotIn("</script", self.read(md))
 
-    def test_update_and_uninstall_present(self):
-        for rel in ["install.md", "install.pt.md"]:
-            t = self.read(rel)
-            self.assertIn("git pull && docker compose build painel && docker compose up -d", t)
-            self.assertIn("docker compose down -v", t)
-
-    def test_status_notice(self):
-        self.assertIn("Status:", self.read("index.html"))
-        self.assertIn("compose.yml", self.read("index.html"))
-        self.assertIn("Status:", self.read("pt/index.html"))
+    def test_production_proof_and_legal_footer(self):
+        for rel in ["index.html", "pt/index.html"]:
+            text = self.read(rel)
+            self.assertIn("62.101.237/0001-16", text)
+            self.assertIn("Krohn Capital &amp; Participações Ltda.", text)
+            self.assertIn('href="mailto:brunokrohn@gmail.com"', text)
+            self.assertNotIn("Status:", text)
+            self.assertIn("EVIDENCE.md", text)
+            self.assertIn("EVIDENCE.md", text)
+            for domain in ["precedentes.com.br", "actacontrol.com", "fisiogentil.com", "fernandaferro.com", "psiporai.com"]:
+                links = re.findall(r'<a[^>]+href="https://' + re.escape(domain) + r'"[^>]*>', text)
+                self.assertGreaterEqual(len(links), 2, domain)
+                for link in links:
+                    self.assertNotRegex(link, "nofollow|sponsored|ugc")
 
     def test_llms_txt(self):
         t = self.read("llms.txt")
@@ -106,7 +105,7 @@ class Build(unittest.TestCase):
 
     def test_nav_links(self):
         t = self.read("index.html")
-        for u in ['href="https://github.com/BRK13/krohnos/tree/main/docs"',
+        for u in ['href="#inside"',
                   'href="https://github.com/BRK13/krohnos/releases"', 'href="#install"']:
             self.assertIn(u, t)
 
@@ -143,26 +142,13 @@ class Build(unittest.TestCase):
         self.assertNotIn("<style", self.read("index.html"))
         self.assertNotRegex(self.read("index.html"), r'\sstyle="')
 
-    def test_hero_shader_contract(self):
-        js = self.read("assets/hero-gl.js")
-        html = self.read("index.html")
-        self.assertIn('<canvas class="hero-gl" id="hero-gl" aria-hidden="true">', html)
-        self.assertIn("/assets/hero-gl.js", html)
-        for needle in ("visibilitychange", "prefers-reduced-motion", "var FPS = 30", "var T = 12", "Math.min(window.devicePixelRatio || 1, 2)"):
-            self.assertIn(needle, js)
-        # perfect loop: time only enters through the phase (period T); no clock or randomness in the shader
-        self.assertNotIn("Math.random", js)
-        self.assertNotIn("Date.now", js)
-        self.assertNotRegex(js, r"\beval\b|new Function")
-        frag = js[js.index("var FRAG"):js.index("var reduce")]
-        self.assertIn("uPh", frag)
-        self.assertNotRegex(frag, r"\buTime\b|\biTime\b")
-        # CSP stays strict: a canvas needs no relaxation
-        conf = (SITE / "nginx.conf").read_text(encoding="utf-8")
-        self.assertNotIn("unsafe-eval", conf)
-        self.assertNotIn("unsafe-inline", conf)
-        # light theme: no canvas
-        self.assertRegex(self.read("assets/style.css"), r"data-theme=light\] \.hero-gl\{display:none\}")
+    def test_real_brand_and_no_competing_animation(self):
+        text = self.read("index.html")
+        self.assertIn('/assets/krohnos-mark.svg', text)
+        self.assertNotIn('<canvas', text)
+        self.assertNotIn('/assets/hero-gl.js', text)
+        self.assertNotIn("unsafe-eval", (SITE / "nginx.conf").read_text())
+        self.assertNotIn("unsafe-inline", (SITE / "nginx.conf").read_text())
 
     def test_robots_sitemap(self):
         self.assertIn("Sitemap: https://krohnos.com/sitemap.xml", self.read("robots.txt"))
@@ -176,10 +162,10 @@ class Build(unittest.TestCase):
             self.assertNotRegex(t, r"(?i)sign.?up|log.?in required|systemd")
 
     def test_message_in_title_and_h1(self):
-        """BRU-1078: the message (docs/marketing/mensagem-2026-10.md) is in <title>, og:title and <h1>; title <= 60."""
+        """BRU-1121: position both languages as self-hosted multi-agent orchestration."""
         import html as h
-        cases = (("index.html", "prove the work is done", "Coding agents that prove the work is done."),
-                 ("pt/index.html", "provam que terminaram", "Agentes de código que provam que o trabalho está pronto."))
+        cases = (("index.html", "multi-agent", "Multi-agent AI. Local control."),
+                 ("pt/index.html", "multiagente", "IA multiagente. Controle local."))
         for rel, in_title, h1_text in cases:
             page = self.read(rel)
             title = h.unescape(re.search(r"<title>(.*?)</title>", page, re.S).group(1))

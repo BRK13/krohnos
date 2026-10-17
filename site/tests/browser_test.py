@@ -343,10 +343,17 @@ def main():
         p.wait_for_timeout(1200)
         a2 = p.screenshot(clip=top)
         check("webgl: animates (two frames differ)", a1 != a2)
+        # A probe loop counts the real frame rate of this browser in the same 3 s, so a runner that is itself
+        # overloaded does not fail the test: the hero must reach 2/3 of min(30, what the browser delivers),
+        # i.e. at least 20 draws/s (60 in 3 s) on a healthy machine, and never more than ~32/s.
         d0 = p.evaluate("window.__draws")
-        p.wait_for_timeout(3000)
+        fps = p.evaluate("""() => new Promise(res => { let n = 0; const t0 = performance.now();
+          const f = () => { n++; if (performance.now() - t0 >= 3000) res(n / 3); else requestAnimationFrame(f); };
+          f(); })""")
         d1 = p.evaluate("window.__draws")
-        check("webgl: capped at 30 fps and really running (%d draws in 3 s)" % (d1 - d0), 18 <= d1 - d0 <= 96, d1 - d0)
+        need = round(min(30.0, fps) * 3 * 2 / 3)
+        check("webgl: capped at 30 fps and keeps up (%d draws in 3 s, need %d..96; browser delivered %.0f fps)" % (
+              d1 - d0, need, fps), need <= d1 - d0 <= 96, d1 - d0)
         # pause on visibilitychange
         p.evaluate("""() => { Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
           document.dispatchEvent(new Event('visibilitychange')); }""")
@@ -360,7 +367,7 @@ def main():
         p.wait_for_timeout(600)
         check("webgl: resumes when the tab is back", p.evaluate("window.__draws") > d0)
         ph_back = p.evaluate("document.getElementById('hero-gl').heroGL.phase()")
-        adv = (ph_back - ph_hidden) % 1.0
+        adv = ((ph_back - ph_hidden) % 1 + 1) % 1
         check("webgl: resume keeps the loop position, no jump (advanced %.3f of the loop in ~0.6 s)" % adv,
               0 <= adv <= 1.5 / 12, (ph_hidden, ph_back))
         # paused when the hero is off screen

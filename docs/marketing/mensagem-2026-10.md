@@ -50,6 +50,7 @@ Dados medidos:
   - Leitura [hipótese]: "agente disse que subiu e não subiu" (165) e "teste que não prova" (100) sustentam o eixo "prova de pronto".
 - Código do hub privado em 15/10: 82 módulos, 29,3 mil linhas, ~1.540 testes. [dado: plano `kronos-open-source`, seção 1]
 - **PRs: o número do README não foi reproduzido.** O README e o site dizem 1.309 PRs mergeados de 7 a 14/10. Não achei registro dessa medição nos relatórios nem no plano. Contando nos clones locais (12 repositórios, commits com `(#N)` entre 07/10 00h e 14/10 24h, todas as refs) deu **744**. [dado: `git log` local de 17/10; é piso, porque exclui merges sem squash e repositórios não clonados]. A diferença (565) pode vir de repositórios fora de `~/repos`, de PRs não-squash ou de contagem por API; **não afirmar 1.309 em anúncio nem em manchete até alguém repetir a conta por `gh search prs` e guardar o comando.** O hero novo não usa o número.
+  - Repetida em 17/10/2026 pela API de busca do GitHub, que conta o total, sem limite de 1.000: `gh api -X GET search/issues -f q='user:BRK13 is:pr is:merged merged:2026-10-07..2026-10-14' --jq .total_count` → **1.313**. [dado: API do GitHub, 17/10] Diferença de 4 para o README (1.309): pode ser corte de data ou horário, ou PR mergeado depois da medição. Número do README é decisão do dono: trocar por 1.313 com esta data, ou tirar a frase. Até lá, a frase do site não entra em anúncio.
 - Estrelas, forks, issues e tráfego do repositório e do site: **não medidos** (ver topo).
 
 Vocabulário do cliente (usar nestas palavras; todas vêm do dono ou do README):

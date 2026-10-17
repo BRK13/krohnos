@@ -4,6 +4,6 @@
   d.classList.add('js');
   try {
     var t = localStorage.getItem('krohnos-theme');
-    if (t === 'dark' || t === 'light') d.setAttribute('data-theme', t);
+    d.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
   } catch (e) {}
 })();

@@ -1,4 +1,4 @@
-# Validação BRU-1121 · 17/10/2026
+# Validação · 17/10/2026
 
 - 16 testes focados do gerador, incluindo ausência de comandos não verificados, nomes autorizados,
   ausência do sexto projeto, backlinks sem nofollow, CNPJ, copy institucional e determinismo.
@@ -12,7 +12,7 @@
   das páginas públicas em 17/10/2026, com consentimento opcional de medição recusado quando disponível.
 - Não executado build de produção ou suíte completa localmente. Geração temporária somente nos testes focados.
 - Publicação e autodeploy ainda exigem revisão do PR, operação administrativa e prova de um merge no ar.
-  O HTML final contém `meta[name=krohnos-release]` com `bru-1121` para a conferência após o deploy.
+  O HTML final contém `meta[name=krohnos-release]` com `2026-10-17` para a conferência após o deploy.
 
 ## Comparação com a SERP real
 

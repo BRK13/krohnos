@@ -48,17 +48,17 @@ Correções seguem os limites de autorização, revisão e publicação do proje
 
 ## Identidade
 
-Ampulheta aprovada em 14/10/2026, copiada do ativo vetorial original `hub/marca/kronos.svg`.
-Ícone: `hub/marca/kronos-icone-escuro.svg`. Fontes Inter e Instrument Serif locais, com licenças em `assets/fonts/`.
-Contato: e-mail público do autor do repositório. Razão social e CNPJ: decisão de publicação BRU-1121.
+Ampulheta aprovada em 14/10/2026, copiada do ativo vetorial original o ativo vetorial do projeto.
+Ícone: `o ativo vetorial original do ícone`. Fontes Inter e Instrument Serif locais, com licenças em `assets/fonts/`.
+Contato: e-mail público do autor do repositório. Razão social e CNPJ: decisão de publicação do autor.
 
 ## Instalação
 
 O site, seus arquivos Markdown e `llms.txt` direcionam a acesso antecipado, sem comandos de instalação.
 Comandos só devem voltar com a publicação do código e teste de instalação em máquina limpa
-(clone e inicialização), ligado às BRU-1052/BRU-1102.
+(clone e inicialização), enquanto o código do harness não é publicado.
 
-Atualização de identidade em 17/10/2026: preto e verde profundo, conforme decisão do Bruno na BRU-1121. A geometria da ampulheta aprovada foi preservada, com as cores ajustadas à nova paleta.
+Atualização de identidade em 17/10/2026: preto e verde profundo, conforme decisão do autor. A geometria da ampulheta aprovada foi preservada, com as cores ajustadas à nova paleta.
 
 ## Capturas dos projetos
 

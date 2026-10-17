@@ -1,4 +1,4 @@
-"""Focused browser regression checks for BRU-1121; generates a temporary site fixture."""
+"""Focused browser regression checks; generates a temporary site fixture."""
 import functools
 import http.server
 import os

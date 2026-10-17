@@ -162,7 +162,7 @@ class Build(unittest.TestCase):
             self.assertNotRegex(t, r"(?i)sign.?up|log.?in required|systemd")
 
     def test_message_in_title_and_h1(self):
-        """BRU-1121: position both languages as self-hosted multi-agent orchestration."""
+        """position both languages as self-hosted multi-agent orchestration."""
         import html as h
         cases = (("index.html", "multi-agent", "Multi-agent AI. Local control."),
                  ("pt/index.html", "multiagente", "IA multiagente. Controle local."))

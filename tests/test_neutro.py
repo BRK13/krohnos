@@ -26,8 +26,8 @@ class Neutro(unittest.TestCase):
     def test_regras_pegam_o_que_devem(self):
         regras, permitidos = neutro_lib.carregar()
         # montados por partes para o próprio teste não conter os termos
-        ruins = ["ver BRU" + "-1234", "Kro" + "nos Hub", "kro" + "nos init", "BRK" + "13 pessoal", "o Bru" + "no",
-                 "kro" + "hn sozinho", "Fisio " + "Gentil", "Ac" + "ta Control", "o dono " + "mediu"]
+        ruins = ["ver BRU" + "-1234", "Kro" + "nos Hub", "kro" + "nos init", "BRK" + "13 pessoal", "Schw" + "ab",
+                 "o dono " + "mediu", "docs/mark" + "eting"]
         for ruim in ruins:
             self.assertTrue(neutro_lib.achados(ruim, regras, permitidos), ruim)
         for bom in ("github.com/BRK" + "13/krohnos", "krohnos init", "Krohnos", "krohnos.com"):

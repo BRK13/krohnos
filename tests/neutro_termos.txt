@@ -15,23 +15,10 @@ kronos
 # Dono e operação privada
 BRK13
 allow:BRK13/krohnos
-bruno
-re:krohn(?!os)
 whatsapp pessoal
 o dono mediu
 
-# Outros produtos e clientes do dono
-actacontrol
-acta control
-re:\bacta\b
-fisiogentil
-fisio gentil
-fernanda
-precedentes
-jurimetria
-psiporai
-psi por aí
-psi por ai
+# Cliente de terceiro (os nomes dos projetos próprios, o e-mail do autor e a razão social foram autorizados no site, BRU-1121)
 schwab
 jpschwab
 

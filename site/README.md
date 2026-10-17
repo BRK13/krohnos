@@ -39,7 +39,7 @@ O estado só pode ser considerado concluído após essa prova, sem disparo manua
 
 ## Decisões visuais
 
-Preto e verde profundo conforme atualização do Bruno em 17/10/2026 na BRU-1121.
+Preto e verde profundo conforme atualização do autor em 17/10/2026.
 Ampulheta original, com a mesma geometria e cores adaptadas à paleta.
 Cabeçalho no fluxo do documento e menu expansível que desloca o conteúdo.
 Sem fita de luz; apenas entrada breve de elementos, desativada por `prefers-reduced-motion`.

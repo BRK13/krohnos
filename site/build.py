@@ -161,7 +161,7 @@ def page_html(data, lang):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="krohnos-release" content="bru-1121">
+<meta name="krohnos-release" content="bru-1121-autodeploy-20261017">
 <meta name="color-scheme" content="dark light">
 <title>{html.escape(c['meta_title'])}</title>
 <meta name="description" content="{html.escape(c['meta_description'])}">

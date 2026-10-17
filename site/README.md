@@ -33,8 +33,11 @@ Dokploy: aplicação `app-compress-digital-capacitor-setuzd`, repositório `BRK1
 branch `main`, contexto `site`, Dockerfile `Dockerfile`, porta 80.
 Domínios `krohnos.com` e `www.krohnos.com`, com redirecionamento para o domínio principal.
 
-A ativação do autodeploy exige operação administrativa no Dokploy pela fronteira de propostas.
-Depois de ativar, validar um merge na main conferindo o deploy correspondente e o HTML servido.
+Autodeploy ativado pelo orquestrador em 17/10/2026: `autoDeploy=true` e webhook de push
+GitHub `699636876` em `BRK13/krohnos` (proposta `20261017-191000-linear-bru-1121-917a`).
+Validar o próximo merge na main conferindo o deploy correspondente e o HTML servido.
+O identificador técnico `krohnos-release` nas duas línguas permite distinguir a publicação
+de teste (`bru-1121-autodeploy-20261017`) da versão anterior (`bru-1121`).
 O estado só pode ser considerado concluído após essa prova, sem disparo manual.
 
 ## Decisões visuais

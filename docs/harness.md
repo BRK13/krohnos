@@ -2,9 +2,9 @@
 
 Most agent failures are environment failures, not reasoning failures: the agent did not know which files mattered,
 lost a decision from the last session, claimed success without running the checks, retried the same thing after a
-partial failure, or had permission it should not have had. Kronos Hub is built around fixing the environment.
+partial failure, or had permission it should not have had. Krohnos is built around fixing the environment.
 
-| Principle | How Kronos Hub does it |
+| Principle | How Krohnos does it |
 |---|---|
 | Task contract | Every task states the outcome, the scope, what must not change, the proof of done and what needs human approval. |
 | Map, not manual | Each repo has a short rules file and a docs index; agents pull details when the task needs them. |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static site build for the Kronos Hub self-host page. Python stdlib only, deterministic.
+"""Static site build for the Krohnos self-host page. Python stdlib only, deterministic.
 
 Single source of content: content.json (en + pt-BR). Output (default ./dist):
   index.html, pt/index.html, llms.txt, install.md, install.pt.md,

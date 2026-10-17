@@ -1,6 +1,6 @@
-<p align="center"><img src="docs/kronos-loading.gif" width="96" alt="Kronos Hub hourglass"></p>
+<p align="center"><img src="docs/kronos-loading.gif" width="96" alt="Krohnos hourglass"></p>
 
-<h1 align="center">Kronos Hub</h1>
+<h1 align="center">Krohnos</h1>
 
 <p align="center"><b>The harness that turns AI coding agents into a team you can run from your phone.</b></p>
 
@@ -11,7 +11,7 @@
 **One person. Six live products. Four Claude Code accounts and Codex as reviewer.
 1,313 pull requests merged in 7 days (Oct 7 to 14, 2026), driven from a phone.**
 
-Kronos Hub is the system behind those numbers. It is not a new model or a new agent. It is the *harness* around the
+Krohnos is the system behind those numbers. It is not a new model or a new agent. It is the *harness* around the
 agents: the queue, the rules, the gates and the memory that make many agents produce work you can trust.
 
 > A prompt changes one attempt. A harness changes every attempt.
@@ -45,9 +45,9 @@ Receipt back to you: what changed, the evidence, what is still open
 
 ## Status
 
-This repository is the public home of Kronos Hub. The code is being extracted from a private production setup and
+This repository is the public home of Krohnos. The code is being extracted from a private production setup and
 cleaned of anything specific to its first owner. See [ROADMAP.md](ROADMAP.md) for what ships first:
-the standalone **`kronos-harness`** plugin for Claude Code, then the full hub with a 15-minute install.
+the standalone **`krohnos-harness`** plugin for Claude Code, then the full hub with a 15-minute install.
 
 ⭐ Star or watch the repo to follow the first release.
 
@@ -62,7 +62,7 @@ the standalone **`kronos-harness`** plugin for Claude Code, then the full hub wi
 **Uma pessoa. Seis produtos no ar. Quatro contas do Claude Code e o Codex revisando.
 1.313 pull requests mergeados em 7 dias (7 a 14/10/2026), comandados pelo celular.**
 
-O Kronos Hub é o sistema por trás desses números. Não é um modelo nem um agente novo: é o *harness* em volta dos
+O Krohnos é o sistema por trás desses números. Não é um modelo nem um agente novo: é o *harness* em volta dos
 agentes. A fila, as regras, os portões e a memória que fazem vários agentes entregarem trabalho confiável.
 
 - **Contrato da tarefa, não prompt:** cada tarefa diz o que tem que existir no fim e como provar.
@@ -74,5 +74,5 @@ agentes. A fila, as regras, os portões e a memória que fazem vários agentes e
 - **Metas:** objetivo + como medir + esforço, uma mudança por vez, gráfico até bater.
 - **Um painel só:** números dos negócios, SEO, uso dos agentes, servidores, metas e o que cada agente está fazendo.
 
-O código está sendo extraído de uma operação privada em produção. Primeiro sai o plugin **`kronos-harness`** para o
+O código está sendo extraído de uma operação privada em produção. Primeiro sai o plugin **`krohnos-harness`** para o
 Claude Code; depois o hub completo com instalação em 15 minutos. Licença AGPL-3.0.

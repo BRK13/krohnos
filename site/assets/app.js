@@ -58,7 +58,7 @@
   if (theme) theme.addEventListener('click', function () {
     var n = current() === 'dark' ? 'light' : 'dark';
     d.setAttribute('data-theme', n);
-    try { localStorage.setItem('kronos-theme', n); } catch (e) {}
+    try { localStorage.setItem('krohnos-theme', n); } catch (e) {}
   });
 
   var menu = document.getElementById('menu');

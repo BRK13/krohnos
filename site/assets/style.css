@@ -22,3 +22,13 @@
 @media(max-width:1100px){.project-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.project-grid{grid-template-columns:1fr;gap:20px}}
 @media(prefers-reduced-motion:no-preference){.hero-in>h1,.hero-in>.sub,.hero-in>.cta{animation:arrive .65s both}.hero-in>.sub{animation-delay:.12s}.hero-in>.cta{animation-delay:.24s}}
+/* BRU-1071: the ribbon of light is the fixed full-screen background; the hero is one screen anchored at the bottom. */
+#hero-gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;pointer-events:none}[data-theme=light] #hero-gl{display:none}
+main,.foot{position:relative;z-index:1}.rest,.foot{background:var(--bg);max-width:none;padding-left:max(5%,calc((100% - 1296px)/2));padding-right:max(5%,calc((100% - 1296px)/2))}.foot{margin:0}
+@media(max-width:760px){.rest,.foot{padding-left:6%;padding-right:6%}}
+.top{background:none;border:0}
+@media(min-width:901px){.top{position:absolute;top:0;left:0;right:0;width:100%}
+.hero{height:100vh;height:100svh;min-height:0;padding:92px 5% clamp(24px,5.5vh,56px);align-items:end;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:6%;overflow:hidden}
+.hero h1{font-size:clamp(34px,min(4.9vw,8.4vh),78px);margin-bottom:clamp(14px,3vh,30px)}
+.hero .badge{margin-bottom:clamp(12px,3vh,30px)}.hero .sub{font-size:clamp(15px,2.3vh,17px);margin-bottom:clamp(16px,3.2vh,30px)}
+.hero .flow-preview{padding:clamp(18px,3.4vh,32px);max-width:none}.hero .flow-preview .eyebrow{margin-bottom:clamp(6px,1.5vh,14px)}.hero .term li{padding:clamp(6px,1.4vh,12px) 0 clamp(6px,1.4vh,12px) 8px;font-size:clamp(14px,2vh,16px)}.hero .status{margin-top:12px}}

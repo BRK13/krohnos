@@ -28,7 +28,7 @@ def main():
         url = f'http://127.0.0.1:{server.server_port}'
         try:
             with sync_playwright() as pw:
-                browser = pw.chromium.launch(headless=True)
+                browser = pw.chromium.launch(headless=True, args=['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
                 for lang, path in [('en', '/'), ('pt', '/pt/')]:
                     for width, height in [(1440, 1000), (390, 844), (320, 740), (768, 1024)]:
                         page = browser.new_page(viewport={'width': width, 'height': height}, reduced_motion='reduce')
@@ -58,7 +58,7 @@ def main():
                             assert page.locator('.top').bounding_box()['y'] + page.locator('.top').bounding_box()['height'] < page.locator('h1').bounding_box()['y']
                         assert page.locator('#install a[href="https://github.com/BRK13/krohnos"]').count() == 1
                         assert page.locator('footer a[href="mailto:brunokrohn@gmail.com"]').count() == 1
-                        assert page.locator('canvas').count() == 0
+                        assert page.locator('canvas#hero-gl').count() == 1
                         if width in (1440, 390):
                             page.screenshot(path=str(SHOTS / f'{lang}-{width}.png'), full_page=True)
                         if width == 1440:
@@ -69,6 +69,46 @@ def main():
                             page.screenshot(path=str(SHOTS / f'{lang}-{width}-light.png'), full_page=True)
                         print(f'PASS {lang} {width}: links, brand, no overflow, menu, no overlap, no JS errors')
                         page.close()
+                # BRU-1071: the ribbon is a fixed full-screen background and the hero is exactly one screen.
+                for lang, path in [('en', '/'), ('pt', '/pt/')]:
+                    for width, height in [(1366, 768), (1440, 900), (1920, 1080)]:
+                        page = browser.new_page(viewport={'width': width, 'height': height}, reduced_motion='reduce')
+                        page.goto(url + path)
+                        page.evaluate('document.fonts.ready')
+                        page.wait_for_timeout(500)
+                        m = page.evaluate('''() => {
+                            const r = (s) => document.querySelector(s).getBoundingClientRect();
+                            const c = document.getElementById('hero-gl'), cr = c.getBoundingClientRect();
+                            const hero = document.querySelector('.hero');
+                            return {ih: innerHeight, sh: document.documentElement.scrollHeight, hero: hero.offsetHeight,
+                              heroScroll: hero.scrollHeight, heroTop: r('.hero').top, h1t: r('h1').top, h1b: r('h1').bottom,
+                              hdr: r('.top').bottom, fpb: r('.flow-preview').bottom, ctab: r('.cta').bottom,
+                              pos: getComputedStyle(c).position, cw: cr.width, ch: cr.height, cl: cr.left, ct: cr.top,
+                              gl: c.dataset.gl, hidden: c.getAttribute('aria-hidden'), border: getComputedStyle(document.querySelector('.top')).borderBottomWidth}
+                        }''')
+                        tag = (lang, width, height, m)
+                        assert m['hero'] <= m['ih'] and m['hero'] >= m['ih'] - 1, tag
+                        assert m['heroScroll'] <= m['hero'], ('hero content cut', tag)
+                        assert m['sh'] > m['ih'], ('sections must scroll below the hero', tag)
+                        assert m['h1t'] >= m['hdr'], ('header covers title', tag)
+                        assert m['h1b'] <= m['ih'] and m['fpb'] <= m['ih'] and m['ctab'] <= m['ih'], tag
+                        assert m['pos'] == 'fixed' and m['cl'] == 0 and m['ct'] == 0, tag
+                        assert m['cw'] == width and m['ch'] == height and m['hidden'] == 'true' and m['gl'] == 'on', tag
+                        assert m['border'] == '0px', ('header border', tag)
+                        png = page.screenshot()
+                        from PIL import Image
+                        import io
+                        im = Image.open(io.BytesIO(png)).convert('L')
+                        lower = im.crop((0, height // 2, width, height))
+                        bright = sum(1 for v in lower.getdata() if v > 60)
+                        assert bright > 0.02 * lower.width * lower.height, ('ribbon not painted', tag, bright)
+                        page.close()
+                        print(f'PASS hero one screen {lang} {width}x{height}')
+                page = browser.new_page(viewport={'width': 390, 'height': 844}, reduced_motion='reduce')
+                page.goto(url + '/')
+                page.wait_for_timeout(300)
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                page.close()
                 # Page remains readable and useful without JavaScript.
                 context = browser.new_context(java_script_enabled=False, viewport={'width': 390, 'height': 844})
                 page = context.new_page()

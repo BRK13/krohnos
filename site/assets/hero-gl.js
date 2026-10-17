@@ -2,7 +2,8 @@
    - Perfect loop: every time-dependent term is sin/cos of an integer multiple of the phase (period T = 12 s);
      the grain is re-seeded from an integer frame index in [0, N), so frame N equals frame 0.
    - Black without WebGL (the canvas stays transparent over the black page); still frame with prefers-reduced-motion.
-   - Cap of 30 fps, paused when the tab is hidden or the hero is off screen (or hidden by the light theme).
+   - Full-screen fixed background (position:fixed; inset:0), the ribbon crosses the middle/lower part of the screen.
+   - Cap of 30 fps, paused when the tab is hidden (or hidden by the light theme).
    - DPR capped at 2, and the render scale drops when a frame costs more than ~20 ms. */
 (function () {
   var canvas = document.getElementById('hero-gl');
@@ -45,10 +46,8 @@
     'void main(){',
     '  vec2 uv=gl_FragCoord.xy/uRes;',
     '  float s=uv.x-.5;',
-    '  float a=uRes.x/uRes.y;',
-    /* The ribbon lives in the free band above the hero text (uFree = its height as a share of the canvas),
-       so it never sits behind the lines of text. tt runs 0..1 inside that band. */
-    '  float tt=(uv.y-(1.-uFree))/uFree;',
+        /* The ribbon lives in the middle/lower band of the screen: tt runs 0..1 from 8% to 70% of the height (bottom up). */
+    '  float tt=(uv.y-.08)/uFree;',
     '  float ph=uPh;',
     '  float c1=.56+.12*sin(4.6*s+ph)+.04*sin(10.5*s-2.*ph+1.);',
     '  float th1=6.2*s-ph+.7*sin(2.8*s+ph);',
@@ -58,12 +57,10 @@
     '  float l2=ribbon(s,tt,uFree,c2,th2,.27,.08)*.72;',
     '  float lum=1.-(1.-l1)*(1.-l2);',
     '  lum*=smoothstep(.0,.1,tt)*.86;',
-    /* wide screens: the faint terminal sits at the top right, so the light fades out before it */
-    '  lum*=1.-.82*smoothstep(.10,.24,s)*smoothstep(1.5,1.8,a);',
     '  float g=hash(gl_FragCoord.xy+uK*vec2(37.,17.))-.5;',
     '  lum+=g*.085*sqrt(lum);',                           // grain rides the light, black stays pure black
     '  lum=max(lum,0.);',
-    '  gl_FragColor=vec4(vec3(.16,.72,.44)*lum,1.);',
+    '  gl_FragColor=vec4(vec3(.56,.78,.67)*lum,1.);',
     '}'
   ].join('\n');
 
@@ -123,10 +120,7 @@
   function draw(frac) {
     resize();
     gl.uniform2f(loc.res, canvas.width, canvas.height);
-    // free band above the hero text (it runs 30 px behind the opaque badge), as a share of the canvas height (at least 22%)
-    var inner = canvas.parentNode.querySelector('.hero-in');
-    var free = inner && canvas.clientHeight ? (inner.offsetTop + 30) / canvas.clientHeight : 0.4;
-    gl.uniform1f(loc.free, Math.min(0.9, Math.max(0.22, free)));
+    gl.uniform1f(loc.free, 0.62);
     gl.uniform1f(loc.ph, 6.2831853 * frac);
     gl.uniform1f(loc.k, Math.floor(frac * STEPS) % STEPS);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

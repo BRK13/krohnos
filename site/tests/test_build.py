@@ -32,7 +32,7 @@ class Build(unittest.TestCase):
 
     def test_files_exist(self):
         for rel in ["index.html", "pt/index.html", "llms.txt", "install.md", "install.pt.md", "robots.txt",
-                    "sitemap.xml", "favicon.svg", "assets/style.css", "assets/app.js", "assets/boot.js",
+                    "sitemap.xml", "favicon.svg", "assets/style.css", "assets/app.js", "assets/boot.js", "assets/hero-gl.js",
                     "assets/fonts/inter-latin-wght-normal.woff2",
                     "assets/fonts/instrument-serif-latin-400-italic.woff2"]:
             self.assertTrue((self.out / rel).is_file(), rel)
@@ -140,6 +140,27 @@ class Build(unittest.TestCase):
         self.assertNotRegex(css, r"@import")
         self.assertNotIn("<style", self.read("index.html"))
         self.assertNotRegex(self.read("index.html"), r'\sstyle="')
+
+    def test_hero_shader_contract(self):
+        js = self.read("assets/hero-gl.js")
+        html = self.read("index.html")
+        self.assertIn('<canvas class="hero-gl" id="hero-gl" aria-hidden="true">', html)
+        self.assertIn("/assets/hero-gl.js", html)
+        for needle in ("visibilitychange", "prefers-reduced-motion", "var FPS = 30", "var T = 12", "Math.min(window.devicePixelRatio || 1, 2)"):
+            self.assertIn(needle, js)
+        # perfect loop: time only enters through the phase (period T); no clock or randomness in the shader
+        self.assertNotIn("Math.random", js)
+        self.assertNotIn("Date.now", js)
+        self.assertNotRegex(js, r"\beval\b|new Function")
+        frag = js[js.index("var FRAG"):js.index("var reduce")]
+        self.assertIn("uPh", frag)
+        self.assertNotRegex(frag, r"\buTime\b|\biTime\b")
+        # CSP stays strict: a canvas needs no relaxation
+        conf = (SITE / "nginx.conf").read_text(encoding="utf-8")
+        self.assertNotIn("unsafe-eval", conf)
+        self.assertNotIn("unsafe-inline", conf)
+        # light theme: no canvas
+        self.assertRegex(self.read("assets/style.css"), r"data-theme=light\] \.hero-gl\{display:none\}")
 
     def test_robots_sitemap(self):
         self.assertIn("Sitemap: https://krohnos.com/sitemap.xml", self.read("robots.txt"))

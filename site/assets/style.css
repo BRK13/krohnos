@@ -73,7 +73,12 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:90;opa
 /* hero: one screen on desktop, anchored to the bottom, centered */
 .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;padding:96px clamp(16px,3vw,40px) 36px}
 @media (min-width:901px){.hero{height:100svh;min-height:0;overflow:hidden}}
-.hero-in{width:100%;max-width:820px;display:flex;flex-direction:column;align-items:center;gap:16px}
+/* WebGL ribbon behind the hero: dark theme only, no overlay, black until the first frame (or forever without WebGL) */
+.hero-gl{position:absolute;inset:0;width:100%;height:100%;display:block;background:#000;opacity:0;pointer-events:none;z-index:0;transition:opacity 1.4s ease}
+.hero-gl.on{opacity:1}
+:root[data-theme=light] .hero-gl{display:none}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]) .hero-gl{display:none}}
+.hero-in{position:relative;z-index:1;width:100%;max-width:820px;display:flex;flex-direction:column;align-items:center;gap:16px}
 .badge{margin:0;font:500 13px/1 var(--sans);color:var(--tx2);padding:9px 15px;border:1px solid var(--pill-bd);border-radius:999px;background:var(--pill-b);color:var(--pill-tx)}
 h1{margin:0;font-weight:600;font-size:clamp(2rem,1rem + 4.6vw,4.6rem);line-height:1.02;letter-spacing:-.04em;text-wrap:balance}
 .ln{display:block;overflow:hidden;padding:.06em .1em .12em;margin:-.06em -.1em -.12em}
@@ -104,7 +109,7 @@ html:not(.js) .copy,html:not(.js) .btn.ghost{display:none}
 .copy.md{color:var(--tx2)}
 
 /* background terminal: flow of one task, CSS only */
-.term-wrap{position:absolute;right:clamp(16px,3vw,48px);top:92px;width:340px;display:none;text-align:left;pointer-events:none;
+.term-wrap{position:absolute;z-index:1;right:clamp(16px,3vw,48px);top:92px;width:340px;display:none;text-align:left;pointer-events:none;
   -webkit-mask-image:linear-gradient(180deg,#000 55%,transparent);mask-image:linear-gradient(180deg,#000 55%,transparent)}
 @media (min-width:1180px) and (min-height:760px){.term-wrap{display:block}}
 .term{list-style:none;margin:0;padding:0;font:13px/1.9 var(--mono);color:var(--tx3)}

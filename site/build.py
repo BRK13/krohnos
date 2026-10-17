@@ -176,6 +176,7 @@ def page_html(data, lang):
 <link rel="stylesheet" href="/assets/style.css">
 <script src="/assets/boot.js"></script>
 <script src="/assets/app.js" defer></script>
+<script src="/assets/hero-gl.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">{html.escape(ui['skip'])}</a>
@@ -190,6 +191,7 @@ def page_html(data, lang):
 </header>
 <main id="main">
 <section class="hero" aria-labelledby="h1">
+  <canvas class="hero-gl" id="hero-gl" aria-hidden="true"></canvas>
   <div class="term-wrap" aria-hidden="true">{terminal_html(c)}</div>
   <div class="hero-in">
     <p class="badge ap a1">{html.escape(hero['badge'])}</p>

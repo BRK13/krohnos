@@ -158,6 +158,112 @@
             "x": "Then open the panel, sign in with the owner e-mail and password, and follow the setup assistant in the panel. Full guide: [docs/INSTALAR.md](https://github.com/BRK13/krohnos/blob/main/docs/INSTALAR.md)."
           }
         ]
+      },
+      {
+        "id": "requirements",
+        "title": "Requirements",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Server** A Linux machine (VPS or PC) with Docker 24+ and the Docker Compose v2 plugin, 2 GB of free RAM and about 4 GB of disk. A domain pointed at the server is optional, only needed to open the panel over the internet with TLS."
+          },
+          {
+            "t": "p",
+            "x": "**Check** Both commands must answer with a version. Secrets never enter the image: they live in Docker volumes."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker --version\ndocker compose version"
+          }
+        ]
+      },
+      {
+        "id": "configuration",
+        "title": "Configuration",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**krohnos.toml** `krohnos init` creates it in the `config` volume (`/etc/krohnos/krohnos.toml` inside the containers). Any key can be overridden by `KROHNOS_<SECTION>_<KEY>`. Ports, for example, change like this:"
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"
+          },
+          {
+            "t": "code",
+            "lang": "toml",
+            "x": "[painel]\ndominio = \"krohnos.example.test\"\nporta = 8787\n\n[agentes]\ncontas = [\"1\", \"2\"]"
+          },
+          {
+            "t": "p",
+            "x": "**Secrets** Passwords, tokens and API keys never go in `krohnos.toml`: a key with those names is refused. They live in the vault (`cofre` volume). The owner password is generated once by `init`, or read from an environment variable, never from the command line:"
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --dono-senha-env NAME_OF_VARIABLE"
+          }
+        ]
+      },
+      {
+        "id": "accounts",
+        "title": "Connect agent accounts",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**One login per account** Each agent account (Claude Code, Codex) has its own login, kept in the `home` volume so it survives recreating containers. List the accounts under `[agentes]` in `krohnos.toml`, then sign in to each one once. Replace `N` with the account number."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose exec painel sh -c 'CLAUDE_CONFIG_DIR=\"$HOME/.claude-N\" claude login'"
+          },
+          {
+            "t": "p",
+            "x": "The panel also does this on the Agents screen. An account without a login stays idle until you sign in."
+          }
+        ]
+      },
+      {
+        "id": "update",
+        "title": "Update",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Pull, rebuild, restart** Data, vault and logins live in volumes, so an update keeps them. Check the release notes first."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "git pull\ndocker compose build painel\ndocker compose up -d\ncurl -fsS http://127.0.0.1:8787/saude"
+          }
+        ]
+      },
+      {
+        "id": "uninstall",
+        "title": "Uninstall",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Stop** This stops the four services and keeps your data, vault and logins."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose down"
+          },
+          {
+            "t": "p",
+            "x": "**Remove everything** This also deletes the volumes: data, vault, master key and panel logins. There is no undo. Back up the master key first."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose down -v"
+          }
+        ]
       }
     ]
   },
@@ -281,6 +387,112 @@
           {
             "t": "p",
             "x": "Depois abra o painel, entre com o e-mail e a senha do dono e siga o assistente do painel. Guia completo: [docs/INSTALAR.md](https://github.com/BRK13/krohnos/blob/main/docs/INSTALAR.md)."
+          }
+        ]
+      },
+      {
+        "id": "requirements",
+        "title": "Requisitos",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Servidor** Uma máquina Linux (VPS ou PC) com Docker 24+ e o plugin Docker Compose v2, 2 GB de RAM livres e uns 4 GB de disco. Um domínio apontado para o servidor é opcional, só para abrir o painel pela internet com TLS."
+          },
+          {
+            "t": "p",
+            "x": "**Confira** Os dois comandos devem responder com uma versão. Segredo nunca entra na imagem: fica em volumes do Docker."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker --version\ndocker compose version"
+          }
+        ]
+      },
+      {
+        "id": "configuration",
+        "title": "Configuração",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**krohnos.toml** O `krohnos init` cria o arquivo no volume `config` (`/etc/krohnos/krohnos.toml` dentro dos contêineres). Qualquer chave pode ser sobrescrita por `KROHNOS_<SECAO>_<CHAVE>`. A porta, por exemplo, muda assim:"
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "KROHNOS_PAINEL_PORTA=9000 docker compose up -d"
+          },
+          {
+            "t": "code",
+            "lang": "toml",
+            "x": "[painel]\ndominio = \"krohnos.example.test\"\nporta = 8787\n\n[agentes]\ncontas = [\"1\", \"2\"]"
+          },
+          {
+            "t": "p",
+            "x": "**Segredos** Senha, token e chave de API nunca vão no `krohnos.toml`: chave com esses nomes é recusada. Ficam no cofre (volume `cofre`). A senha do dono é gerada uma vez pelo `init`, ou lida de uma variável de ambiente, nunca pela linha de comando:"
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose run --rm --no-deps --entrypoint krohnos painel init --dono-senha-env NOME_DA_VARIAVEL"
+          }
+        ]
+      },
+      {
+        "id": "accounts",
+        "title": "Conectar contas de agente",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Um login por conta** Cada conta de agente (Claude Code, Codex) tem o seu login, guardado no volume `home`, que sobrevive a recriar os contêineres. Liste as contas em `[agentes]` no `krohnos.toml` e entre em cada uma uma vez. Troque `N` pelo número da conta."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose exec painel sh -c 'CLAUDE_CONFIG_DIR=\"$HOME/.claude-N\" claude login'"
+          },
+          {
+            "t": "p",
+            "x": "O painel também faz isso na tela Agentes. Conta sem login fica parada até você entrar."
+          }
+        ]
+      },
+      {
+        "id": "update",
+        "title": "Atualizar",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Baixar, reconstruir, reiniciar** Dados, cofre e logins ficam em volumes, então a atualização os mantém. Leia as notas da versão antes."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "git pull\ndocker compose build painel\ndocker compose up -d\ncurl -fsS http://127.0.0.1:8787/saude"
+          }
+        ]
+      },
+      {
+        "id": "uninstall",
+        "title": "Desinstalar",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Parar** Para os quatro serviços e mantém dados, cofre e logins."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose down"
+          },
+          {
+            "t": "p",
+            "x": "**Remover tudo** Apaga também os volumes: dados, cofre, chave mestra e logins do painel. Não tem volta. Guarde a chave mestra antes."
+          },
+          {
+            "t": "code",
+            "lang": "bash",
+            "x": "docker compose down -v"
           }
         ]
       }

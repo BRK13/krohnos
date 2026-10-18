@@ -54,3 +54,4 @@ main:has(.rest :target){z-index:auto}
 @media(max-width:760px){
 .sec-body,#proof .sec-body,#install .sec-body{grid-template-columns:minmax(0,1fr)}
 }
+#requirements .sec-body,#configuration .sec-body,#accounts .sec-body,#update .sec-body,#uninstall .sec-body{grid-template-columns:minmax(0,1fr);max-width:900px;gap:20px}

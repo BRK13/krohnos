@@ -1,0 +1,67 @@
+# krohnos.toml de exemplo (valores fictícios). Copie para /etc/krohnos/krohnos.toml (ou ~/.krohnos/krohnos.toml no PC,
+# ou aponte KROHNOS_CONFIG). Cada chave pode ser sobrescrita por KROHNOS_<SECAO>_<CHAVE>, ex. KROHNOS_PAINEL_PORTA=9000.
+# SEGREDO NUNCA VAI AQUI: senha, token e chave de API ficam no cofre. Chave com esses nomes é recusada.
+
+[caminhos]
+dados = "/var/lib/krohnos"        # projetos, tarefas, relatórios e bancos
+cofre = "/etc/krohnos/cofre"      # credenciais
+repos = "~/repos"                # clones base dos repositórios
+trabalho = "~/trabalho"          # worktrees das tarefas
+# codigo = "/opt/krohnos"         # onde está este repositório (padrão: o próprio repo)
+segredos = "/etc/krohnos"         # pasta dos .env (linear.env, apps/...)
+home_agentes = "~"               # onde ficam as pastas ~/.claude-N das contas
+# Dados do dono (cadastro de sites, tarefas, hub.json). Sem nada aqui valem os de exemplos/ (ou, na VPS antiga, os do repo).
+# Ordem: KROHNOS_PROJETOS/KROHNOS_TAREFAS/KROHNOS_HUB_JSON > estas chaves > <dados>/projetos|tarefas|hub.json (se existir) > exemplos/.
+# projetos = "/var/lib/krohnos/privado/projetos"
+# tarefas = "/var/lib/krohnos/privado/tarefas"
+# hub_json = "/var/lib/krohnos/privado/hub.json"
+# privado = "/var/lib/krohnos/privado"   # clone do repo privado: o atualizador dá pull nele (ou REPO-PRIVADO)
+#   (fichas das empresas da triagem de licitações: <privado>/licitacoes/fichas/*.json; sem ele, exemplos/licitacoes/fichas)
+
+[dono]
+nome = "Ana Exemplo"
+email = "ana@exemplo.test"
+whatsapp = ""
+fuso = "America/Sao_Paulo"
+idioma = "pt-BR"
+
+[github]
+org = "exemplo-org"
+base_padrao = "main"
+
+[linear]
+time = "EXE"
+projeto_padrao = ""
+
+[painel]
+dominio = "krohnos.exemplo.test"
+porta = 8787
+
+[mcp]
+url = "http://localhost:4181/mcp"
+
+[agentes]
+contas = ["1", "2"]
+modelos = {}
+limite_usd_dia = 0               # 0 = sem limite
+
+[agentes.faixas]
+"1" = "construtor"
+"2" = "revisor"
+
+[plugins]
+caminho = ""                     # pasta com pacotes krohnos_plugin_* (ex.: "/opt/krohnos/plugins")
+ligados = []                     # nomes sem o prefixo, ex.: ["reels", "funil_wpp"]; ["*"] liga todos os encontrados
+
+[produto]
+nome = "Krohnos"              # a marca vem só daqui
+cli = "krohnos"
+site = ""
+
+# Negócios do BI: ids do armazém e nomes curtos; não depende dos sites de SEO.
+[bi.negocios]
+exemplo-loja = "Loja exemplo"
+
+# Rotinas do sistema (crontab): sem esta seção a tela só mostra as rotinas de plugin.
+# [rotinas]
+# cron = "/caminho/do/seu/rotinas.cron"

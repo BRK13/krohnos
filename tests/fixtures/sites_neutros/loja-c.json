@@ -1,0 +1,49 @@
+{
+  "id": "loja-c",
+  "ids_antigos": [],
+  "ativo": true,
+  "nome": "Loja c",
+  "dominio": "exemplo-c.test",
+  "hosts_alternativos": [
+    "www.exemplo-c.test"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "dono/loja-c",
+    "base": "main",
+    "pacotes": "yarn",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:exemplo-c.test",
+    "ga4": "123456789",
+    "ga4_medicao": "G-ABCDEF1234",
+    "clarity": "abcdef1234",
+    "gmb_cid": "sem_perfil"
+  },
+  "marca": {
+    "nome": "Loja c",
+    "aliases": [
+      "Lojac"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": null,
+  "contexto": "Loja de exemplo.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [],
+  "monitor": null,
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": null
+}

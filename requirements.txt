@@ -1,0 +1,4 @@
+# Dependências de Python do hub (o resto é stdlib). playwright (farejador_x) fica de fora: é opcional e pesado.
+numpy
+pillow
+cryptography

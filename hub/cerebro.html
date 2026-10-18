@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cérebro · Krohnos</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* tokens de hub/ui.py (docs/krohnos/MARCA.md), tema escuro */
+:root{--bg:#010805;--sup:#07150e;--sup-2:#0b2016;--linha:#133323;--linha-2:#245039;--tx:#F1F6F3;--tx-2:#BFD0C6;--tx-3:#8DAA9A;
+--ac:#83CDA5;--ac-forte:#83CDA5;--ok:#8EE0A8;--al:#E3B659;--ru:#F29A8A;--g2:#E6F1EA;--g5:#6F9A82;--g6:#B9A1DC;
+--f-titulo:Inter,system-ui,sans-serif;--f-texto:"Geist",system-ui,sans-serif;--f-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--r:8px;--r-s:5px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 var(--f-texto);font-variant-numeric:tabular-nums;overflow:hidden}
+#mapa{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:default}
+header{position:fixed;top:0;left:0;right:0;padding:18px 24px 0;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+header>*{pointer-events:auto}
+.marca{font:550 13px var(--f-titulo);letter-spacing:-.02em;color:var(--tx-3)}
+h1{font:500 30px/1.1 var(--f-titulo);margin:2px 0 4px;letter-spacing:-.04em}
+.sub{color:var(--tx-3);font-size:13px}
+.modo{display:flex;gap:6px;align-items:center}
+button{font:500 13px var(--f-texto);color:var(--tx-2);background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r-s);padding:7px 16px;cursor:pointer;min-height:44px;min-width:44px}
+button[aria-pressed=true]{background:var(--ac);border-color:var(--ac);color:#010805}
+button:focus-visible,a:focus-visible{outline:2px solid var(--ac-forte);outline-offset:2px}
+#terminal{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:2px 18px;align-items:baseline;padding:10px 14px;margin:0 -24px;background:#010805;border-top:1px solid var(--linha-2);font:13px/1.5 var(--f-mono);color:var(--tx-3)}
+#terminal .pr{color:var(--ac-forte)}
+#terminal b{font-weight:600;color:var(--tx)}
+#terminal .ok b{color:var(--ok)}#terminal .fa b{color:var(--ru)}#terminal .cu b{color:var(--ac-forte)}
+#faixa{position:relative;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;justify-content:space-between}
+#modelos{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:center;font:13px var(--f-mono);color:var(--tx-2)}
+#modelos .tit{color:var(--tx-3);font-family:var(--f-texto)}
+#modelos i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+#modelos b{font-weight:600;color:var(--tx);margin-left:6px}
+#baixo{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;align-items:start}
+#sessao h2,#eventos h2{font:500 13px var(--f-texto);color:var(--tx-2);margin:0 0 6px}
+#log{border:1px solid var(--linha);border-radius:var(--r-s);background:#041009;padding:6px 12px;height:300px;overflow:auto;font:13px/1.5 var(--f-mono);color:var(--tx-2)}
+#log .lin{display:grid;grid-template-columns:76px 30px 62px 150px 40px 84px 90px;gap:0 10px;min-width:520px;padding:4px 6px;white-space:nowrap}
+#log .lin:nth-child(odd){background:#08180f}
+#log .h{color:var(--tx-3)}#log .ok{color:var(--ok)}#log .fa{color:var(--ru)}#log .it{color:var(--tx-3)}#log .u{text-align:right}#log .vazio{color:var(--tx-3)}
+#rodape{position:fixed;left:24px;right:24px;bottom:16px;display:flex;gap:12px;align-items:center}
+#linha{flex:1;min-width:0;width:100%;height:36px;cursor:pointer;border-bottom:1px solid var(--linha)}
+#hora{font-size:12px;color:var(--tx-2);min-width:118px;text-align:right}
+#ticker{position:fixed;left:24px;top:132px;width:340px;font-size:12px;color:var(--tx-3);pointer-events:none}
+#ticker div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .6s}
+#detalhe{position:fixed;z-index:3;right:16px;top:90px;width:min(340px,calc(100% - 32px));max-height:calc(100% - 200px);overflow:auto;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r);padding:16px 18px;display:none}
+#detalhe.aberto{display:block}
+#detalhe h2{font:500 18px var(--f-texto);margin:0 0 8px}
+#detalhe ul{list-style:none;margin:0;padding:0}
+#detalhe li{padding:5px 0;border-top:1px solid var(--linha);color:var(--tx-2);font-size:13px}
+#detalhe li:first-child{border-top:0}
+#detalhe .ev{color:var(--tx-3);font-size:12px}
+#detalhe a{color:var(--ac-forte)}
+#detalhe .fechar{position:absolute;right:6px;top:6px;padding:0}
+.rm{display:none}
+.volta{display:none;font-size:13px;color:var(--tx-3);text-decoration:none;align-items:center;min-height:44px}
+.vivo .volta{display:inline-flex}
+/* versão compacta (quadro da tela inicial): só o mapa; clicar abre a tela inteira */
+.compacto #legenda,.compacto header,.compacto #ticker,.compacto #rodape{display:none}
+.compacto,.compacto #mapa{background:transparent;cursor:pointer}
+.compacto #mapa{touch-action:auto}
+/* Tela inteira: os textos ficam no fluxo, fora do desenho. */
+html,body{height:auto;overflow-x:hidden;overflow-y:auto}
+body:not(.compacto){display:flex;flex-direction:column;gap:12px;padding:18px 24px 0}
+header{position:static;padding:0;pointer-events:auto}
+#legenda{position:relative;margin-left:auto}
+#legenda summary{cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--tx-2);list-style:none;border:1px solid var(--linha-2);border-radius:50%;font:500 16px var(--f-texto)}
+#legenda summary::-webkit-details-marker{display:none}
+#legenda[open] summary{background:var(--ac);border-color:var(--ac);color:#010805}
+#legenda p{position:absolute;right:0;top:50px;z-index:4;margin:0;width:min(360px,100%);padding:12px 14px;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r-s);color:var(--tx-2);font-size:13px;line-height:1.5}
+/* Palco do mapa: #espaco (WebGL, Three.js) atrás; #mapa (Canvas 2D) por cima, transparente, é o HUD (rótulos, placar). */
+#palco{position:relative;flex:none;width:100%;background:radial-gradient(ellipse at 45% 45%,#103c252e,transparent 65%),linear-gradient(135deg,#010805,#071d12,#010805)}
+#espaco{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none}
+#palco.gl #espaco{display:block}
+#mapa{position:relative;flex:none;width:100%;height:auto;background:transparent;touch-action:pan-y}
+#camera{position:absolute;top:12px;right:12px;z-index:2;display:flex;gap:6px}
+#camera button{padding:0 14px;background:var(--sup);font:500 15px var(--f-mono);color:var(--tx-2)}
+#camera button:hover{color:var(--tx);border-color:var(--ac)}
+#camera .aj{font:500 12px var(--f-texto);letter-spacing:.04em;padding:0 12px}
+#ticker{position:static;width:100%;height:300px;font-size:14px;overflow-y:auto;flex:none;pointer-events:auto;border:1px solid var(--linha);border-radius:var(--r-s);padding:8px 12px}
+#ticker div{white-space:normal;overflow-wrap:anywhere;padding:5px 0}
+.compacto #eventos,.compacto #sessao,.compacto #baixo,.compacto #faixa,.compacto #terminal{display:none}
+#rodape{position:static}
+.compacto #palco{position:absolute;inset:0}
+.compacto #mapa{position:absolute;inset:0}
+.compacto #camera{display:none}
+@media (max-width:700px){
+  body:not(.compacto){padding:14px 16px;gap:10px}
+  header{flex-direction:column;gap:8px}
+  h1{font-size:24px}
+  .modo{flex-wrap:wrap}
+  #detalhe{z-index:3;top:16px;max-height:calc(100dvh - 32px)}
+  #terminal{margin:0 -16px;padding:10px 16px;gap:2px 12px;font-size:12px}
+  #baixo{grid-template-columns:minmax(0,1fr)}
+  #log{height:auto;max-height:260px}
+  #ticker{height:160px}
+  #hora{min-width:92px}
+  #camera{flex-direction:column;align-items:flex-end;top:8px;right:8px}
+}
+@media (prefers-reduced-motion:reduce){.rm{display:inline}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a class="volta" href="/pendencias">← Painel</a>
+    <div class="marca">Krohnos</div>
+    <h1>Cérebro</h1>
+    <div class="sub" id="sub">a operação ao vivo</div>
+  </div>
+  <div class="modo" role="group" aria-label="Modo">
+    <button id="b-vivo" aria-pressed="false">Ao vivo</button>
+    <button id="b-replay" aria-pressed="true">Replay 24 h</button>
+    <button id="b-pausa" aria-pressed="false">Pausar</button>
+  </div>
+</header>
+<div id="faixa">
+  <div id="modelos" aria-label="Cor por modelo"></div>
+  <details id="legenda" class="sub"><summary aria-label="Como ler o mapa" title="Como ler o mapa">?</summary><p>Cada ponto é uma etapa do trabalho, da esquerda para a direita (no celular, de cima para baixo): você, o orquestrador, a fila, as contas, a revisão, o CI e o que vai ao ar. O pulso que corre pela linha é um acontecimento real. A bolinha em órbita é uma tarefa em andamento. O arco grosso em volta da conta é a cota (5 h; no Codex, a semana) e o fino, a semana. O anel verde e vermelho rente ao nó é a parte que deu certo e a que falhou nas últimas 24 h. A cor é o modelo; o brilho da linha é o volume de eventos dela nas 24 h. Ctrl + roda ou pinça aproxima, arrastar move, duplo clique ou “ajustar” volta ao mapa inteiro.</p></details>
+</div>
+<div id="palco">
+  <canvas id="espaco" aria-hidden="true"></canvas>
+  <canvas id="mapa" aria-label="Mapa da operação: nós e eventos" role="img"></canvas>
+  <div id="camera" role="group" aria-label="Zoom do mapa">
+    <button id="z-mais" aria-label="Aproximar o mapa" title="Aproximar">+</button>
+    <button id="z-menos" aria-label="Afastar o mapa" title="Afastar">−</button>
+    <button id="z-ajustar" class="aj" aria-label="Ajustar o mapa inteiro à tela" title="Ajustar">ajustar</button>
+  </div>
+</div>
+<div id="baixo">
+  <section id="sessao" aria-label="Últimas execuções"><h2>Session log · últimas 10 execuções</h2><div id="log" tabindex="0" role="table" aria-label="Últimas 10 execuções das contas"></div></section>
+  <section id="eventos" aria-label="Eventos recentes"><h2>Eventos recentes</h2><div id="ticker" aria-live="off"></div></section>
+</div>
+<div id="rodape"><canvas id="linha" aria-label="Eventos das últimas 24 h; clique para ir a um horário"></canvas><div id="hora"></div></div>
+<div id="terminal" role="status"></div>
+<aside id="detalhe" aria-live="polite"><button class="fechar" aria-label="Fechar">×</button><div id="det-corpo"></div></aside>
+<script>
+"use strict";
+const DADOS = /*DADOS*/null;
+const URL_AO_VIVO = /*VIVO*/null;   // no painel: /cerebro.json (polling de 5 s); no protótipo, null (foto parada)
+const COMPACTO = /*COMPACTO*/false;
+if (URL_AO_VIVO) document.body.classList.add("vivo");
+if (COMPACTO) document.body.classList.add("compacto");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {sup:css("--sup"), linha:css("--linha"), linha2:css("--linha-2"), tx:css("--tx"), tx2:css("--tx-2"), tx3:css("--tx-3"),
+  ac:css("--ac"), acf:css("--ac-forte"), ok:css("--ok"), al:css("--al"), ru:css("--ru"), g2:css("--g2"), g5:css("--g5"), g6:css("--g6")};
+// tipo de evento → cor, forma, tamanho, raio (merge e deploy soltam um raio na aresta)
+const TIPOS = {
+  issue:{cor:C.g2, forma:"q", r:2.6, rot:"issues"}, msg:{cor:C.tx2, forma:"o", r:2.4, rot:"mensagens"},
+  resposta:{cor:C.tx2, forma:"o", r:2.2}, pegou:{cor:C.ac, forma:"o", r:2.8, rot:"tarefas pegas"},
+  fim:{cor:C.g5, forma:"o", r:2}, commit:{cor:C.g5, forma:"o", r:1.8, rot:"commits"},
+  pr:{cor:C.acf, forma:"d", r:3.2, rot:"PRs"}, codex:{cor:C.g6, forma:"o", r:2.8, rot:"revisões Codex"},
+  codex_achado:{cor:C.al, forma:"o", r:2.8}, ci_ok:{cor:C.ok, forma:"o", r:2.8, rot:"CI verde"},
+  ci_falha:{cor:C.ru, forma:"o", r:3, rot:"CI vermelho"}, merge:{cor:C.ac, forma:"d", r:3.6, raio:1, rot:"merges"},
+  deploy:{cor:C.ok, forma:"d", r:4, raio:1, rot:"no ar"}, proposta:{cor:C.g6, forma:"q", r:2.8, rot:"propostas"},
+  pedido:{cor:C.g5, forma:"d", r:2.8}, aviso:{cor:C.tx, forma:"a", r:3.4, rot:"avisos"},
+  alerta:{cor:C.al, forma:"a", r:4, rot:"alertas"}, erro:{cor:C.ru, forma:"a", r:3.2, rot:"erros"}};
+const FUNDO = css("--bg");
+const MONO = css("--f-mono") || "ui-monospace, monospace";
+let PLACAR = null, MODELO_COR = {};
+const DUR_REPLAY = +(new URLSearchParams(location.search).get("dur") || 30), DUR_PULSO = 1.1;
+const reduzir = matchMedia("(prefers-reduced-motion: reduce)");
+const cv = document.getElementById("mapa"), ctx = cv.getContext("2d");
+const lc = document.getElementById("linha"), lx = lc.getContext("2d");
+let W = 0, H = 0, DPR = 1, celular = false, escala = 1;
+let nos = [], porId = {}, arestas = [], porPar = {}, eventos = [], T0 = 0, T1 = 0;
+let modo = "replay", pausado = false, relogio = 0, ponteiro = 0, pulsos = [], raios = [], visto = [];
+let foco = null, caminho = new Set(), tempoVisual = 0, maxTotal = 1;
+const palco = document.getElementById("palco");
+const COLUNAS = [["voce"],["orch"],["fila"],["c1","c2","c3","c4","codex"],["ci"],["deploy"]];
+function focar(n){
+  foco = n?.id || null; caminho = new Set();
+  if(n){
+    const visitar = (id, campo, outro) => { for(const e of arestas){ if(!e.infra && !e.retorno && e[campo] === id && !caminho.has(e)){ caminho.add(e); visitar(e[outro],campo,outro); } } };
+    visitar(n.id,"b","a"); visitar(n.id,"a","b");
+    if(n.id === "debugger") for(const e of arestas) if(e.retorno) caminho.add(e);
+  }
+  pedirQuadro();
+}
+// Nó ligado ao foco (sem foco, todos): o resto fica apagado.
+function relacionado(n){
+  if (!foco || foco === n.id) return true;
+  for (const e of caminho) if (e.a === n.id || e.b === n.id) return true;
+  for (const e of arestas) if (e.infra && (e.a === foco && e.b === n.id || e.b === foco && e.a === n.id)) return true;
+  return false;
+}
+// Pede um quadro. Com o laço rodando, só marca (o laço desenha no teto de FPS_MAX); sem laço (movimento reduzido, ?t=N),
+// desenha no próximo frame, no máximo 30 vezes por segundo.
+let quadroPedido = false, sujo = false, ultimoQuadro = 0;
+function pedirQuadro(){
+  if (animado){ sujo = true; return; }
+  if (quadroPedido) return; quadroPedido = true;
+  setTimeout(() => requestAnimationFrame(() => { quadroPedido = false; ultimoQuadro = performance.now(); desenhar(); }),
+    Math.max(0, 1000/30 - (performance.now() - ultimoQuadro)));
+}
+let rng = mulberry32(868), SITES_ORDEM = [];
+const chaves = new Set(), chave = e => e.t + "|" + e.tipo + "|" + e.rot;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function carregar(d){
+  const antigo = porId, antigas = porPar;
+  nos = d.nos.map((n, i) => { const a = antigo[n.id] || {};   // fase inicial fixa: ?t=N dá sempre o mesmo quadro
+    return Object.assign({flash:a.flash || 0, corFlash:a.corFlash || C.ac, fase:a.fase ?? (i*2.399)%6.283, usoVisual:a.usoVisual ?? n.cota_pct ?? 0}, n); });
+  porId = Object.fromEntries(nos.map(n => [n.id, n]));
+  PLACAR = d.placar || null;
+  MODELO_COR = Object.fromEntries(((PLACAR||{}).modelos||[]).map(m => [m.id, m.cor]));
+  for (const n of nos) n.corModelo = MODELO_COR[n.modelo] || null;
+  SITES_ORDEM = nos.filter(n => n.grupo === "site").map(n => n.id);
+  const colunas = [...COLUNAS, SITES_ORDEM];
+  const pares = colunas.slice(0,-1).flatMap((col,i) => col.flatMap(a => colunas[i+1].map(b => [a,b])));
+  const maquinas = [["orch","hub"],["orch","pc"],...["c1","c2","c3","c4","codex","ci","deploy"].map(id=>[id,"hub"]),...SITES_ORDEM.map(id=>[id,id === "clientej" ? "servidor_a" : "hub"]),["clientej","servidor_b"]];
+  const infraestrutura = [...maquinas,...(d.arestas || []).filter(([a,b])=>porId[a]?.grupo === "infra" || porId[b]?.grupo === "infra")];
+  const ligacoes = [...pares.map(([a,b])=>({a,b,infra:false})),...infraestrutura.map(([a,b])=>({a,b,infra:true})),...[ ["ci","debugger"], ["debugger","orch"] ].map(([a,b])=>({a,b,infra:false,retorno:true}))];
+  const unicos = new Set();
+  arestas = ligacoes.filter(({a,b})=>porId[a] && porId[b] && !unicos.has(a+"|"+b) && unicos.add(a+"|"+b)).map(({a,b,infra,retorno},i)=>{
+    const v = (antigas[a+"|"+b] || [{}])[0];
+    return {a,b,i,infra,retorno,energia:v.energia||0,cor:v.cor||C.ac,total:0};
+  });
+  porPar = {}; for (const e of arestas){ porPar[e.a+"|"+e.b] = [e, 1]; porPar[e.b+"|"+e.a] = [e, -1]; }
+  eventos = d.eventos.map(e => Object.assign({ms:Date.parse(e.t)}, e));
+  for (const e of eventos) chaves.add(chave(e));
+  T0 = Date.parse(d.desde); T1 = Date.parse(d.agora);
+  for (const e of eventos){ const p = porPar[e.de+"|"+e.para]; if (p) p[0].total++; }
+  maxTotal = 1; for (const e of arestas) if (e.total > maxTotal) maxTotal = e.total;   // brilho e velocidade das arestas = volume real
+  medir(); desenharLinha(); renderPlacar();
+}
+
+// legenda de modelos, session log e rodapé de terminal: dado real do servidor (placar), nada calculado aqui
+function renderPlacar(){
+  const P = PLACAR; if (!P) return;
+  const mo = document.getElementById("modelos");
+  mo.innerHTML = '<span class="tit">modelo</span>' + P.modelos.map(m => `<span><i style="background:${esc(m.cor)}"></i>${esc(m.rot)}<b>${m.n}</b></span>`).join("") + '<span class="tit">tarefas em 24 h</span>';
+  const lg = document.getElementById("log"), cor = id => MODELO_COR[id] || C.tx3;
+  lg.innerHTML = P.log.length ? P.log.map(r => `<div class="lin" role="row"><span class="h">${esc(r.hora)}</span><span>${esc(r.conta)}</span>` +
+    `<span style="color:${cor(r.modelo)}">${esc(r.modelo)}</span><span>${esc(r.nome)}</span>` +
+    `<span class="${r.interrompida ? "it" : r.ok ? "ok" : "fa"}">${r.interrompida ? "INT" : r.ok ? "OK" : "FAIL"}</span>` +
+    `<span>${r.turnos != null ? r.turnos + " turnos" : "—"}</span>` +
+    `<span class="u ${r.ok ? "" : "fa"}">${!r.ok && r.erro ? esc(r.erro.slice(0,14)) : r.custo != null ? "US$ " + r.custo.toFixed(2).replace(".", ",") : "—"}</span></div>`).join("")
+    : '<div class="vazio">sem leitura: nenhuma execução terminou nas últimas 24 h</div>';
+  const R = P.rodape;
+  document.getElementById("terminal").innerHTML = `<span class="pr">~/krohnos $ cerebro --hoje</span><span class="ok">ok [<b>${R.ok}</b>]</span>` +
+    `<span class="fa">fail [<b>${R.falha}</b>]</span><span>contas [<b>${R.contas}/${R.contas_total}</b>]</span>` +
+    `<span class="cu">custo do dia [<b>${esc(R.custo_txt)}</b>]</span>`;
+}
+
+function medir(){
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = cv.getBoundingClientRect().width; celular = W < 700 && innerHeight > innerWidth;
+  const vertical = celular && !COMPACTO, TOPO = COMPACTO ? 28 : vertical ? 0 : 152;
+  const pm = vertical ? posicoesCelular() : null;
+  H = COMPACTO ? Math.max(440,innerHeight) : vertical ? pm.H : Math.max(900,innerHeight - 300);
+  cv.style.height = H+"px";
+  if (cv.width !== Math.round(W*DPR) || cv.height !== Math.round(H*DPR)){ cv.width = W*DPR; cv.height = H*DPR; }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  escala = COMPACTO ? .7 : celular ? 1 : Math.max(.8,Math.min(1.1,W/1400));
+  const colunas = [...COLUNAS,SITES_ORDEM];
+  for(const n of nos){
+    const col = colunas.findIndex(c=>c.includes(n.id)), ids = col < 0 ? nos.filter(x=>x.grupo==="infra").map(x=>x.id) : colunas[col], i=ids.indexOf(n.id);
+    if(vertical){
+      [n.px, n.py] = pm.pos[n.id] || [W/2, 0];
+    }else{
+      n.px = col < 0 ? W*(.2+i*.2) : 65+col*(W-145)/6;
+      n.py = col < 0 ? (COMPACTO?H-28:H-110) : (COMPACTO?28:TOPO)+(ids.length===1?.43:i/Math.max(1,ids.length-1))*(H-(COMPACTO?140:260)-(COMPACTO?0:TOPO-40));
+    }
+    if(COMPACTO && W < 700 && col >= 0 && ids.length === 1 && col % 2) n.py -= 45;
+    if(n.id === "debugger" && !vertical){ n.px = 65+4*(W-145)/6; /* embaixo do CI: no meio caía em cima do Codex */ n.py = H-(COMPACTO?80:220); }
+    n.raio = (n.grupo==="orch"?17:12)*escala;
+
+  }
+  for(const e of arestas){
+    const A=porId[e.a], B=porId[e.b], vertical=celular&&!COMPACTO;
+    const ax=A.px+(vertical?0:A.raio), ay=A.py+(vertical?A.raio:0), bx=B.px-(vertical?0:B.raio), by=B.py-(vertical?B.raio:0);
+    const mx=(ax+bx)/2,my=(ay+by)/2;
+    e.pts=[];
+    for(let i=0;i<=32;i++){const t=i/32,u=1-t;
+      e.pts.push([u*u*u*ax+3*u*u*t*(vertical?ax:mx)+3*u*t*t*(vertical?bx:mx)+t*t*t*bx,u*u*u*ay+3*u*u*t*(vertical?my:ay)+3*u*t*t*(vertical?my:by)+t*t*t*by]);
+    }
+    if(!vertical && !e.infra && COLUNAS[3].includes(e.a) && e.b === "ci"){
+      const jx=bx-40*escala, jy=by;
+      e.pts=[];
+      for(let i=0;i<=32;i++){
+        if(i<=24){const t=i/24,u=1-t;e.pts.push([u*u*u*ax+3*u*u*t*mx+3*u*t*t*(jx-20)+t*t*t*jx,u*u*u*ay+3*u*u*t*ay+3*u*t*t*jy+t*t*t*jy]);}
+        else e.pts.push([jx+(bx-jx)*(i-24)/8,jy]);
+      }
+    }
+    if(vertical && !e.infra && (COLUNAS[3].includes(e.a) || COLUNAS[3].includes(e.b) || SITES_ORDEM.includes(e.b))){
+      const start=[A.px,A.py+A.raio], end=[B.px,B.py-B.raio], gutter=28;
+      e.pts=[];
+      const knots=[start,[gutter,start[1]+30],[gutter,end[1]-30],end];
+      for(let i=0;i<=32;i++){const t=i/32,u=1-t;e.pts.push([u*u*u*knots[0][0]+3*u*u*t*knots[1][0]+3*u*t*t*knots[2][0]+t*t*t*knots[3][0],u*u*u*knots[0][1]+3*u*u*t*knots[1][1]+3*u*t*t*knots[2][1]+t*t*t*knots[3][1]]);}
+    }
+  }
+  const r = lc.getBoundingClientRect();
+  if (lc.width !== Math.round(r.width*DPR) || lc.height !== Math.round(r.height*DPR)){ lc.width = r.width*DPR; lc.height = r.height*DPR; }
+  lx.setTransform(DPR,0,0,DPR,0,0);
+  if (W !== camW || H !== camH){ camW = W; camH = H; cam.x = camAlvo.x = W/2; cam.y = camAlvo.y = H/2; cam.z = camAlvo.z = 1; camAntes = null; aplicarCam(); }
+  espaco?.reconstruir();
+}
+
+// Celular: o mesmo fluxo em pilha vertical, na mesma ordem. Cada etapa com placar ganha o espaço dele acima do nó.
+const BLOCO = 128;
+function posicoesCelular(){
+  const pos = {}, esq = W*.24, dir = W*.76, col3 = COLUNAS[3], meio = W/2;
+  let y = 34;
+  pos.voce = [meio, y]; y += 96;
+  for (const id of ["orch","fila"]){ y += BLOCO; pos[id] = [meio, y]; y += 92; }
+  y += BLOCO;
+  col3.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === col3.length-1) y += 150; });
+  for (const id of ["ci","deploy"]){ y += BLOCO - 28; pos[id] = [meio, y]; y += 92; }
+  pos.debugger = [W-62, pos.ci[1]];
+  SITES_ORDEM.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === SITES_ORDEM.length-1) y += 100; });
+  y += 20;
+  nos.filter(n => n.grupo === "infra").forEach((n,i,l) => { pos[n.id] = [i%2 ? dir : esq, y]; if (i%2 || i === l.length-1) y += 100; });
+  return {pos, H: y + 30};
+}
+
+function ponto(e, t, dir){ return pontoEm(e, t, dir, [0, 0]); }
+function pontoEm(e, t, dir, out){ const p = e.pts, f = (dir > 0 ? t : 1-t)*32, i = Math.min(31, f|0), r = f-i;   // sem alocar: laço quente
+  out[0] = p[i][0]+(p[i+1][0]-p[i][0])*r; out[1] = p[i][1]+(p[i+1][1]-p[i][1])*r; return out; }
+
+function adicionarPulso(p){
+  const limite = celular ? 140 : 360;
+  pulsos.push(p);
+  if(pulsos.length > limite) pulsos.splice(0,pulsos.length-limite);
+}
+
+function disparar(ev){
+  let tp = TIPOS[ev.tipo] || TIPOS.fim;
+  if (ev.modelo && MODELO_COR[ev.modelo] && ev.tipo !== "erro") tp = Object.assign({}, tp, {cor: MODELO_COR[ev.modelo]});   // pulso da tarefa na cor do modelo
+  const par = porPar[ev.de+"|"+ev.para];
+  visto.push(ev); if (visto.length > 400) visto.splice(0, 200);
+  ticker(ev);
+  if (!par && ev.de !== ev.para){
+    const origem=[...COLUNAS,SITES_ORDEM].findIndex(c=>c.includes(ev.de)), destino=[...COLUNAS,SITES_ORDEM].findIndex(c=>c.includes(ev.para));
+    if(origem>=0 && destino>=0 && origem!==destino){
+      const dir=destino>origem?1:-1; let de=ev.de;
+      for(let i=origem+dir;dir>0?i<=destino:i>=destino;i+=dir){const para=i===destino?ev.para:([...COLUNAS,SITES_ORDEM][i][0]);const rota=porPar[de+"|"+para];if(rota){rota[0].energia=1;rota[0].cor=tp.cor;adicionarPulso({e:rota[0],dir:rota[1],t:0,tp,alvo:para});}de=para;}
+    }
+  }
+  if (!par){ const n = porId[ev.para] || porId[ev.de]; if (n){ n.flash = 1; n.corFlash = tp.cor; } return; }
+  par[0].energia = 1; par[0].cor = tp.cor;
+  adicionarPulso({e:par[0], dir:par[1], t:0, tp, alvo:ev.para});
+  if (tp.raio && !reduzir.matches) raios.push({e:par[0], vida:1, cor:tp.cor});
+}
+
+function passo(dt){
+  tempoVisual = (tempoVisual + dt) % 600;
+  if (modo === "replay"){
+    relogio += dt;
+    const fim = DUR_REPLAY + 2.5;
+    if (relogio > fim){ relogio = 0; ponteiro = 0; visto = []; }
+    const agoraMs = T0 + Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*(T1-T0);
+    while (ponteiro < eventos.length && eventos[ponteiro].ms <= agoraMs) disparar(eventos[ponteiro++]);
+  }
+  for (const p of pulsos){ p.t += dt/DUR_PULSO;
+    if (p.t >= 1 && !p.chegou){ p.chegou = 1; const n = porId[p.alvo]; if (n){ n.flash = 1; n.corFlash = p.tp.cor; } p.e.energia = Math.min(1, p.e.energia+.35); p.e.cor = p.tp.cor; } }
+  pulsos = pulsos.filter(p => p.t < 1.15);
+  for (const r of raios) r.vida -= dt*2.6; raios = raios.filter(r => r.vida > 0);
+  for (const e of arestas) e.energia *= Math.exp(-dt*1.6);
+  for (const n of nos){ n.flash *= Math.exp(-dt*2.4); n.fase += dt*(.7 + (n.carga||0)*1.6); n.usoVisual += ((n.cota_pct||0)-n.usoVisual)*(1-Math.exp(-dt*6)); }
+}
+
+function forma(f, x, y, r){
+  ctx.beginPath();
+  if (f === "q") ctx.rect(x-r, y-r, 2*r, 2*r);
+  else if (f === "d"){ ctx.moveTo(x, y-r*1.3); ctx.lineTo(x+r*1.3, y); ctx.lineTo(x, y+r*1.3); ctx.lineTo(x-r*1.3, y); ctx.closePath(); }
+  else ctx.arc(x, y, r, 0, 6.2832);
+}
+
+// ---------- câmera: zoom e pan; a MESMA matriz no HUD 2D (ctx.setTransform) e no 3D (ortográfica em px do mapa) ----------
+const Z_MIN = 1, Z_MAX = 4;
+const cam = {x:0, y:0, z:1}, camAlvo = {x:0, y:0, z:1};
+let camW = -1, camH = -1, camAntes = null, animado = false;
+function limitarCam(c){   // z = 1 é o mapa inteiro; ampliado, a borda do conteúdo pode ir até o meio da tela
+  c.z = Math.max(Z_MIN, Math.min(Z_MAX, c.z));
+  const fx = Math.max(0, W/c.z - W/2), fy = Math.max(0, H/c.z - H/2);
+  c.x = Math.max(fx, Math.min(W-fx, c.x)); c.y = Math.max(fy, Math.min(H-fy, c.y));
+}
+function aplicarCam(){   // celular: com zoom 1 o dedo rola a página; ampliado, o gesto é do mapa
+  if (COMPACTO) return;
+  const amp = camAlvo.z > Z_MIN + 1e-3;
+  cv.style.touchAction = amp ? "none" : "pan-y";
+  cv.style.cursor = amp ? "grab" : "default";
+}
+function moverCam(){
+  limitarCam(camAlvo); aplicarCam();
+  if (!animado || reduzir.matches){ cam.x = camAlvo.x; cam.y = camAlvo.y; cam.z = camAlvo.z; }
+  pedirQuadro();
+}
+function passoCam(dt){   // amortecimento exponencial; devolve se ainda está andando
+  const dx = camAlvo.x-cam.x, dy = camAlvo.y-cam.y, dz = camAlvo.z-cam.z;
+  if (Math.abs(dx) < .05 && Math.abs(dy) < .05 && Math.abs(dz) < 5e-4){
+    if (!dx && !dy && !dz) return false;
+    cam.x = camAlvo.x; cam.y = camAlvo.y; cam.z = camAlvo.z; return true;
+  }
+  const k = 1 - Math.exp(-dt*9);
+  cam.x += dx*k; cam.y += dy*k; cam.z += dz*k; return true;
+}
+function zoomEm(f, sx, sy){   // mantém parado o ponto do mapa sob (sx, sy)
+  const wx = (sx-W/2)/camAlvo.z + camAlvo.x, wy = (sy-H/2)/camAlvo.z + camAlvo.y;
+  camAlvo.z = Math.max(Z_MIN, Math.min(Z_MAX, camAlvo.z*f));
+  camAlvo.x = wx - (sx-W/2)/camAlvo.z; camAlvo.y = wy - (sy-H/2)/camAlvo.z;
+  moverCam();
+}
+function centroVisivel(){   // o canvas pode ser mais alto que a janela (celular): o meio do trecho visível
+  const r = cv.getBoundingClientRect(), topo = Math.max(0, -r.top), baixo = Math.min(H, innerHeight - r.top);
+  return [W/2, baixo > topo ? (topo+baixo)/2 : H/2];
+}
+function ajustarCam(){ camAlvo.x = W/2; camAlvo.y = H/2; camAlvo.z = 1; camAntes = null; moverCam(); }
+function focarCam(n){   // desktop: leva o nó para o meio da área livre à esquerda do painel #detalhe
+  if (COMPACTO || celular) return;
+  if (!camAntes) camAntes = {x:camAlvo.x, y:camAlvo.y, z:camAlvo.z};
+  const livre = W - Math.min(340, W-32) - 32, sy = centroVisivel()[1];
+  camAlvo.z = Math.max(camAlvo.z, 1.35);
+  camAlvo.x = n.px - (livre/2 - W/2)/camAlvo.z; camAlvo.y = n.py - (sy - H/2)/camAlvo.z;
+  moverCam();
+}
+function transformarHUD(){ ctx.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*(W/2 - cam.x*cam.z), DPR*(H/2 - cam.y*cam.z)); }
+
+// paralaxe leve com o mouse (só desktop com movimento; nunca no celular)
+const paralaxe = {x:0, y:0, ax:0, ay:0};
+function passoParalaxe(dt){ const k = 1 - Math.exp(-dt*3); paralaxe.x += (paralaxe.ax-paralaxe.x)*k; paralaxe.y += (paralaxe.ay-paralaxe.y)*k; }
+
+// ---------- céu 2D do modo estático (sem WebGL / movimento reduzido): 3 camadas de estrelas, desenhadas uma vez ----------
+let ceu2D = null;
+function desenharCeu2D(){
+  const w = Math.round(W*DPR), h = Math.round(H*DPR);
+  if (!ceu2D || ceu2D.width !== w || ceu2D.height !== h){
+    ceu2D = ceu2D || document.createElement("canvas"); ceu2D.width = w; ceu2D.height = h;
+    const g = ceu2D.getContext("2d"), r = mulberry32(2911), area = W*H/1e6;
+    for (const [n, tam, a] of [[520, .55, .32], [170, .9, .5], [34, 1.35, .8]])
+      for (let i = 0, m = Math.round(n*area); i < m; i++){
+        const x = r()*w, y = r()*h, b = a*(.45 + .55*r()), s = tam*DPR*(.7 + .6*r());
+        g.fillStyle = `rgba(232,236,222,${b.toFixed(3)})`; g.beginPath(); g.arc(x, y, s, 0, 6.2832); g.fill();
+      }
+  }
+  ctx.drawImage(ceu2D, 0, 0);
+}
+
+// ---------- espaço WebGL: Three.js r186, versão fixa por CDN, carregado sob demanda ----------
+// Sem rede, sem WebGL2, contexto perdido ou movimento reduzido: fica o desenho 2D (dataset.visual = "estatico").
+const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js";
+const ESPERA_THREE_MS = 6000;   // CDN pendurado: depois disso o visual fica no 2D de vez
+const FPS_MAX = 30, MAX_PARTICULAS = 3072, MAX_LUAS = 96, RASTRO = 7;
+const espacoTela = document.getElementById("espaco");
+let espaco = null, visivel = true;
+if ("IntersectionObserver" in window) new IntersectionObserver(es => { visivel = es[es.length-1].isIntersecting; }).observe(palco);
+function marcarVisual(v){
+  cv.dataset.visual = v; cv.dataset.energia = v === "webgl" ? "webgl" : "estatica";
+  palco.classList.toggle("gl", v === "webgl");
+}
+marcarVisual("estatico");
+function desligarEspaco(){ const e = espaco; espaco = null; marcarVisual("estatico"); try { e?.descartar(); } catch (_) {} }
+// Devolve uma promessa que resolve quando o visual está decidido (WebGL montado ou 2D de vez).
+function ligarEspaco(){
+  if (reduzir.matches) return Promise.resolve();
+  const prazo = new Promise((_, falha) => setTimeout(() => falha(Error("CDN sem resposta")), ESPERA_THREE_MS));
+  return Promise.race([import(THREE_URL), prazo]).then(T => {
+    if (reduzir.matches || espaco) return;
+    let novo = null;
+    try { novo = montarEspaco(T); novo.reconstruir(); espaco = novo; marcarVisual("webgl"); }
+    catch (_) { if (novo && espaco !== novo) try { novo.descartar(); } catch (__) {} desligarEspaco(); }
+    pedirQuadro();
+  }, () => { /* sem CDN ou CDN sem resposta em ESPERA_THREE_MS: segue o 2D */ });
+}
+
+const GLSL_RUIDO = `
+float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+float ruido(vec2 p){ vec2 i = floor(p), f = fract(p), u = f*f*(3.-2.*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
+float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++){ v += a*ruido(p); p = p*2.03 + vec2(17.1, 9.2); a *= .5; } return v; }`;
+
+function montarEspaco(T){
+  T.ColorManagement.enabled = false;   // cores do CSS entram cruas, iguais às do HUD 2D
+  const R = new T.WebGLRenderer({canvas:espacoTela, antialias:true, alpha:false, powerPreference:"high-performance"});
+  try { return montarCena(T, R); }
+  catch (e){ try { R.dispose(); R.forceContextLoss(); } catch (_) {} throw e; }   // falhou no meio: nada fica preso na GPU
+}
+function montarCena(T, R){
+  R.outputColorSpace = T.LinearSRGBColorSpace;
+  R.setClearColor(0x010805, 1);
+  const PR = Math.min(devicePixelRatio || 1, 1.5);
+  R.setPixelRatio(PR);
+  const cena = new T.Scene(), camera = new T.OrthographicCamera(0, 1, 0, -1, -100, 100);
+  const cores = new Map(), cor = s => { let c = cores.get(s); if (!c){ c = new T.Color(s || "#000"); cores.set(s, c); } return c; };
+  const tempo = {value:0}, uRes = {value:new T.Vector2(1, 1)}, uCam = {value:new T.Vector3(0, 0, 1)}, uMouse = {value:new T.Vector2()};
+  const QUAD = new T.PlaneGeometry(2, 2);
+  const VERT_UV = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.); }";
+
+  // 1. fundo: preto-esverdeado, nebulosa fbm verde da LP em baixa opacidade, vinheta e grão fino
+  const fundo = new T.Mesh(QUAD, new T.ShaderMaterial({
+    uniforms:{uTempo:tempo, uRes, uCam, uMouse}, depthTest:false, depthWrite:false,
+    vertexShader:"varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }",
+    fragmentShader:`uniform float uTempo; uniform vec2 uRes, uMouse; uniform vec3 uCam; varying vec2 vUv; ${GLSL_RUIDO}
+      void main(){
+        vec2 px = vec2(vUv.x, 1.-vUv.y)*uRes, mundo = (px - uRes*.5)/uCam.z + uCam.xy;
+        vec2 q = (mundo*.3 + px*.7)/560. + uMouse*.025 + vec2(uTempo*.0035, -uTempo*.0018);
+        float n = fbm(q*1.5), m = fbm(q*3.2 + n*1.8 + 4.1);
+        float neb = smoothstep(.42, 1., n*.62 + m*.55);
+        vec2 c = (vUv - vec2(.45, .55))*vec2(1., uRes.y/uRes.x);
+        float vin = 1. - smoothstep(.15, .95, length(c)*1.25);
+        vec3 col = mix(vec3(.004, .031, .020), vec3(.027, .114, .071), .45*vin);
+        col += vec3(.063, .235, .145)*neb*.34*(.35 + .65*vin);
+        col += vec3(.69, .59, .42)*pow(max(m - .35, 0.), 3.)*.10*vin;
+        col += (hash(gl_FragCoord.xy + fract(uTempo*3.7)*97.) - .5)*.022;
+        gl_FragColor = vec4(col, 1.);
+      }`}));
+  fundo.frustumCulled = false; fundo.renderOrder = -10; cena.add(fundo);
+
+  // 2. estrelas em 3 camadas (tamanho, brilho e cintilação distintos), determinísticas, paralaxe pela profundidade
+  const camadas = [[1600, 520, 1.6, .42, .015, .25], [520, 170, 2.6, .62, .04, .5], [120, 34, 4.6, .95, .08, .8]].map(([max, dens, tam, brilho, prof, cint], k) => {
+    const r = mulberry32(1129 + k*77), pos = new Float32Array(max*3), corA = new Float32Array(max*3), fase = new Float32Array(max);
+    for (let i = 0; i < max; i++){
+      pos[i*3] = r(); pos[i*3+1] = r(); pos[i*3+2] = .35 + .65*r(); fase[i] = r();
+      const t = r(), c = t < .78 ? [.93, .94, .88] : t < .93 ? [.62, .82, .70] : [.86, .76, .56];   // creme, verde, dourado
+      corA.set(c, i*3);
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute("position", new T.BufferAttribute(pos, 3)); g.setAttribute("aCor", new T.BufferAttribute(corA, 3)); g.setAttribute("aFase", new T.BufferAttribute(fase, 1));
+    const p = new T.Points(g, new T.ShaderMaterial({
+      uniforms:{uTempo:tempo, uRes, uCam, uMouse, uTam:{value:tam*PR}, uBrilho:{value:brilho}, uProf:{value:prof}, uCint:{value:cint}},
+      transparent:true, depthTest:false, depthWrite:false, blending:T.AdditiveBlending,
+      vertexShader:`attribute vec3 aCor; attribute float aFase; uniform vec2 uRes, uMouse; uniform vec3 uCam; uniform float uTempo, uTam, uBrilho, uProf, uCint;
+        varying vec3 vCor;
+        void main(){
+          vec2 desl = (uCam.xy - uRes*.5)/uRes*uProf*uCam.z + uMouse*uProf*.35;
+          vec2 p = fract(position.xy - desl);
+          gl_Position = vec4(p.x*2.-1., 1.-p.y*2., 0., 1.);
+          float tw = 1. - uCint*(.5 + .5*sin(uTempo*(.6 + aFase*1.7) + aFase*40.));
+          vCor = aCor*position.z*uBrilho*tw;
+          gl_PointSize = uTam*(.65 + .7*position.z);
+        }`,
+      fragmentShader:`varying vec3 vCor;
+        void main(){ vec2 d = gl_PointCoord - .5; float r2 = dot(d, d)*4.;
+          float a = exp(-r2*9.) + .12*exp(-r2*2.5); if (a < .01) discard; gl_FragColor = vec4(vCor*a, 1.); }`}));
+    p.frustumCulled = false; p.renderOrder = -9; cena.add(p);
+    return {g, dens, max};
+  });
+
+  // 3. arestas: feixe de luz (fita com núcleo fino e brilho aditivo); brilho e velocidade = volume real (e.total/maxTotal)
+  const matA = new T.ShaderMaterial({
+    uniforms:{uTempo:tempo, uFio:{value:cor(C.linha2)}, uVol:{value:cor(C.ok)}, uEsc:{value:1}},
+    transparent:true, depthTest:false, depthWrite:false, blending:T.AdditiveBlending, side:T.DoubleSide,
+    vertexShader:`attribute vec2 aNormal, aGeo; attribute vec4 aCor, aPar; varying vec2 vGeo; varying vec4 vCor, vPar;
+      void main(){ vec3 p = position; p.xy += aNormal*aGeo.x*aPar.z; vGeo = vec2(aGeo.x*aPar.z, aGeo.y); vCor = aCor; vPar = aPar;
+        gl_Position = projectionMatrix*modelViewMatrix*vec4(p, 1.); }`,
+    fragmentShader:`uniform float uTempo, uEsc; uniform vec3 uFio, uVol; varying vec2 vGeo; varying vec4 vCor, vPar;
+      void main(){
+        float d = abs(vGeo.x)/uEsc, base = vPar.x, en = vCor.a;
+        float nucleo = exp(-d*d/.9), brilho = exp(-d*d/(4. + 26.*base + 40.*en));
+        float onda = fract((vGeo.y - uTempo*(10. + 60.*base))/90.);
+        float trem = smoothstep(0., .5, onda)*(1. - smoothstep(.5, .62, onda));   // brilho que corre no sentido a→b
+        vec3 fio = mix(uFio*2., uVol*.8, base);
+        vec3 c = fio*(nucleo*(.26 + .3*base) + brilho*.09*base + (nucleo*.4 + brilho*.12)*trem*base)
+               + vCor.rgb*(nucleo*.32 + brilho*.18)*en;
+        gl_FragColor = vec4(c*vPar.y, 1.);
+      }`});
+  let geoA = null, malhaA = null, nvA = 0;
+  function reconstruirArestas(){
+    if (malhaA){ cena.remove(malhaA); geoA.dispose(); }
+    nvA = 0; for (const e of arestas) nvA += e.pts.length*2;
+    const pos = new Float32Array(nvA*3), nor = new Float32Array(nvA*2), geo = new Float32Array(nvA*2), idx = [];
+    let v = 0;
+    for (const e of arestas){
+      const P = e.pts, m = P.length; let s = 0; e.v0 = v;
+      for (let i = 0; i < m; i++){
+        const a = P[Math.max(0, i-1)], b = P[Math.min(m-1, i+1)];
+        let tx = b[0]-a[0], ty = b[1]-a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+        if (i) s += Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1]);
+        for (const lado of [-1, 1]){
+          pos[v*3] = P[i][0]; pos[v*3+1] = -P[i][1]; nor[v*2] = ty; nor[v*2+1] = tx; geo[v*2] = lado; geo[v*2+1] = s; v++;
+        }
+        if (i < m-1){ const q = v-2; idx.push(q, q+1, q+2, q+1, q+3, q+2); }
+      }
+    }
+    geoA = new T.BufferGeometry();
+    geoA.setAttribute("position", new T.BufferAttribute(pos, 3)); geoA.setAttribute("aNormal", new T.BufferAttribute(nor, 2));
+    geoA.setAttribute("aGeo", new T.BufferAttribute(geo, 2));
+    geoA.setAttribute("aCor", new T.BufferAttribute(new Float32Array(nvA*4), 4).setUsage(T.DynamicDrawUsage));
+    geoA.setAttribute("aPar", new T.BufferAttribute(new Float32Array(nvA*4), 4).setUsage(T.DynamicDrawUsage));
+    geoA.setIndex(idx);
+    malhaA = new T.Mesh(geoA, matA); malhaA.frustumCulled = false; malhaA.renderOrder = -5; cena.add(malhaA);
+  }
+  function atualizarArestas(){
+    if (!geoA) return;
+    const ca = geoA.attributes.aCor.array, pa = geoA.attributes.aPar.array;
+    for (const e of arestas){
+      const base = e.total ? .2 + .8*Math.sqrt(e.total/maxTotal) : 0;
+      const alfa = e.infra ? (foco === e.a || foco === e.b ? .8 : 0) : foco ? (caminho.has(e) ? 1 : .06) : 1;
+      const c = cor(e.cor), en = e.energia, hw = (5 + 6*base + 5*en)*escala;
+      for (let v = e.v0, f = e.v0 + e.pts.length*2; v < f; v++){
+        ca[v*4] = c.r; ca[v*4+1] = c.g; ca[v*4+2] = c.b; ca[v*4+3] = en;
+        pa[v*4] = base; pa[v*4+1] = alfa; pa[v*4+2] = hw;
+      }
+    }
+    geoA.attributes.aCor.needsUpdate = true; geoA.attributes.aPar.needsUpdate = true;
+  }
+
+  // 4. pulsos: partículas no sentido do fluxo, com rastro curto; forma do tipo (círculo, quadrado, losango)
+  const FORMA = {o:0, a:0, q:1, d:2};
+  function pontos(max, ordem, frag, depth){
+    const g = new T.BufferGeometry();
+    g.setAttribute("position", new T.BufferAttribute(new Float32Array(max*3), 3).setUsage(T.DynamicDrawUsage));
+    g.setAttribute("aCor", new T.BufferAttribute(new Float32Array(max*4), 4).setUsage(T.DynamicDrawUsage));
+    g.setAttribute("aTam", new T.BufferAttribute(new Float32Array(max*2), 2).setUsage(T.DynamicDrawUsage));
+    g.setDrawRange(0, 0);
+    const p = new T.Points(g, new T.ShaderMaterial({
+      uniforms:{uZ:{value:1}, uPR:{value:PR}}, transparent:true, depthTest:depth, depthWrite:false,
+      blending:depth ? T.NormalBlending : T.AdditiveBlending, premultipliedAlpha:depth,
+      vertexShader:`attribute vec4 aCor; attribute vec2 aTam; uniform float uZ, uPR; varying vec4 vCor; varying float vForma;
+        void main(){ vCor = aCor; vForma = aTam.y; gl_PointSize = aTam.x*uZ*uPR; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.); }`,
+      fragmentShader:`varying vec4 vCor; varying float vForma; ${frag}`}));
+    p.frustumCulled = false; p.renderOrder = ordem; cena.add(p);
+    return p;
+  }
+  const P = pontos(MAX_PARTICULAS, -4, `void main(){
+      vec2 d = (gl_PointCoord - .5)*2.;
+      float m = vForma < .5 ? length(d) : vForma < 1.5 ? max(abs(d.x), abs(d.y)) : (abs(d.x) + abs(d.y))*.78;
+      float nucleo = 1. - smoothstep(.26, .36, m), halo = exp(-m*m*7.)*.5;
+      float a = (nucleo + halo)*vCor.a; if (a < .004) discard;
+      gl_FragColor = vec4(vCor.rgb*a + vec3(.9)*nucleo*.1*vCor.a, 1.);
+    }`, false);
+  // luas: tarefas em andamento (n.ativo) em órbita inclinada, passando na frente e atrás do planeta
+  const L = pontos(MAX_LUAS, 2, `void main(){
+      vec2 d = (gl_PointCoord - .5)*2.; float r2 = dot(d, d); if (r2 > 1.) discard;
+      vec3 n = vec3(d.x, -d.y, sqrt(1. - r2)); float luz = .18 + .95*max(dot(n, normalize(vec3(-.6, .55, .6))), 0.);
+      float aa = 1. - smoothstep(.8, 1., r2);
+      gl_FragColor = vec4(vCor.rgb*luz*aa*vCor.a, aa*vCor.a);
+    }`, true);
+
+  // 5. nós = planetas (impostor esférico com terminador, fresnel e textura procedural) + órbita (cota, semana, 24 h, halo de alerta)
+  const matPlaneta = new T.ShaderMaterial({
+    uniforms:{uTempo:tempo, uCor:{value:new T.Color()}, uCorFlash:{value:new T.Color()}, uFlash:{value:0}, uDim:{value:1}, uEmissao:{value:0}, uSemente:{value:0}},
+    transparent:true, depthTest:true, depthWrite:true, vertexShader:VERT_UV,
+    fragmentShader:`uniform float uTempo, uFlash, uDim, uEmissao, uSemente; uniform vec3 uCor, uCorFlash; varying vec2 vUv; ${GLSL_RUIDO}
+      void main(){
+        vec2 p = vUv*2. - 1.; float r2 = dot(p, p), aa = fwidth(r2)*1.5;
+        float borda = 1. - smoothstep(1. - aa, 1., r2); if (borda <= 0.) discard;
+        vec3 n = vec3(p, sqrt(max(0., 1. - r2))), L = normalize(vec3(-.62, .55, .56));
+        float ndl = dot(n, L), dia = smoothstep(-.2, .5, ndl);
+        float lon = atan(n.x, n.z) + uTempo*.04 + uSemente*6.;
+        float f = fbm(vec2(lon*1.6, n.y*3.4 + uSemente*9.)*1.7);
+        float faixas = .5 + .5*sin(n.y*10. + f*5. + uSemente*3.);
+        vec3 albedo = mix(vec3(.018, .05, .034), uCor, .28 + .42*f)*(.78 + .3*faixas);
+        vec3 c = albedo*(.04 + 1.1*dia);
+        float fres = pow(1. - n.z, 2.4);
+        c += uCor*fres*(.12 + .62*dia) + mix(uCor, vec3(1.), .4)*fres*.06;
+        c += uCor*uEmissao*.22*(1. - dia)*f;
+        c += vec3(.95, .9, .8)*pow(max(dot(n, normalize(L + vec3(0., 0., 1.))), 0.), 36.)*.22*dia;
+        c += uCorFlash*uFlash*(.3 + fres*.9);
+        gl_FragColor = vec4(c*uDim, borda*uDim);
+      }`});
+  const matOrbita = new T.ShaderMaterial({
+    uniforms:{uS:{value:1}, uR:{value:1}, uCota:{value:-1}, uSemana:{value:-1}, uOk:{value:-1}, uAlerta:{value:0}, uPulso:{value:0}, uDim:{value:1}, uFlash:{value:0},
+      uCorAtm:{value:new T.Color()}, uCorCota:{value:new T.Color()}, uCorSem:{value:new T.Color()}, uCorAlerta:{value:new T.Color()}, uCorFlash:{value:new T.Color()},
+      uCorOk:{value:cor(C.ok)}, uCorFalha:{value:cor(C.ru)}, uTrilho:{value:cor(C.tx3)}},
+    transparent:true, depthTest:false, depthWrite:false, premultipliedAlpha:true, vertexShader:VERT_UV,
+    fragmentShader:`uniform float uS, uR, uCota, uSemana, uOk, uAlerta, uPulso, uDim, uFlash;
+      uniform vec3 uCorAtm, uCorCota, uCorSem, uCorAlerta, uCorFlash, uCorOk, uCorFalha, uTrilho; varying vec2 vUv;
+      vec3 cor; float alfa;
+      void sobre(vec3 c, float m){ cor = c*m + cor*(1. - m); alfa = m + alfa*(1. - m); }
+      float arco(float d, float raio, float larg, float aa){ return 1. - smoothstep(larg*.5 - aa, larg*.5 + aa, abs(d - raio)); }
+      void main(){
+        vec2 p = (vUv*2. - 1.)*uS; float d = length(p), aa = max(fwidth(d), .35)*.8;
+        float ang = fract(atan(p.x, p.y)/6.28318 + 1.), ea = aa/(6.28318*max(d, 1.));   // 0 no topo, sentido horário
+        cor = vec3(0.); alfa = 0.;
+        float fora = max(d - uR, 0.), lado = .55 + .45*dot(p/max(d, 1e-3), normalize(vec2(-.62, .55)));
+        vec3 soma = uCorAtm*exp(-fora/(uR*.2))*step(uR*.97, d)*.3*lado + uCorFlash*uFlash*exp(-fora/(uR*.5))*.45*step(uR*.97, d);
+        if (uOk >= 0.){ float m = arco(d, uR + 3., 1.3, aa); sobre(ang < uOk ? uCorOk : uCorFalha, m*.85); }
+        if (uCota >= 0.){ float m = arco(d, uR + 6.5, 2.2, aa); sobre(uTrilho, m*.2); sobre(uCorCota, m*(1. - smoothstep(uCota - ea, uCota + ea, ang))); }
+        if (uSemana >= 0.){ float m = arco(d, uR + 9.6, 1.1, aa); sobre(uTrilho, m*.16); sobre(uCorSem, m*.85*(1. - smoothstep(uSemana - ea, uSemana + ea, ang))); }
+        if (uAlerta > 0.){ float rr = uR + 13. + 4.*uPulso, x = (d - rr);
+          sobre(uCorAlerta, exp(-x*x/2.2)*(.22 + .45*uPulso)); soma += uCorAlerta*exp(-x*x/30.)*.07*(.4 + uPulso); }
+        float borda = 1. - smoothstep(uS*.82, uS*.98, d);
+        gl_FragColor = vec4((cor + soma)*uDim*borda, alfa*uDim*borda);
+      }`});
+  const objs = new Map(), lista = [];   // lista: o mesmo conteúdo, percorrida por índice a cada quadro
+  const COR_NO = {orch:C.ac, voce:C.tx, fila:C.acf, ci:C.ok, deploy:C.ok, codex:C.g6, debugger:C.g6}, ATRIBS = ["position", "aCor", "aTam"];
+  function corNo(n){ return n.corModelo || COR_NO[n.id] || (n.grupo === "site" ? C.ok : n.grupo === "conta" ? C.linha2 : C.g5); }
+  const corCota = (pct, estourou) => estourou || pct >= 100 ? C.ru : pct >= 70 ? C.al : C.ac;
+  function objeto(n){
+    let o = objs.get(n.id); if (o) return o;
+    const planeta = new T.Mesh(QUAD, matPlaneta.clone()), orbita = new T.Mesh(QUAD, matOrbita.clone());
+    planeta.material.uniforms.uTempo = tempo;   // o clone copia; o tempo é um só
+    planeta.material.uniforms.uSemente.value = (objs.size*.6180339) % 1;
+    planeta.renderOrder = 0; orbita.renderOrder = 1; planeta.frustumCulled = orbita.frustumCulled = false;
+    cena.add(planeta, orbita);
+    o = {planeta, orbita, up:planeta.material.uniforms, uo:orbita.material.uniforms, ger:0};
+    o.id = n.id; objs.set(n.id, o); lista.push(o); return o;
+  }
+  let geracao = 0;
+  const tmp = [0, 0];
+  function atualizarNos(){
+    geracao++;
+    let nl = 0;
+    const lp = L.geometry.attributes.position.array, lc2 = L.geometry.attributes.aCor.array, lt = L.geometry.attributes.aTam.array, ouro = cor(C.acf);
+    for (const n of nos){
+      const o = objeto(n), up = o.up, uo = o.uo, rel = relacionado(n), dim = rel ? 1 : .2;
+      o.ger = geracao;
+      const resp = Math.sin(n.fase)*.05*(.3 + (n.carga||0)), r = n.raio*(1 + resp + n.flash*.18), S = n.raio + 38;
+      o.planeta.position.set(n.px, -n.py, 0); o.planeta.scale.set(r, r, 1);
+      o.orbita.position.set(n.px, -n.py, 0); o.orbita.scale.set(S, S, 1);
+      const base = cor(corNo(n));
+      up.uCor.value.copy(base); up.uCorFlash.value.copy(cor(n.corFlash)); up.uFlash.value = n.flash; up.uDim.value = dim;
+      up.uEmissao.value = n.grupo === "conta" || n.id === "codex" ? Math.min(1, (n.ativo||0)/2) : (n.carga||0);
+      uo.uS.value = S; uo.uR.value = r; uo.uDim.value = dim; uo.uFlash.value = n.flash; uo.uCorFlash.value.copy(cor(n.corFlash));
+      uo.uCorAtm.value.copy(base);
+      const temCota = (n.grupo === "conta" || n.id === "codex") && n.cota_pct != null;
+      uo.uCota.value = temCota ? Math.max(0, Math.min(100, n.usoVisual))/100 : -1;
+      if (temCota) uo.uCorCota.value.copy(cor(corCota(n.cota_pct, n.estourou)));
+      const temSemana = n.grupo === "conta" && n.semana_pct != null;
+      uo.uSemana.value = temSemana ? Math.max(0, Math.min(100, n.semana_pct))/100 : -1;
+      if (temSemana) uo.uCorSem.value.copy(cor(corCota(n.semana_pct, false)));
+      uo.uOk.value = fracaoOk(n);
+      uo.uAlerta.value = n.alerta || n.estourou ? 1 : 0;
+      uo.uCorAlerta.value.copy(cor(n.estourou ? C.ru : C.al)); uo.uPulso.value = (Math.sin(n.fase*2.2) + 1)/2;
+      for (let k = 0; k < (n.ativo||0) && nl < MAX_LUAS; k++, nl++){
+        const ang = n.fase*.6 + k*6.2832/n.ativo, Ro = r + 13*escala, s = Math.sin(ang);
+        lp[nl*3] = n.px + Math.cos(ang)*Ro; lp[nl*3+1] = -(n.py + s*Ro*.3); lp[nl*3+2] = s >= 0 ? 5 : -5;
+        lc2[nl*4] = ouro.r; lc2[nl*4+1] = ouro.g; lc2[nl*4+2] = ouro.b; lc2[nl*4+3] = dim*(s >= 0 ? 1 : .75);
+        lt[nl*2] = 4.2*escala; lt[nl*2+1] = 0;
+      }
+    }
+    for (let i = lista.length - 1; i >= 0; i--){ const o = lista[i];
+      if (o.ger !== geracao){ cena.remove(o.planeta, o.orbita); o.planeta.material.dispose(); o.orbita.material.dispose(); objs.delete(o.id); lista.splice(i, 1); } }
+    L.geometry.setDrawRange(0, nl);
+    for (const k of ATRIBS) L.geometry.attributes[k].needsUpdate = true;
+  }
+  function atualizarPulsos(){
+    const pp = P.geometry.attributes.position.array, pc = P.geometry.attributes.aCor.array, pt = P.geometry.attributes.aTam.array;
+    let k = 0;
+    for (const p of pulsos){
+      if ((foco && !caminho.has(p.e) && !p.e.infra) || (p.e.infra && foco !== p.e.a && foco !== p.e.b)) continue;
+      const t = Math.min(1, p.t), a = p.t > 1 ? 1 - (p.t-1)/.15 : 1, s = p.tp.r*escala, c = cor(p.tp.cor), f = FORMA[p.tp.forma] || 0;
+      for (let j = 0; j <= RASTRO && k < MAX_PARTICULAS; j++, k++){
+        pontoEm(p.e, Math.max(0, t - j*.011), p.dir, tmp);
+        pp[k*3] = tmp[0]; pp[k*3+1] = -tmp[1]; pp[k*3+2] = 0;
+        pc[k*4] = c.r; pc[k*4+1] = c.g; pc[k*4+2] = c.b; pc[k*4+3] = a*(j ? (1 - j/(RASTRO+1))*.32 : 1);
+        pt[k*2] = j ? s*3.4*(1 - j*.08) : s*5; pt[k*2+1] = j ? 0 : f;
+      }
+    }
+    P.geometry.setDrawRange(0, k);
+    for (const k of ATRIBS) P.geometry.attributes[k].needsUpdate = true;
+  }
+
+  let rw = 0, rh = 0;
+  espacoTela.addEventListener("webglcontextlost", e => { e.preventDefault(); desligarEspaco(); pedirQuadro(); }, {once:true});
+  return {
+    reconstruir(){ reconstruirArestas(); },
+    render(){
+      if (rw !== W || rh !== H){ rw = W; rh = H; R.setSize(W, H, false); }
+      for (const c of camadas) c.g.setDrawRange(0, Math.min(c.max, Math.round(c.dens*W*H/1e6)));
+      camera.left = cam.x - W/2/cam.z; camera.right = cam.x + W/2/cam.z;
+      camera.top = -(cam.y - H/2/cam.z); camera.bottom = -(cam.y + H/2/cam.z); camera.updateProjectionMatrix();
+      tempo.value = tempoVisual; uRes.value.set(W, H); uCam.value.set(cam.x, cam.y, cam.z); uMouse.value.set(paralaxe.x, paralaxe.y);
+      P.material.uniforms.uZ.value = L.material.uniforms.uZ.value = cam.z; matA.uniforms.uEsc.value = escala;
+      atualizarArestas(); atualizarPulsos(); atualizarNos();
+      R.render(cena, camera);
+    },
+    descartar(){
+      for (const o of objs.values()){ o.planeta.material.dispose(); o.orbita.material.dispose(); }
+      objs.clear(); lista.length = 0; geoA?.dispose(); matA.dispose(); QUAD.dispose(); fundo.material.dispose();
+      for (const x of [P, L]){ x.geometry.dispose(); x.material.dispose(); }
+      cena.traverse(x => { if (x.isPoints){ x.geometry.dispose(); x.material.dispose(); } });
+      matPlaneta.dispose(); matOrbita.dispose(); R.dispose();
+    }
+  };
+}
+
+function desenhar(){
+  if (espaco && reduzir.matches) desligarEspaco();   // movimento reduzido ligado com a tela aberta: volta ao quadro estático
+  let gl = !!espaco; const estatico = reduzir.matches;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  if (gl){ try { espaco.render(); } catch (_) { desligarEspaco(); gl = false; } }   // erro no WebGL: segue no 2D
+  if (!gl) desenharCeu2D();
+  transformarHUD();
+  ctx.lineCap = "round";
+  if (!gl) for (const e of arestas){   // 2D: linha fina, mais forte pelo volume de 24 h; com energia, acende na cor do último pulso
+    if(e.infra && foco!==e.a && foco!==e.b) continue;
+    const vol = e.total ? .2 + .8*Math.sqrt(e.total/maxTotal) : 0;
+    ctx.beginPath(); ctx.moveTo(e.pts[0][0], e.pts[0][1]); for (const p of e.pts) ctx.lineTo(p[0], p[1]);
+    ctx.strokeStyle = vol ? C.ok : C.linha2; ctx.globalAlpha = foco ? (caminho.has(e) || e.infra ? .65 : .025) : .22 + .45*vol;
+    ctx.lineWidth = 1 + vol; ctx.stroke();
+    if (e.energia > .02){ ctx.strokeStyle = e.cor; ctx.globalAlpha = e.energia*.55*(foco && !caminho.has(e) && !e.infra ? .08 : 1); ctx.lineWidth = 1.4; ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "lighter";
+  for (const r of raios){ if(foco && !caminho.has(r.e) && !r.e.infra) continue; if(r.e.infra && foco!==r.e.a && foco!==r.e.b) continue;   // raio: polilinha tremida ao longo da aresta, some em ~0,4 s
+    ctx.beginPath(); const e = r.e;
+    for (let i = 0; i <= 32; i += 2){ const p = e.pts[i], j = (i === 0 || i === 32) ? 0 : (rng()-.5)*9*escala; ctx.lineTo(p[0]+j, p[1]+j*.6); }
+    ctx.strokeStyle = r.cor; ctx.globalAlpha = r.vida*.8; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  if (!gl) for (const p of pulsos){
+    if((foco && !caminho.has(p.e) && !p.e.infra) || estatico || (p.e.infra && foco!==p.e.a && foco!==p.e.b)) continue;
+    const t = Math.min(1, p.t), [x, y] = ponto(p.e, t, p.dir), s = p.tp.r*escala, a = p.t > 1 ? 1-(p.t-1)/.15 : 1;
+    ctx.strokeStyle = p.tp.cor; ctx.lineWidth = s*.9; ctx.beginPath();   // rastro curto
+    for (let k = 5; k >= 0; k--){ const q = ponto(p.e, Math.max(0, t-k*.025), p.dir); ctx.lineTo(q[0], q[1]); }
+    ctx.globalAlpha = .35*a; ctx.stroke();
+    ctx.fillStyle = p.tp.cor; ctx.globalAlpha = .18*a; forma("o", x, y, s*2.6); ctx.fill();   // halo
+    ctx.globalAlpha = a; forma(p.tp.forma === "a" ? "o" : p.tp.forma, x, y, s); ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const n of nos){
+    const rel = relacionado(n);
+    ctx.save(); if(!rel) ctx.globalAlpha=.2;
+    if (!gl) desenharNo2D(n, estatico);
+    ctx.strokeStyle = FUNDO; ctx.lineWidth = 4; ctx.lineJoin = "round";   // contorno do fundo: rótulo legível sobre as arestas
+    for(const caixa of caixasRotulos(n)){
+      ctx.font = caixa.font; ctx.fillStyle = caixa.titulo ? (n.alerta ? C.al : C.tx2) : (n.estourou ? C.ru : C.tx3);
+      ctx.strokeText(caixa.texto,n.px,caixa.y); ctx.fillText(caixa.texto,n.px,caixa.y);
+    }
+    ctx.restore();
+    if(!rel && !gl){ctx.fillStyle=FUNDO;ctx.globalAlpha=.78;ctx.fillRect(n.px-88,n.py-28,176,85);ctx.globalAlpha=1;}
+  }
+  desenharPlacar();
+}
+
+// Nó no desenho 2D (fallback): disco, contorno do modelo, cota como disco que enche, anel 24 h e grãos em órbita.
+function desenharNo2D(n, estatico){
+  const resp = estatico ? 0 : Math.sin(n.fase)*.05*(.3 + (n.carga||0)), r = n.raio*(1 + resp + n.flash*.18);
+  if (n.alerta){   // problema: anel de alerta que pulsa (parado no modo reduzido)
+    const k = estatico ? .5 : (Math.sin(n.fase*2.2)+1)/2;
+    ctx.strokeStyle = C.al; ctx.globalAlpha = .25 + .45*k; ctx.lineWidth = 2;
+    forma("o", n.px, n.py, r + 5 + 4*k); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  if (n.flash > .03){ ctx.fillStyle = n.corFlash; ctx.globalAlpha = n.flash*.22; forma("o", n.px, n.py, r*2.1); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.fillStyle = C.sup; forma("o", n.px, n.py, r); ctx.fill();
+  ctx.strokeStyle = n.flash > .1 ? n.corFlash : (n.estourou ? C.ru : n.alerta ? C.al : (n.corModelo || C.linha2)); ctx.lineWidth = n.corModelo ? 2.2 : 1.5; ctx.stroke();
+  anelResultado(n, r);
+  if(n.grupo === "conta" || n.id === "codex"){
+    if(n.cota_pct != null){
+      const pct = estatico ? (n.cota_pct||0) : n.usoVisual;
+      const cor = n.estourou || n.cota_pct >= 100 ? C.ru : n.cota_pct >= 70 ? C.al : C.ac;
+      // Área proporcional ao uso; 0% conserva apenas um ponto visível.
+      ctx.fillStyle = cor;
+      forma("o", n.px, n.py, raioCota(r, pct)); ctx.fill();
+    }
+  }else{
+    ctx.fillStyle = C.ac; ctx.globalAlpha = .35 + .65*Math.max(n.carga||0,n.flash);
+    forma("o", n.px, n.py, Math.max(2,r*.32*(.5+(n.carga||0)*.5))); ctx.fill(); ctx.globalAlpha=1;
+  }
+  for (let k = 0; k < (n.ativo||0); k++){   // tarefas rodando na conta: grãos em órbita
+    const ang = (estatico ? 0 : n.fase*.6) + k*6.2832/n.ativo;
+    ctx.fillStyle = C.ac; forma("o", n.px + Math.cos(ang)*(r+9*escala), n.py + Math.sin(ang)*(r+9*escala), 1.8*escala); ctx.fill();
+  }
+}
+
+// A parte que deu certo nas últimas 24 h (0..1; o resto falhou), ou -1 sem leitura. Sem alocar: roda a cada quadro.
+function fracaoOk(n){
+  if (COMPACTO || n.id === "fila") return -1;
+  let ok = n.ok24, falha = n.falha24;
+  if (n.grupo !== "conta"){ ok = falha = undefined; for (const x of PLACAR?.etapas || []) if (x.no === n.id){ ok = x.ok; falha = x.falha; break; } }
+  return ok + falha > 0 ? ok/(ok+falha) : -1;
+}
+// Anel junto do nó (2D): verde o que deu certo, vermelho o que falhou.
+function anelResultado(n, r){
+  const f = fracaoOk(n); if (f < 0) return;
+  const R = r + 4.5, ini = -Math.PI/2, fim = ini + 2*Math.PI*f;
+  ctx.lineWidth = 2; ctx.lineCap = "butt";
+  ctx.strokeStyle = C.ok; ctx.globalAlpha = .85; ctx.beginPath(); ctx.arc(n.px, n.py, R, ini, fim); ctx.stroke();
+  if (f < 1){ ctx.strokeStyle = C.ru; ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(n.px, n.py, R, fim, ini + 2*Math.PI); ctx.stroke(); }
+  ctx.globalAlpha = 1; ctx.lineCap = "round";
+}
+
+// ---------- placar por etapa: número grande, barra e linhas curtas, no topo da coluna (celular: acima do nó) ----------
+function quebrar(t, larg){
+  const out = []; let l = "";
+  for (const p of String(t).split(" ")){ const x = l ? l+" "+p : p; if (l && ctx.measureText(x).width > larg){ out.push(l); l = p; } else l = x; }
+  return l ? [...out, l] : out;
+}
+function corPct(p){ return p >= 90 ? C.ok : p >= 70 ? C.al : C.ru; }
+function placarBloco(e, x, y0, larg, deBaixo){
+  ctx.font = `400 10.5px ${MONO}`;
+  const nl = e.linhas.flatMap(t => quebrar(t, larg)), alto = 62 + nl.length*13, y = deBaixo ? y0 - alto : y0;
+  ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.lineJoin = "round";
+  ctx.font = `500 10.5px Geist, system-ui`; ctx.fillStyle = C.tx3;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "1.4px";
+  ctx.strokeStyle = FUNDO; ctx.lineWidth = 4;
+  ctx.strokeText((e.rot + (e.no === "fila" ? "" : " · 24 h")).toUpperCase(), x, y);
+  ctx.fillText((e.rot + (e.no === "fila" ? "" : " · 24 h")).toUpperCase(), x, y);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  const dado = e.pct != null || e.no === "fila";
+  ctx.font = dado ? `600 28px ${MONO}` : `500 14px ${MONO}`;
+  ctx.fillStyle = e.no === "fila" ? C.tx : dado ? corPct(e.pct) : C.tx3;
+  ctx.strokeText(e.grande, x, y + (dado ? 15 : 24)); ctx.fillText(e.grande, x, y + (dado ? 15 : 24));
+  const bw = Math.min(larg*.7, 120), bx = x - bw/2, by = y + 50;
+  if (dado){
+    ctx.fillStyle = C.linha2; ctx.fillRect(bx, by, bw, 4);
+    const f = e.no === "fila" ? Math.min(1, +e.grande/12) : e.pct/100;
+    ctx.fillStyle = e.no === "fila" ? C.ac : C.ok; ctx.fillRect(bx, by, bw*f, 4);
+    if (e.no !== "fila" && e.falha){ ctx.fillStyle = C.ru; ctx.fillRect(bx + bw*f, by, bw*(1-f), 4); }
+  }
+  ctx.font = `400 10.5px ${MONO}`; ctx.fillStyle = C.tx2; ctx.strokeStyle = FUNDO; ctx.lineWidth = 3;
+  nl.forEach((t,k) => { ctx.strokeText(t, x, y + 62 + k*13); ctx.fillText(t, x, y + 62 + k*13); });
+}
+function desenharPlacar(){
+  if (COMPACTO || !PLACAR) return;
+  const col = (W-145)/6, larg = celular ? W-40 : Math.min(200, col-14);
+  for (const e of PLACAR.etapas){
+    const n = porId[e.no];
+    if (!n || e.no === "codex") continue;   // a revisão mostra o placar nas linhas do próprio nó
+    if (celular) placarBloco(e, W/2, n.py - n.raio - 10, larg, true); else placarBloco(e, n.px, 12, larg, false);
+  }
+}
+
+function raioCota(raio, pct){
+  return Math.max(Math.min(2*escala, raio), raio*Math.sqrt(Math.max(0, Math.min(100, pct))/100));
+}
+
+// Mesmas medidas usadas no desenho e na regressão de colisões do canvas.
+function caixasRotulos(n){
+  const sub = COMPACTO && n.grupo === "infra" ? "" : resumo(n);
+  return [n.rot, ...(sub ? sub.split("\n") : [])].map((texto,i)=>{
+    // título em Geist; as linhas de medida em Geist Mono, como HUD (no quadro compacto, Geist: mono em 7 px não se lê)
+    const tamanho = Math.round((i ? (COMPACTO ? 11 : 10) : 12)*escala);
+    const font = i && !COMPACTO ? `400 ${tamanho}px ${MONO}` : `${i ? 400 : 500} ${tamanho}px Geist, system-ui`;
+    ctx.font = font;
+    const largura = ctx.measureText(texto).width;
+    const y = n.py+n.raio+8+(i ? (15+(i-1)*(COMPACTO?10:13))*escala : 0);
+    return {texto,font,titulo:i===0,x:n.px-largura/2,y,w:largura,h:tamanho+2};
+  });
+}
+
+function resumo(n){
+  if (n.grupo === "conta" || n.id === "codex") {
+    const medidas = [], l = [];
+    if(n.cota != null) medidas.push(`${n.janela || "5 h"} ${Math.round(n.cota)}%`);
+    if(n.semana != null && n.id !== "codex") medidas.push(`sem ${Math.round(n.semana)}%`);
+    if (n.grupo === "conta"){   // a tarefa de agora (KRN-n e o título curto), ou o porquê de estar parada
+      l.push(n.estourou ? `pausada · ${COMPACTO ? "" : "volta "}${n.estourou}` : n.ativo ? `${n.tarefa || "tarefa"}${n.minutos != null ? ` · ${n.minutos} min` : ""}` : "ociosa");
+      if (!celular && !COMPACTO && n.ativo && n.titulo) l.push(n.titulo.length > 30 ? n.titulo.slice(0,29).trimEnd() + "…" : n.titulo);
+    } else {
+      if (medidas.length) l.push(medidas.join(" · "));
+      l.push(`${n.ativo||0} rodando`, ...(n.estourou ? [`volta ${n.estourou}`] : []));
+    }
+    if (n.grupo === "conta" && medidas.length) l.push(medidas.join(" · "));
+    if (!COMPACTO && n.grupo === "conta" && n.ok24 != null) l.push(`${n.ok24} ok · ${n.falha24} falhou`);
+    if (!COMPACTO && n.id === "codex") l.push(...((PLACAR?.etapas || []).find(x => x.no === "codex")?.linhas || []));
+    return l.join("\n");
+  }
+  if (n.id === "debugger") return `${n.ativo||0} consertando`;
+  if (n.id === "fila") return (n.linhas[0]||"");
+  if (n.grupo === "site") return n.alerta ? "fora do ar" : "";
+  if (["hub","servidor_a","servidor_b"].includes(n.id)) {
+    const partes = (n.linhas[0]||"").split(" · ");
+    return n.id === "hub" ? partes[0] : [partes.slice(0,2).join(" · "),partes.slice(2).join(" · ")].filter(Boolean).join("\n");
+  }
+  if (n.id === "pc") return n.linhas[0] || "";
+  return "";
+}
+
+// ---------- contadores, linha do tempo, ticker, detalhe ----------
+function contar(){
+  const ate = modo === "replay" ? T0 + Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*(T1-T0) : T1;
+  const h = new Date(ate);
+  document.getElementById("hora").textContent = (modo === "replay" ? "" : URL_AO_VIVO ? "agora, " : "foto de ") +
+    h.toLocaleString("pt-BR", {weekday:"short", hour:"2-digit", minute:"2-digit", timeZone:"America/Sao_Paulo"});
+}
+
+function desenharLinha(){
+  const w = lc.width/DPR, h = lc.height/DPR, n = 96, bins = new Array(n).fill(0);
+  for (const e of eventos){ const i = Math.min(n-1, Math.floor((e.ms-T0)/(T1-T0)*n)); if (i >= 0) bins[i]++; }
+  const m = Math.max(1, ...bins), bw = w/n;
+  lx.clearRect(0, 0, w, h);
+  bins.forEach((v, i) => { const bh = Math.max(1, v/m*(h-6)); lx.fillStyle = C.linha2; lx.fillRect(i*bw+1, h-bh, bw-2, bh); });
+  if (modo === "replay"){ const x = Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*w;
+    lx.fillStyle = C.ac; lx.globalAlpha = .55; for (let i = 0; i < n && i*bw < x; i++){ const bh = Math.max(1, bins[i]/m*(h-6)); lx.fillRect(i*bw+1, h-bh, bw-2, bh); }
+    lx.globalAlpha = 1; lx.fillRect(x-1, 0, 2, h); }
+}
+
+const tk = document.getElementById("ticker"); let ultimoTicker = 0;
+function ticker(ev, inicial = false){
+  const agora = performance.now(); if (!inicial && agora - ultimoTicker < 350) return; ultimoTicker = agora;
+  const d = document.createElement("div"); d.textContent = ev.rot; d.style.color = (TIPOS[ev.tipo]||{}).cor;
+  tk.prepend(d); while (tk.children.length > 40) tk.lastChild.remove();
+}
+
+const det = document.getElementById("detalhe"), detC = document.getElementById("det-corpo");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const link = u => /^https:\/\//.test(u||"") ? u : "";
+function abrir(n){
+  const evs = (modo === "replay" ? visto : eventos).filter(e => e.de === n.id || e.para === n.id).slice(-8).reverse();
+  const cotas = n.grupo === "conta" || n.id === "codex" ? `<p>${n.id === "codex" ? "Cota semanal" : "Janela de 5 h"}: ${n.cota_pct ?? "sem leitura"}${n.cota_pct == null ? "" : "%"} · Semana: ${n.semana_pct ?? "sem leitura"}${n.semana_pct == null ? "" : "%"}</p>` : "";
+  detC.innerHTML = `<h2>${esc(n.rot)}</h2>${cotas}<ul>${n.linhas.map(l => `<li>${esc(l)}</li>`).join("") || "<li>sem leitura coletada</li>"}</ul>` +
+    (link(n.url) ? `<p><a href="${esc(n.url)}" target="_blank" rel="noopener">abrir →</a></p>` : "") +
+    (evs.length ? `<p class="sub">Últimos eventos</p><ul>${evs.map(e => `<li class="ev">${new Date(e.ms).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"})} · ${link(e.url) ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.rot)}</a>` : esc(e.rot)}</li>`).join("")}</ul>` : "");
+  det.classList.add("aberto"); det.querySelector(".fechar").focus();
+}
+function fecharDetalhe(){
+  det.classList.remove("aberto");
+  if (camAntes){ camAlvo.x = camAntes.x; camAlvo.y = camAntes.y; camAlvo.z = camAntes.z; camAntes = null; moverCam(); }   // volta ao enquadramento de antes do clique
+}
+det.querySelector(".fechar").onclick = fecharDetalhe;
+addEventListener("keydown", e => { if (e.key === "Escape" && det.classList.contains("aberto")) fecharDetalhe(); });
+// Hit-test na tela (x, y relativos ao canvas): desfaz a câmera antes de comparar com n.px/n.py.
+function noEm(x, y){
+  const wx = (x - W/2)/cam.z + cam.x, wy = (y - H/2)/cam.z + cam.y;
+  return nos.find(n => Math.hypot(n.px-wx, n.py-wy) < n.raio + 12/cam.z);
+}
+// Ponteiro: clique (até 5 px de movimento) foca o nó; arrasto move o mapa ampliado; dois dedos fazem pinça.
+const toques = new Map(); let arrasto = null, pinca = null, arrastou = false;
+cv.addEventListener("pointerdown", e => {
+  if (COMPACTO) return;
+  toques.set(e.pointerId, {x:e.clientX, y:e.clientY}); arrastou = false;
+  if (toques.size === 1) arrasto = {x:e.clientX, y:e.clientY, cx:camAlvo.x, cy:camAlvo.y, mov:false};
+  else arrasto = null;   // segundo dedo: a pinça é tratada pelos eventos de toque abaixo
+});
+cv.addEventListener("pointermove", e => {
+  const t = toques.get(e.pointerId);
+  if (t){ t.x = e.clientX; t.y = e.clientY; }
+  if (pinca) return;
+  if (arrasto && t){
+    const dx = e.clientX - arrasto.x, dy = e.clientY - arrasto.y;
+    if (!arrasto.mov && Math.hypot(dx, dy) > 5){ arrasto.mov = true; if (camAlvo.z > Z_MIN + 1e-3) cv.setPointerCapture?.(e.pointerId); }
+    if (arrasto.mov && camAlvo.z > Z_MIN + 1e-3){
+      camAlvo.x = arrasto.cx - dx/camAlvo.z; camAlvo.y = arrasto.cy - dy/camAlvo.z; limitarCam(camAlvo);
+      cam.x = camAlvo.x; cam.y = camAlvo.y; cam.z = camAlvo.z; cv.style.cursor = "grabbing"; pedirQuadro();
+    }
+    if (arrasto.mov) return;
+  }
+  if (e.pointerType !== "mouse") return;
+  const r = cv.getBoundingClientRect(), n = noEm(e.clientX-r.left, e.clientY-r.top);
+  if (!COMPACTO && !celular && !reduzir.matches){ paralaxe.ax = (e.clientX-r.left)/W*2 - 1; paralaxe.ay = (e.clientY-r.top)/H*2 - 1; }
+  cv.style.cursor = n ? "pointer" : camAlvo.z > Z_MIN + 1e-3 ? "grab" : COMPACTO ? "pointer" : "default";
+  if ((n?.id || null) !== foco) focar(n);
+});
+// Pinça: com touch-action pan-y o navegador ficaria com o gesto de dois dedos (pointercancel). Os eventos de toque
+// cancelam o padrão só quando há dois dedos, então a pinça funciona já do zoom 1 e um dedo segue rolando a página.
+function pincaDe(ts){ const a = ts[0], b = ts[1]; return {d:Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY) || 1, x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2}; }
+cv.addEventListener("touchstart", e => {
+  if (COMPACTO || e.touches.length < 2) return;
+  e.preventDefault(); cv.style.touchAction = "none";
+  pinca = {d:pincaDe(e.touches).d, z:camAlvo.z}; arrasto = null; arrastou = true;
+}, {passive:false});
+cv.addEventListener("touchmove", e => {
+  if (!pinca || e.touches.length < 2) return;
+  e.preventDefault();
+  const p = pincaDe(e.touches), r = cv.getBoundingClientRect();
+  zoomEm(pinca.z*p.d/pinca.d/camAlvo.z, p.x - r.left, p.y - r.top);
+  cam.x = camAlvo.x; cam.y = camAlvo.y; cam.z = camAlvo.z;
+}, {passive:false});
+const fimToque = e => { if (pinca && e.touches.length < 2){ pinca = null; aplicarCam(); } };
+cv.addEventListener("touchend", fimToque); cv.addEventListener("touchcancel", fimToque);
+const soltar = e => {
+  toques.delete(e.pointerId);
+  if (arrasto?.mov) arrastou = true;
+  if (!toques.size) arrasto = null;
+  aplicarCam();
+};
+cv.addEventListener("pointerup", soltar); cv.addEventListener("pointercancel", soltar);
+cv.addEventListener("click", e => { if (COMPACTO){ top.location.href = "/cerebro"; return; }
+  if (arrastou){ arrastou = false; return; }
+  const r = cv.getBoundingClientRect(), n = noEm(e.clientX-r.left, e.clientY-r.top); focar(n); if (n){ abrir(n); focarCam(n); } });
+cv.addEventListener("dblclick", () => { if (COMPACTO) return; det.classList.remove("aberto"); ajustarCam(); });
+cv.addEventListener("mouseleave", () => { paralaxe.ax = paralaxe.ay = 0; if (!arrasto?.mov && foco) focar(null); });
+// Roda: com Ctrl/⌘ (ou pinça do trackpad) aproxima; sem modificador só age com o mapa já ampliado, para não prender a rolagem da página.
+cv.addEventListener("wheel", e => {
+  if (COMPACTO || (!(e.ctrlKey || e.metaKey) && camAlvo.z <= Z_MIN + 1e-3)) return;
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  zoomEm(Math.exp(-e.deltaY*(e.deltaMode ? .05 : .0018)), e.clientX - r.left, e.clientY - r.top);
+}, {passive:false});
+document.getElementById("z-mais").onclick = () => { const [x, y] = centroVisivel(); zoomEm(1.4, x, y); };
+document.getElementById("z-menos").onclick = () => { const [x, y] = centroVisivel(); zoomEm(1/1.4, x, y); };
+document.getElementById("z-ajustar").onclick = ajustarCam;
+lc.addEventListener("click", e => { if (modo !== "replay") return; const r = lc.getBoundingClientRect();
+  irPara((e.clientX - r.left)/r.width*DUR_REPLAY); });
+
+function irPara(seg){   // pula o replay para um ponto sem disparar a enxurrada de pulsos do trecho pulado
+  relogio = seg; const ms = T0 + seg/DUR_REPLAY*(T1-T0);
+  ponteiro = 0; while (ponteiro < eventos.length && eventos[ponteiro].ms <= ms) ponteiro++;
+  visto = eventos.slice(Math.max(0, ponteiro-400), ponteiro); pulsos = []; raios = [];
+}
+
+// ---------- modos ----------
+const bV = document.getElementById("b-vivo"), bR = document.getElementById("b-replay"), bP = document.getElementById("b-pausa");
+function setModo(m){
+  modo = m; bV.setAttribute("aria-pressed", m === "vivo"); bR.setAttribute("aria-pressed", m === "replay");
+  pulsos = []; raios = []; irPara(0);
+  tk.replaceChildren();
+  if(m === "vivo") eventos.slice(-40).forEach(e => ticker(e, true));
+  document.getElementById("sub").textContent = m === "replay" ? `replay: as últimas 24 h em ${DUR_REPLAY} s` :
+    (URL_AO_VIVO ? "ao vivo: eventos chegam a cada 5 s" : "foto de agora (no painel os eventos chegam ao vivo)");
+  desenharLinha(); contar();
+}
+bV.onclick = () => setModo("vivo"); bR.onclick = () => setModo("replay");
+bP.onclick = () => { pausado = !pausado; bP.setAttribute("aria-pressed", pausado); bP.textContent = pausado ? "Continuar" : "Pausar"; };
+
+let ultimoVivo = DADOS.agora;   // a página já vem com as 24 h; o polling só pede o que veio depois
+async function buscarVivo(){
+  if (!URL_AO_VIVO || document.hidden) return;
+  try {
+    const r = await fetch(URL_AO_VIVO + "?desde=" + encodeURIComponent(ultimoVivo), {cache:"no-store"});
+    if (!r.ok) return;
+    const d = await r.json(), novos = d.eventos.filter(e => !chaves.has(chave(e)));
+    const todos = eventos.map(({ms, ...e}) => e).concat(novos).filter(e => e.t >= d.desde).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+    const emReplay = modo === "replay" ? relogio : null;
+    chaves.clear(); carregar(Object.assign({}, d, {eventos: todos}));
+    if (emReplay !== null) irPara(emReplay);   // o replay segue do ponto em que estava, com a janela nova
+    if (modo === "vivo" && !reduzir.matches) novos.slice(-40).forEach((e, i) => setTimeout(() => disparar(Object.assign({ms:Date.parse(e.t)}, e)), i*120));
+    ultimoVivo = d.agora;
+    if (reduzir.matches || pausado){ ponteiro = eventos.length; desenhar(); desenharLinha(); }
+    contar();
+  } catch (_) { /* rede caiu: tenta no próximo ciclo */ }
+}
+
+// ---------- laço ----------
+carregar(DADOS);
+const tq = new URLSearchParams(location.search).get("t");
+const qModo = new URLSearchParams(location.search).get("modo");
+setModo(qModo === "replay" || (!URL_AO_VIVO && qModo !== "vivo") ? "replay" : "vivo");   // no painel abre ao vivo
+new ResizeObserver(() => { medir(); desenhar(); desenharLinha(); }).observe(cv);
+addEventListener("resize", () => { medir(); desenhar(); desenharLinha(); });
+const visualDecidido = ligarEspaco();
+if (tq !== null){   // ?t=N: replay congelado em N s (prints reproduzíveis); __pronto só com o visual decidido e desenhado
+  const alvo = parseFloat(tq); irPara(Math.max(0, alvo-1.5)); for (let s = 0; s < 1.5; s += 1/60) passo(1/60);
+  desenhar(); desenharLinha(); contar();
+  visualDecidido.then(() => { desenhar(); requestAnimationFrame(() => { window.__pronto = true; }); });
+} else if (reduzir.matches){   // movimento reduzido: mapa parado, arestas com espessura pelo volume de 24 h e contadores cheios
+  setModo("vivo"); ponteiro = eventos.length; desenhar(); desenharLinha(); contar();
+  document.getElementById("sub").textContent = "mapa parado (movimento reduzido): toque num nó para explorar" +
+    (URL_AO_VIVO ? "; contadores e alertas a cada 5 s" : "");
+  addEventListener("resize", () => { desenhar(); contar(); });
+  if (URL_AO_VIVO) setInterval(buscarVivo, 5000);
+} else {   // teto de FPS_MAX quadros/s no WebGL e no HUD; parado com a aba escondida ou o mapa fora da tela
+  animado = true;
+  let ant = performance.now(), acum = 0, quadro = 0;
+  (function laco(agora){
+    requestAnimationFrame(laco);
+    const bruto = Math.max(0, (agora - ant)/1000); ant = agora;
+    if (document.hidden || !visivel){ acum = 0; return; }
+    acum += bruto; if (acum < 1/FPS_MAX - .004) return;
+    const dt = Math.min(acum, 1/20); acum = 0;
+    const mexeu = passoCam(dt); passoParalaxe(dt);
+    if (!pausado){ if(!reduzir.matches) passo(dt); desenhar(); if (++quadro % 3 === 0){ desenharLinha(); contar(); } }
+    else if (mexeu || sujo) desenhar();
+    sujo = false;
+  })(ant);
+  if (URL_AO_VIVO){ buscarVivo(); setInterval(buscarVivo, 5000); }
+}
+document.fonts?.ready.then(() => pedirQuadro());
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+{
+  "id": "psite13",
+  "ids_antigos": [
+    "psite13"
+  ],
+  "ativo": true,
+  "nome": "Cliente G",
+  "dominio": "psite13-com.example",
+  "hosts_alternativos": [
+    "www.psite13-com.example",
+    "psite13-com-br.example",
+    "www.psite13-com-br.example"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "example-org/psite13",
+    "base": "main",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:psite13-com.example",
+    "ga4": "100000006",
+    "ga4_medicao": "G-TESTE00006",
+    "clarity": "clarity0006",
+    "dokploy_app": "dokploy-app-psite13"
+  },
+  "marca": {
+    "nome": "Cliente G",
+    "aliases": [
+      "Cliente G",
+      "psite13"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "CFP",
+  "contexto": "Cliente G (psite13-com.example): cadastro de teste, texto fictício. Recomende páginas em psite13-com.example.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "Zenklub",
+    "Vittude",
+    "Doctoralia",
+    "Psicologia Viva",
+    "Psico Prô Mundo",
+    "PsyMeet",
+    "Terappia",
+    "ClienteI Pessoa Teixeira"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 psite13",
+      "buscas 2 psite13",
+      "buscas 3 psite13",
+      "buscas 4 psite13",
+      "buscas 5 psite13",
+      "buscas 6 psite13",
+      "buscas 7 psite13",
+      "buscas 8 psite13",
+      "buscas 9 psite13",
+      "buscas 10 psite13"
+    ],
+    "painel": [
+      "painel 1 psite13",
+      "painel 2 psite13",
+      "painel 3 psite13",
+      "painel 4 psite13",
+      "painel 5 psite13",
+      "painel 6 psite13"
+    ],
+    "locais": [
+      2076,
+      2620,
+      2840,
+      2372,
+      2826,
+      2124
+    ],
+    "max_buscas": 10,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 psite13",
+      "termos_gsc 2 psite13",
+      "termos_gsc 3 psite13",
+      "termos_gsc 4 psite13",
+      "termos_gsc 5 psite13"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    }
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 psite13",
+      "palavras 2 psite13",
+      "palavras 3 psite13",
+      "palavras 4 psite13",
+      "palavras 5 psite13",
+      "palavras 6 psite13",
+      "palavras 7 psite13"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
+}

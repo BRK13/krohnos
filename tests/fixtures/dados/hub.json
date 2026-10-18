@@ -1,0 +1,169 @@
+{
+  "painel_modelos": [
+    "perplexity/sonar-pro",
+    "openai/gpt-5.6-terra:online",
+    "google/gemini-3.8-flash:online"
+  ],
+  "mcp": "http://localhost:4181/mcp",
+  "faixas": {
+    "1": "construtor",
+    "2": "construtor",
+    "3": "construtor",
+    "4": "operador"
+  },
+  "skills": {
+    "biblioteca": "/nao/existe/skills-biblioteca",
+    "plugins_base": [
+      "superpowers@claude-plugins-official",
+      "code-review@claude-plugins-official"
+    ],
+    "base": []
+  },
+  "codex": {
+    "vagas": 6
+  },
+  "reservas_api": [
+    {
+      "id": "reserva-a",
+      "rotulo": "Reserva A (mensal)",
+      "arquivo": ".config/anthropic-a.key",
+      "credito": 200,
+      "mensal": true
+    },
+    {
+      "id": "reserva-b",
+      "rotulo": "Reserva B",
+      "arquivo": ".anthropic-b.key",
+      "credito": 1000,
+      "teto_dia": 20,
+      "teto_total": 950,
+      "ativa": false
+    }
+  ],
+  "roteamento": {
+    "padrao": "sonnet",
+    "regras": [
+      {
+        "modelo": "fable",
+        "labels": [
+          "fable"
+        ],
+        "por": "label fable"
+      },
+      {
+        "modelo": "opus",
+        "labels": [
+          "opus"
+        ],
+        "por": "label opus"
+      },
+      {
+        "modelo": "opus",
+        "prioridade": 1,
+        "label_prefixo": "plano-",
+        "por": "p1 de plano"
+      },
+      {
+        "modelo": "haiku",
+        "labels": [
+          "seo-fix"
+        ],
+        "por": "esteira seo-fix"
+      },
+      {
+        "modelo": "opus",
+        "titulo": "migra[çc][ãa]o|banco de dados|\\binfra|seguran[çc]a|vulnerab|plano novo|causa desconhecida|sem causa",
+        "por": "plano/migração/infra/segurança/bug sem causa"
+      },
+      {
+        "modelo": "opus",
+        "labels": [
+          "produto"
+        ],
+        "titulo": "\\bbusca|\\bIA\\b|embedding|ranking|rerank",
+        "por": "busca/IA do produto"
+      },
+      {
+        "modelo": "haiku",
+        "titulo": "\\btitle\\b|meta ?description|llms\\.txt|links? internos?|\\bfaq\\b|\\blint\\b|\\btsc\\b|p[óo]s-deploy|aguardando ci",
+        "por": "mecânico curto"
+      }
+    ],
+    "retomada_deploy": "haiku",
+    "retomada_mecanica": "sonnet",
+    "codex_primeiro": [
+      "seo-fix",
+      "conteudo",
+      "melhoria",
+      "testes",
+      "lint",
+      "tsc",
+      "visual",
+      "ui"
+    ]
+  },
+  "dataforseo_padrao": {
+    "locationCode": 2076,
+    "languageCode": "pt"
+  },
+  "metas_dinheiro": {},
+  "farejador_social": {
+    "excluir": "bolsonar|\\blula\\b|janones|petist|bolsominion|esquerdopata|\\burgente\\b|bomb[aá]stic|pt brasil|ladr[aã]o",
+    "relevante": "advog|advocacia|direito|jur[ií]dic|jurisprud|\\boab\\b|\\bstj\\b|\\bstf\\b|\\btst\\b|s[uú]mula|peti[cç][aã]o|processo|tribunal|ju[ií]z|desembargad|ministro do s|\\bcpc\\b|\\bclt\\b|\\binss\\b|\\bcdc\\b|concurso oab|estagi[aá]rio de direito",
+    "x": {
+      "palavras": [
+        "advogado",
+        "advocacia",
+        "jurisprudência",
+        "STJ",
+        "STF",
+        "OAB",
+        "processo",
+        "petição",
+        "prazo processual",
+        "IA jurídica",
+        "direito trabalhista",
+        "direito previdenciário",
+        "direito do consumidor",
+        "direito de família",
+        "concurso OAB",
+        "estagiário de direito"
+      ],
+      "min_curtidas": 100,
+      "max_buscas": 15
+    },
+    "instagram": {
+      "hashtags": [
+        "advocacia",
+        "advogado",
+        "direito",
+        "oab",
+        "jurisprudencia",
+        "direitotrabalhista",
+        "direitoprevidenciario",
+        "direitodoconsumidor",
+        "direitodefamilia",
+        "estudantededireito"
+      ],
+      "perfis": [
+        "cfoab",
+        "portalmigalhas",
+        "cursoceisc",
+        "damasio-oab.example",
+        "dra-mirianeferreira.example"
+      ],
+      "max_leituras": 40,
+      "sessao": "/nao/existe/instagram-leitura-json.example"
+    },
+    "temas": {
+      "trabalhista": "trabalh|clt|tst|emprega",
+      "previdenciario": "previd|inss|aposentad|bpc",
+      "consumidor": "consumid|cdc|procon|banco|pix",
+      "familia": "fam[ií]lia|div[oó]rcio|pens[aã]o|guarda",
+      "oab_carreira": "oab|exame|concurso|estagi|faculdade|carreira",
+      "ia_tecnologia": "\\bia\\b|intelig[eê]ncia artificial|chatgpt|tecnolog",
+      "processo": "prazo|peti[cç][aã]o|recurso|processo|cpc|audi[eê]ncia",
+      "tribunais": "stj|stf|s[uú]mula|tema|jurisprud"
+    }
+  }
+}

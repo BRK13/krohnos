@@ -145,8 +145,11 @@ class Build(unittest.TestCase):
     def test_real_brand_and_no_competing_animation(self):
         text = self.read("index.html")
         self.assertIn('/assets/krohnos-mark.svg', text)
-        self.assertNotIn('<canvas', text)
-        self.assertNotIn('/assets/hero-gl.js', text)
+        self.assertIn('<canvas id="hero-gl" aria-hidden="true">', text)
+        self.assertIn('/assets/hero-gl.js', text)
+        css = self.read("assets/style.css")
+        self.assertRegex(css, r"#hero-gl\{[^}]*position:fixed;[^}]*inset:0")
+        self.assertIn("100svh", css)
         self.assertNotIn("unsafe-eval", (SITE / "nginx.conf").read_text())
         self.assertNotIn("unsafe-inline", (SITE / "nginx.conf").read_text())
 

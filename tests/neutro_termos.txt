@@ -18,7 +18,7 @@ allow:BRK13/krohnos
 whatsapp pessoal
 o dono mediu
 
-# Cliente de terceiro (os nomes dos projetos próprios, o e-mail do autor e a razão social foram autorizados no site, BRU-1121)
+# Cliente de terceiro (os nomes dos projetos próprios, o e-mail do autor e a razão social foram autorizados no site)
 schwab
 jpschwab
 

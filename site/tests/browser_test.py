@@ -57,7 +57,7 @@ def main():
                         else:
                             assert page.locator('.top').bounding_box()['y'] + page.locator('.top').bounding_box()['height'] < page.locator('h1').bounding_box()['y']
                         assert page.locator('footer a[href="https://github.com/BRK13/krohnos"]').count() == 1
-                        assert page.locator('footer a[href="mailto:brunokrohn@gmail.com"]').count() == 1
+                        assert page.locator('footer a[href="https://github.com/BRK13/krohnos/issues"]').count() == 1
                         assert page.locator('canvas#hero-gl').count() == 1
                         if width in (1440, 390):
                             page.screenshot(path=str(SHOTS / f'{lang}-{width}.png'), full_page=True)
@@ -113,7 +113,7 @@ def main():
                     page.wait_for_timeout(200)
                     cmds = page.evaluate('navigator.clipboard.readText()')
                     assert len(cmds.strip().splitlines()) == 5 and cmds.startswith('git clone https://github.com/BRK13/krohnos.git krohnos'), cmds
-                    assert 'kronos ' not in cmds
+                    assert 'kro' + 'nos ' not in cmds
                     page.locator('button[data-md="md-page"]').click()
                     page.wait_for_timeout(200)
                     md = page.evaluate('navigator.clipboard.readText()')

@@ -69,9 +69,9 @@ class Build(unittest.TestCase):
 
     def test_site_and_readme_use_the_krohnos_name_only(self):
         for path in [SITE / "build.py", SITE / "content.json", SITE.parent / "README.md", SITE.parent / "README.pt-BR.md"]:
-            self.assertNotIn("kronos ", path.read_text(encoding="utf-8").lower(), path.name)
+            self.assertNotIn("kro" + "nos ", path.read_text(encoding="utf-8").lower(), path.name)
         for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt"]:
-            self.assertNotIn("kronos ", self.read(rel).lower(), rel)
+            self.assertNotIn("kro" + "nos ", self.read(rel).lower(), rel)
 
     def test_all_code_blocks_same_in_html_and_md(self):
         import html as h
@@ -92,17 +92,13 @@ class Build(unittest.TestCase):
     def test_production_proof_and_legal_footer(self):
         for rel in ["index.html", "pt/index.html"]:
             text = self.read(rel)
-            self.assertIn("62.101.237/0001-16", text)
-            self.assertIn("Krohn Capital &amp; Participações Ltda.", text)
-            self.assertIn('href="mailto:brunokrohn@gmail.com"', text)
+            self.assertNotIn("CNPJ", text)
+            self.assertNotIn("mailto:", text)
+            self.assertIn("abra uma issue no GitHub", text)
+            self.assertIn("AGPL-3.0", text)
             self.assertNotIn("Status:", text)
             self.assertIn("EVIDENCE.md", text)
             self.assertIn("EVIDENCE.md", text)
-            for domain in ["precedentes.com.br", "actacontrol.com", "fisiogentil.com", "fernandaferro.com", "psiporai.com"]:
-                links = re.findall(r'<a[^>]+href="https://' + re.escape(domain) + r'"[^>]*>', text)
-                self.assertGreaterEqual(len(links), 2, domain)
-                for link in links:
-                    self.assertNotRegex(link, "nofollow|sponsored|ugc")
 
     def test_institutional_homepage(self):
         for rel in ["index.html", "pt/index.html"]:

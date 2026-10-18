@@ -7,9 +7,9 @@ Não publica comandos de instalação sem teste em máquina limpa.
 - `content.json`: fonte única do conteúdo nas duas línguas.
 - `build.py`: gerador determinístico em Python stdlib, utilizado no CI e no Dockerfile.
 - `EVIDENCE.md`: fontes, data, limites e metodologia das métricas publicadas.
-- `assets/`: fontes locais Inter e Instrument Serif, ampulheta aprovada e capturas dos cinco projetos autorizados.
+- `assets/`: fontes locais Inter e Instrument Serif, e ampulheta aprovada.
 - `assets/hero-gl.js`: ativo legado preservado, sem carregamento na página.
-- `Dockerfile` e `nginx.conf`: geração e publicação pelo Dokploy, com CSP restrita e sem CDN.
+- `Dockerfile` e `nginx.conf`: geração e publicação pelo painel de hospedagem, com CSP restrita e sem CDN.
 
 ## Validação focada
 
@@ -29,15 +29,9 @@ Build de produção e suíte completa pertencem ao runner e ao deploy.
 
 ## Publicação
 
-Dokploy: aplicação `app-compress-digital-capacitor-setuzd`, repositório `BRK13/krohnos`,
-branch `main`, contexto `site`, Dockerfile `Dockerfile`, porta 80.
-Domínios `krohnos.com` e `www.krohnos.com`, com redirecionamento para o domínio principal.
-
-Autodeploy ativado pelo orquestrador em 17/10/2026: `autoDeploy=true` e webhook de push
-GitHub `699636876` em `BRK13/krohnos`.
-Validar o próximo merge na main conferindo o deploy correspondente e o HTML servido.
+O deploy da landing é configurado no painel de hospedagem: contexto `site`, Dockerfile `Dockerfile`, porta 80.
 O identificador técnico `krohnos-release` (`2026-10-17`) nas duas línguas permite conferir qual versão está no ar.
-O estado só pode ser considerado concluído após essa prova, sem disparo manual.
+Valide o próximo merge na main conferindo o deploy correspondente e o HTML servido.
 
 ## Decisões visuais
 
@@ -45,4 +39,3 @@ Preto e verde profundo conforme atualização do autor em 17/10/2026.
 Ampulheta original, com a mesma geometria e cores adaptadas à paleta.
 Cabeçalho no fluxo do documento e menu expansível que desloca o conteúdo.
 Sem fita de luz; apenas entrada breve de elementos, desativada por `prefers-reduced-motion`.
-Capturas reais das páginas iniciais dos projetos, sem imagens de painel simuladas.

@@ -34,15 +34,14 @@ branch `main`, contexto `site`, Dockerfile `Dockerfile`, porta 80.
 Domínios `krohnos.com` e `www.krohnos.com`, com redirecionamento para o domínio principal.
 
 Autodeploy ativado pelo orquestrador em 17/10/2026: `autoDeploy=true` e webhook de push
-GitHub `699636876` em `BRK13/krohnos` (proposta `20261017-191000-linear-bru-1121-917a`).
+GitHub `699636876` em `BRK13/krohnos`.
 Validar o próximo merge na main conferindo o deploy correspondente e o HTML servido.
-O identificador técnico `krohnos-release` nas duas línguas permite distinguir a publicação
-de teste (`bru-1121-autodeploy-20261017`) da versão anterior (`bru-1121`).
+O identificador técnico `krohnos-release` (`2026-10-17`) nas duas línguas permite conferir qual versão está no ar.
 O estado só pode ser considerado concluído após essa prova, sem disparo manual.
 
 ## Decisões visuais
 
-Preto e verde profundo conforme atualização do Bruno em 17/10/2026 na BRU-1121.
+Preto e verde profundo conforme atualização do autor em 17/10/2026.
 Ampulheta original, com a mesma geometria e cores adaptadas à paleta.
 Cabeçalho no fluxo do documento e menu expansível que desloca o conteúdo.
 Sem fita de luz; apenas entrada breve de elementos, desativada por `prefers-reduced-motion`.

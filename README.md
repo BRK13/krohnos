@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/kronos-loading.gif" width="96" alt="Krohnos hourglass"></p>
+<p align="center"><img src="docs/krohnos-loading.gif" width="96" alt="Krohnos hourglass"></p>
 
 <h1 align="center">Krohnos</h1>
 

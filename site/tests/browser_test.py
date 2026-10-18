@@ -1,4 +1,4 @@
-"""Focused browser regression checks for BRU-1121; generates a temporary site fixture."""
+"""Focused browser regression checks; generates a temporary site fixture."""
 import functools
 import http.server
 import os
@@ -69,7 +69,7 @@ def main():
                             page.screenshot(path=str(SHOTS / f'{lang}-{width}-light.png'), full_page=True)
                         print(f'PASS {lang} {width}: links, brand, no overflow, menu, no overlap, no JS errors')
                         page.close()
-                # BRU-1071: the ribbon is a fixed full-screen background and the hero is exactly one screen.
+                # The ribbon is a fixed full-screen background and the hero is exactly one screen.
                 for lang, path in [('en', '/'), ('pt', '/pt/')]:
                     for width, height in [(1366, 768), (1440, 900), (1920, 1080)]:
                         page = browser.new_page(viewport={'width': width, 'height': height}, reduced_motion='reduce')

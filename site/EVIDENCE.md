@@ -54,9 +54,7 @@ Contato: e-mail público do autor do repositório. Razão social e CNPJ: decisã
 
 ## Instalação
 
-O site, seus arquivos Markdown e `llms.txt` direcionam a acesso antecipado, sem comandos de instalação.
-Comandos só devem voltar com a publicação do código e teste de instalação em máquina limpa
-(clone e inicialização), enquanto o código do harness não é publicado.
+Os cinco comandos da página vêm de `docs/INSTALAR.md` e do `README.md` do repositório e foram conferidos no código: entrypoint `krohnos` (`pyproject.toml`), subcomandos `init` e `demo` (`hub/cli.py`), rota `/saude` (`hub/painel.py`) e o serviço `painel` no `compose.yml`. O teste de instalação cronometrada (`scripts/teste-instalacao.sh`) não foi executado para esta página: é a prova de máquina limpa e continua pendente.
 
 Atualização de identidade em 17/10/2026: preto e verde profundo, conforme decisão do autor. A geometria da ampulheta aprovada foi preservada, com as cores ajustadas à nova paleta.
 

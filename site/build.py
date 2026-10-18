@@ -53,8 +53,6 @@ def install_short(data):
 # ---------- markdown ----------
 def block_md(b, data, lang):
     t = b["t"]
-    if t == "projects":
-        return " · ".join("[%s](%s)" % (x["name"], x["url"]) for x in b["items"])
     if t == "p":
         return b["x"]
     if t == "ul":
@@ -92,11 +90,6 @@ def code_block(cid, text, ui, label):
 def block_html(b, data, lang, sid, idx):
     ui = data[lang]["ui"]
     t = b["t"]
-    if t == "projects":
-        return '<div class="project-grid">' + ''.join(
-            '<a class="project" href="%s"><img src="/assets/projects/%s.jpg" width="1000" height="650" loading="lazy" alt="%s"><span>%s <span aria-hidden="true">↗</span></span></a>' %
-            (html.escape(x["url"], quote=True), html.escape(x["slug"], quote=True), html.escape(x["name"], quote=True), html.escape(x["name"]))
-            for x in b["items"]) + '</div>'
     if t == "p":
         return "<p>%s</p>" % inline_html(b["x"])
     if t == "ul":
@@ -224,9 +217,7 @@ def page_html(data, lang):
 </main>
 <footer class="foot">
   <p class="footer-brand">Krohnos</p>
-  <p>Krohn Capital &amp; Participações Ltda. · CNPJ 62.101.237/0001-16</p>
-  <p><a href="mailto:brunokrohn@gmail.com">brunokrohn@gmail.com</a></p>
-  <p><a href="https://precedentes.com.br">Precedentes</a> · <a href="https://actacontrol.com">Acta Control</a> · <a href="https://fisiogentil.com">Fisio Gentil</a> · <a href="https://fernandaferro.com">Fernanda Ferro</a> · <a href="https://psiporai.com">Psi Por Aí</a></p>
+  <p>contato: <a href="{s['repo']}/issues" rel="noopener">abra uma issue no GitHub</a></p>
   <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a></p>
 </footer>
 <div class="sr" id="live" role="status" aria-live="polite"></div>

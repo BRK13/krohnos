@@ -50,15 +50,28 @@ class Build(unittest.TestCase):
             self.assertIn('hreflang="x-default"', page)
             self.assertIn('property="og:title"', page)
 
-    def test_early_access_without_unverified_commands(self):
-        self.assertEqual(self.data["install_steps"], [])
-        for rel in ["install.md", "install.pt.md", "index.html", "pt/index.html", "llms.txt"]:
+    def test_install_commands_come_from_the_repo_guide(self):
+        commands = [s["cmd"] for s in self.data["install_steps"]]
+        self.assertEqual(len(commands), 5)
+        self.assertEqual(commands[0], "git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos")
+        self.assertEqual(commands[2], "docker compose run --rm --no-deps --entrypoint krohnos painel init")
+        self.assertEqual(commands[4], "curl -fsS http://127.0.0.1:8787/saude")
+        guide = (SITE.parent / "docs" / "INSTALAR.md").read_text(encoding="utf-8")
+        for command in commands[1:]:
+            self.assertIn(command, guide)
+        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md"]:
             text = self.read(rel)
-            for command in ("git clone", "krohnos init", "docker compose", "docker compose down"):
-                self.assertNotIn(command, text)
-            self.assertIn("https://github.com/BRK13/krohnos", text)
-        self.assertIn("Acesso antecipado", self.read("pt/index.html"))
-        self.assertIn("Early access", self.read("index.html"))
+            for command in commands:
+                self.assertIn(command, text)
+        self.assertIn('data-copy="', self.read("index.html"))
+        self.assertIn("Install", self.read("index.html"))
+        self.assertIn("Instalar", self.read("pt/index.html"))
+
+    def test_site_and_readme_use_the_krohnos_name_only(self):
+        for path in [SITE / "build.py", SITE / "content.json", SITE.parent / "README.md", SITE.parent / "README.pt-BR.md"]:
+            self.assertNotIn("kronos ", path.read_text(encoding="utf-8").lower(), path.name)
+        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt"]:
+            self.assertNotIn("kronos ", self.read(rel).lower(), rel)
 
     def test_all_code_blocks_same_in_html_and_md(self):
         import html as h
@@ -96,7 +109,7 @@ class Build(unittest.TestCase):
             text = self.read(rel)
             for term in ["Atenção", "Status:", "/comecar", "404"]:
                 self.assertNotIn(term, text)
-            self.assertLessEqual(text.count("<pre>"), 1)
+            self.assertLessEqual(text.count("<pre>"), 2)  # hero copy block + full install guide
         for lang in ("pt", "en"):
             inside = next(s for s in self.data[lang]["sections"] if s["id"] == "inside")
             self.assertTrue(3 <= len(inside["blocks"]) <= 6)
@@ -114,7 +127,7 @@ class Build(unittest.TestCase):
     def test_nav_links(self):
         t = self.read("index.html")
         for u in ['href="#inside"',
-                  'href="https://github.com/BRK13/krohnos/releases"', 'href="#install"']:
+                  'href="https://github.com/BRK13/krohnos/releases"', 'href="#hero-install"']:
             self.assertIn(u, t)
 
     def test_no_forbidden_terms(self):

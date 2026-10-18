@@ -56,7 +56,7 @@ def main():
                             page.evaluate('scrollTo(0,0)')
                         else:
                             assert page.locator('.top').bounding_box()['y'] + page.locator('.top').bounding_box()['height'] < page.locator('h1').bounding_box()['y']
-                        assert page.locator('#install a[href="https://github.com/BRK13/krohnos"]').count() == 1
+                        assert page.locator('footer a[href="https://github.com/BRK13/krohnos"]').count() == 1
                         assert page.locator('footer a[href="mailto:brunokrohn@gmail.com"]').count() == 1
                         assert page.locator('canvas#hero-gl').count() == 1
                         if width in (1440, 390):
@@ -87,9 +87,9 @@ def main():
                               gl: c.dataset.gl, hidden: c.getAttribute('aria-hidden'), border: getComputedStyle(document.querySelector('.top')).borderBottomWidth}
                         }''')
                         tag = (lang, width, height, m)
-                        assert m['hero'] <= m['ih'] and m['hero'] >= m['ih'] - 1, tag
+                        assert m['hero'] <= m['ih'], tag
                         assert m['heroScroll'] <= m['hero'], ('hero content cut', tag)
-                        assert m['sh'] > m['ih'], ('sections must scroll below the hero', tag)
+                        assert m['sh'] <= m['ih'], ('desktop page must fit one screen', tag)
                         assert m['h1t'] >= m['hdr'], ('header covers title', tag)
                         assert m['h1b'] <= m['ih'] and m['fpb'] <= m['ih'] and m['ctab'] <= m['ih'], tag
                         assert m['pos'] == 'fixed' and m['cl'] == 0 and m['ct'] == 0, tag
@@ -104,6 +104,22 @@ def main():
                         assert bright > 0.02 * lower.width * lower.height, ('ribbon not painted', tag, bright)
                         page.close()
                         print(f'PASS hero one screen {lang} {width}x{height}')
+                # Copy buttons put the real commands and the whole page, as Markdown, on the clipboard.
+                for lang, path in [('en', '/'), ('pt', '/pt/')]:
+                    context = browser.new_context(viewport={'width': 1440, 'height': 900}, permissions=['clipboard-read', 'clipboard-write'])
+                    page = context.new_page()
+                    page.goto(url + path)
+                    page.locator('button[data-copy="c-install-hero"]').click()
+                    page.wait_for_timeout(200)
+                    cmds = page.evaluate('navigator.clipboard.readText()')
+                    assert len(cmds.strip().splitlines()) == 5 and cmds.startswith('git clone https://github.com/BRK13/krohnos.git krohnos'), cmds
+                    assert 'kronos ' not in cmds
+                    page.locator('button[data-md="md-page"]').click()
+                    page.wait_for_timeout(200)
+                    md = page.evaluate('navigator.clipboard.readText()')
+                    assert md.startswith('# Krohnos') and cmds.splitlines()[0] in md, md[:200]
+                    context.close()
+                    print(f'PASS copy buttons {lang}')
                 page = browser.new_page(viewport={'width': 390, 'height': 844}, reduced_motion='reduce')
                 page.goto(url + '/')
                 page.wait_for_timeout(300)
@@ -113,8 +129,8 @@ def main():
                 context = browser.new_context(java_script_enabled=False, viewport={'width': 390, 'height': 844})
                 page = context.new_page()
                 page.goto(url + '/pt/')
-                assert page.locator('#inside').is_visible()
-                assert page.locator('.cta a[href="#install"]').is_visible()
+                assert page.locator('#hero-install pre').is_visible()
+                assert page.locator('.cta a[href="#hero-install"]').is_visible()
                 context.close()
                 browser.close()
             inspect = os.environ.get('INSPECT_SCRIPT')

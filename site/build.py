@@ -148,7 +148,7 @@ def page_html(data, lang):
     h1_l1 = (html.escape(hero["line1_before"]) + '<em class="alt">' + html.escape(hero["line1_em"]) +
              "</em>" + html.escape(hero["line1_after"]))
     links = (
-        '<a class="pill" href="#install">%s</a>'
+        '<a class="pill" href="#hero-install">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
@@ -208,15 +208,17 @@ def page_html(data, lang):
     <h1 id="h1"><span class="ln"><span class="ln-in l1">{h1_l1}</span></span> <span class="ln"><span class="ln-in l2">{html.escape(hero['line2'])}</span></span></h1>
     <p class="sub ap a3">{html.escape(hero['sub'])}</p>
     <div class="cta ap a5">
-      <a class="btn solid" href="#install">{html.escape(nav['install'])} <span aria-hidden="true">↗</span></a>
+      <a class="btn solid" href="#hero-install">{html.escape(nav['install'])} <span aria-hidden="true">↗</span></a>
       <a class="btn ghost" href="#inside">{html.escape(nav['docs'])}</a>
       <button class="btn ghost" type="button" data-md="md-page" data-label="{html.escape(ui['copy_md'])}" data-done="{html.escape(ui['copied_md'])}">{html.escape(ui['copy_md'])}</button>
     </div>
+    <div class="hero-install" id="hero-install">{code_block("c-install-hero", install_short(data), ui, "bash")}</div>
 
   </div>
   <div class="flow-preview"><p class="eyebrow">{"Da direção à entrega" if lang == "pt" else "From direction to delivery"}</p>{terminal_html(c)}<p class="flow-note">{"Claude Code + Codex · WhatsApp + painel" if lang == "pt" else "Claude Code + Codex · WhatsApp + panel"}</p></div>
 </section>
 <div class="rest">
+<p class="rest-close"><a href="#main">{html.escape(nav['close'])}</a></p>
 {sections}
 </div>
 </main>
@@ -242,12 +244,12 @@ def llms_txt(data):
 
 > {en['summary']}
 
-Early access: the described system runs on our server. Follow the public repository with Watch or Star for the self-hosted distribution. No installation commands are published until a clean-machine install is verified.
+Self-hosted install: clone the public repository and follow the five steps in the install guide (Docker Compose). Commands are copied from docs/INSTALAR.md of the repository.
 
-## Early access
+## Install
 
-- [Install guide (Markdown, English)]({d}/install.md): capabilities, production evidence and early access
-- [Guia de instalação (Markdown, português)]({d}/install.pt.md): funcionalidades, provas de produção e acesso antecipado
+- [Install guide (Markdown, English)]({d}/install.md): requirements, the five install commands and what the panel does
+- [Guia de instalação (Markdown, português)]({d}/install.pt.md): requisitos, os cinco comandos de instalação e o que o painel faz
 
 ## Project
 

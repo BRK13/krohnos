@@ -9,7 +9,33 @@
     "advisories": "https://github.com/BRK13/krohnos/security/advisories/new",
     "roadmap": "https://github.com/BRK13/krohnos/blob/main/ROADMAP.md"
   },
-  "install_steps": [],
+  "install_steps": [
+    {
+      "cmd": "git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos",
+      "en": "Get the code",
+      "pt": "Baixe o código"
+    },
+    {
+      "cmd": "docker compose build painel",
+      "en": "Build the image (one image serves the 4 services)",
+      "pt": "Construa a imagem (uma só serve os 4 serviços)"
+    },
+    {
+      "cmd": "docker compose run --rm --no-deps --entrypoint krohnos painel init",
+      "en": "Configure: creates krohnos.toml, the master key, the vault and your owner user",
+      "pt": "Configure: cria o krohnos.toml, a chave mestra, o cofre e o seu usuário de dono"
+    },
+    {
+      "cmd": "docker compose up -d",
+      "en": "Start the 4 services (panel, scheduler, webhook, MCP)",
+      "pt": "Suba os 4 serviços (painel, agenda, webhook, mcp)"
+    },
+    {
+      "cmd": "curl -fsS http://127.0.0.1:8787/saude",
+      "en": "Check: it should answer ok",
+      "pt": "Confira: deve responder ok"
+    }
+  ],
   "en": {
     "lang": "en",
     "name": "Krohnos",
@@ -18,7 +44,7 @@
     "summary": "Krohnos is a self-hosted multi-agent AI orchestrator that connects projects, SEO and knowledge to deliver reviewed, verified results, managed through WhatsApp or its panel.",
     "md_title": "Krohnos · Self-hosted multi-agent AI orchestrator",
     "nav": {
-      "install": "Early access",
+      "install": "Install",
       "docs": "What is inside",
       "github": "GitHub",
       "changelog": "Changelog",
@@ -148,15 +174,18 @@
       },
       {
         "id": "install",
-        "title": "Early access",
+        "title": "Install",
         "blocks": [
           {
             "t": "p",
-            "x": "**Follow the launch on GitHub** Krohnos operates on Krohn Capital infrastructure. The public self-hosted distribution is in preparation. Enable Watch for updates or Star to follow the project."
+            "x": "**Requirements** Linux with Docker 24+ and Docker Compose v2, 2 GB of free RAM and about 4 GB of disk. Secrets live in Docker volumes, never in the image."
+          },
+          {
+            "t": "install"
           },
           {
             "t": "p",
-            "x": "[Follow the launch on GitHub](https://github.com/BRK13/krohnos)"
+            "x": "Then open the panel, sign in with the owner e-mail and password, and follow the setup assistant in the panel. Full guide: [docs/INSTALAR.md](https://github.com/BRK13/krohnos/blob/main/docs/INSTALAR.md)."
           }
         ]
       }
@@ -170,7 +199,7 @@
     "summary": "O Krohnos é um orquestrador multiagente de IA self-hosted que integra projetos, SEO e conhecimento para entregar resultados revisados e comprovados, com gestão pelo WhatsApp ou painel.",
     "md_title": "Krohnos · Orquestrador multiagente de IA self-hosted",
     "nav": {
-      "install": "Acesso antecipado",
+      "install": "Instalar",
       "docs": "O que tem dentro",
       "github": "GitHub",
       "changelog": "Changelog",
@@ -300,15 +329,18 @@
       },
       {
         "id": "install",
-        "title": "Acesso antecipado",
+        "title": "Instalar",
         "blocks": [
           {
             "t": "p",
-            "x": "**Acompanhe o lançamento no GitHub** O Krohnos está em operação na infraestrutura da Krohn Capital. A distribuição pública self-hosted está em preparação. Ative Watch para receber atualizações ou Star para acompanhar o projeto."
+            "x": "**Requisitos** Linux com Docker 24+ e Docker Compose v2, 2 GB de RAM livres e uns 4 GB de disco. Os segredos ficam em volumes do Docker, nunca na imagem."
+          },
+          {
+            "t": "install"
           },
           {
             "t": "p",
-            "x": "[Acompanhar o lançamento no GitHub](https://github.com/BRK13/krohnos)"
+            "x": "Depois abra o painel, entre com o e-mail e a senha do dono e siga o assistente do painel. Guia completo: [docs/INSTALAR.md](https://github.com/BRK13/krohnos/blob/main/docs/INSTALAR.md)."
           }
         ]
       }

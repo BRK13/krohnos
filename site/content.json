@@ -134,37 +134,7 @@
         "blocks": [
           {
             "t": "p",
-            "x": "**Six businesses in operation** Krohnos has operated six businesses for at least one week, with execution history since October 8, 2026 and a project registry verified on October 17, 2026. Explore five of the projects in production."
-          },
-          {
-            "t": "projects",
-            "items": [
-              {
-                "name": "Precedentes",
-                "url": "https://precedentes.com.br",
-                "slug": "precedentes"
-              },
-              {
-                "name": "Acta Control",
-                "url": "https://actacontrol.com",
-                "slug": "acta"
-              },
-              {
-                "name": "Fisio Gentil",
-                "url": "https://fisiogentil.com",
-                "slug": "fisio"
-              },
-              {
-                "name": "Fernanda Ferro",
-                "url": "https://fernandaferro.com",
-                "slug": "fernanda"
-              },
-              {
-                "name": "Psi Por Aí",
-                "url": "https://psiporai.com",
-                "slug": "psiporai"
-              }
-            ]
+            "x": "**Six businesses in operation** Krohnos has operated six businesses for at least one week, with execution history since October 8, 2026 and a project registry verified on October 17, 2026."
           },
           {
             "t": "p",
@@ -289,37 +259,7 @@
         "blocks": [
           {
             "t": "p",
-            "x": "**Seis negócios em operação** O Krohnos opera seis negócios há pelo menos uma semana, com histórico de execução desde 08/10/2026 e cadastro verificado em 17/10/2026. Conheça cinco dos projetos em produção."
-          },
-          {
-            "t": "projects",
-            "items": [
-              {
-                "name": "Precedentes",
-                "url": "https://precedentes.com.br",
-                "slug": "precedentes"
-              },
-              {
-                "name": "Acta Control",
-                "url": "https://actacontrol.com",
-                "slug": "acta"
-              },
-              {
-                "name": "Fisio Gentil",
-                "url": "https://fisiogentil.com",
-                "slug": "fisio"
-              },
-              {
-                "name": "Fernanda Ferro",
-                "url": "https://fernandaferro.com",
-                "slug": "fernanda"
-              },
-              {
-                "name": "Psi Por Aí",
-                "url": "https://psiporai.com",
-                "slug": "psiporai"
-              }
-            ]
+            "x": "**Seis negócios em operação** O Krohnos opera seis negócios há pelo menos uma semana, com histórico de execução desde 08/10/2026 e cadastro verificado em 17/10/2026."
           },
           {
             "t": "p",

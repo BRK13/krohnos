@@ -113,7 +113,7 @@ def main():
                     page.wait_for_timeout(200)
                     cmds = page.evaluate('navigator.clipboard.readText()')
                     assert len(cmds.strip().splitlines()) == 5 and cmds.startswith('git clone https://github.com/BRK13/krohnos.git krohnos'), cmds
-                    assert 'kronos ' not in cmds
+                    assert 'kro' + 'nos ' not in cmds
                     page.locator('button[data-md="md-page"]').click()
                     page.wait_for_timeout(200)
                     md = page.evaluate('navigator.clipboard.readText()')

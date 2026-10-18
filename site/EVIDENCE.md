@@ -1,9 +1,9 @@
 # Evidências da página · 17/10/2026
 
-Esta é uma fotografia da instalação operada pela Krohn Capital. Não é benchmark,
+Esta é uma fotografia da instalação operada pelo autor. Não é benchmark,
 promessa de resultado para outra instalação ou prova de que a distribuição pública está pronta.
 
-## Produção e projetos
+## Produção
 
 - Fonte: registro operacional `claude/uso.jsonl`, primeiro registro em 08/10/2026 às 00:46:35 UTC.
   Em 17/10 há mais de sete dias de histórico: a página usa o limite conservador de **pelo menos uma semana**.
@@ -37,7 +37,7 @@ Os caminhos abaixo identificam as fontes internas; não alegam disponibilidade n
 | Revisão, CI, merge, publicação e portão de Done | `hub/recibo.py`, `hub/portao_done.py`, `hub/esperas.py` |
 | Segundo cérebro e mapa | `hub/grafo.py`, `hub/grafo_tela.py`, `hub/cerebro.py`, `hub/wiki_compilador.py` |
 | Projetos e BI por projeto | `hub/sites.py`, `hub/bi_painel.py`, `hub/bi_ingest.py` |
-| Auditoria em rodízio e correções elegíveis | `hub/seomator.py`, `deploy/superorganic.cron` |
+| Auditoria em rodízio e correções elegíveis | `hub/seomator.py`, o agendador do deploy |
 | Ranking, velocidade de campo e visibilidade em IA | `hub/ranking.py`, `hub/bi_painel.py`, `hub/bi_ingest.py`, `hub/velocidade_campo.py`, `geo_tracker.py`, `geo_new.py` |
 | Receitas no despacho | `hub/biblioteca_indice.py`, `hub/biblioteca_uso.py`, `hub/linear.py` |
 | Vigilância e debugger | `hub/vigia_deploy.py`, `hub/debugger.py` |
@@ -57,7 +57,3 @@ Contato: e-mail público do autor do repositório. Razão social e CNPJ: decisã
 Os cinco comandos da página vêm de `docs/INSTALAR.md` e do `README.md` do repositório e foram conferidos no código: entrypoint `krohnos` (`pyproject.toml`), subcomandos `init` e `demo` (`hub/cli.py`), rota `/saude` (`hub/painel.py`) e o serviço `painel` no `compose.yml`. O teste de instalação cronometrada (`scripts/teste-instalacao.sh`) não foi executado para esta página: é a prova de máquina limpa e continua pendente.
 
 Atualização de identidade em 17/10/2026: preto e verde profundo, conforme decisão do autor. A geometria da ampulheta aprovada foi preservada, com as cores ajustadas à nova paleta.
-
-## Capturas dos projetos
-
-Capturas das páginas iniciais públicas em 17/10/2026, viewport 1000 × 650, JPEG local. As imagens não representam a interface do Krohnos; cada uma está ligada ao respectivo projeto.

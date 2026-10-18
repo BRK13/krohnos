@@ -66,7 +66,7 @@ class AgentesTest(Base):
         self.assertEqual((a[3]["tarefa"], a[3]["minutos"]), ("aio-fsite05", 10))
 
     def test_passos_sem_credencial(self):
-        cmd = "export DATABASE_URL=postgres://clienteh:bru18@127.0.0.1:55499/clienteh"
+        cmd = "export DATABASE_URL=postgres://clienteh:krn18@127.0.0.1:55499/clienteh"
         with tempfile.TemporaryDirectory() as d:
             c = Path(d, "claude")
             c.mkdir()
@@ -81,7 +81,7 @@ class AgentesTest(Base):
 
     def test_sem_segredo_mascara_cada_forma(self):
         casos = {
-            "export DATABASE_URL=postgres://clienteh:bru18@127.0.0.1:55499/clienteh":
+            "export DATABASE_URL=postgres://clienteh:krn18@127.0.0.1:55499/clienteh":
                 "export DATABASE_URL=postgres://clienteh:•••@127.0.0.1:55499/clienteh",
             "git clone https://x-access-token:abc@github.com/a/b": "git clone https://x-access-token:•••@github.com/a/b",
             "GITHUB_TOKEN=abc123 gh pr list": "GITHUB_TOKEN=••• gh pr list",

@@ -10,7 +10,7 @@ UTC = dt.timezone.utc
 T0 = dt.datetime(2026, 10, 14, 20, 20, tzinfo=UTC)
 MERGE = "a" * 40
 
-BRU667 = {
+KRN667 = {
     "id": "id-667", "identifier": "KRN-667", "title": "Reel ClienteJ: trocar a voz por narradora da ElevenLabs",
     "completedAt": "2026-10-14T20:14:34.860Z", "state": {"name": "Done", "type": "completed"},
     "description": ("Repo: example-org/filmes.\n\n4. Render final A e B com a voz escolhida.\n"
@@ -57,7 +57,7 @@ class Regras(unittest.TestCase):
         self.assertNotIn("vídeo fora", aceite)
 
     def test_sem_secao_usa_o_ultimo_paragrafo(self):
-        self.assertIn("mp4", recibo.pronto_quando(BRU667["description"]))
+        self.assertIn("mp4", recibo.pronto_quando(KRN667["description"]))
 
     def test_exige(self):
         self.assertEqual({"video"}, recibo.exige("Comente o caminho dos 2 mp4 finais"))
@@ -87,7 +87,7 @@ class Regras(unittest.TestCase):
             "5. Outros usos de OpenRouter no repo.\n"
             "6. Comentário final: custo por dia antes e depois."
         )
-        issue = {**BRU667, "identifier": "KRN-950", "description": descricao,
+        issue = {**KRN667, "identifier": "KRN-950", "description": descricao,
                  "attachments": {"nodes": []}, "comments": {"nodes": []}}
         with tempfile.TemporaryDirectory() as dados, \
                 mock.patch.object(recibo, "_avisou", side_effect=AssertionError("envio proibido")), \
@@ -99,7 +99,7 @@ class Regras(unittest.TestCase):
 
 class DeployNaFila(unittest.TestCase):
     """merge fora do ar com execução do workflow pendente é deploy atrasado, não falta."""
-    ISSUE = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
+    ISSUE = {**KRN667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
 
     def setUp(self):
         patch = mock.patch.dict(recibo.DEPLOY_CRON, {}, clear=True)
@@ -205,7 +205,7 @@ class FixRodada1(unittest.TestCase):
 
     def test_b_sem_secao_so_o_ultimo_paragrafo(self):
         self.assertEqual("5. Comente aqui o caminho dos 2 mp4 finais.", recibo.pronto_quando("Gerar PDF do laudo.\n\n5. Comente aqui o caminho dos 2 mp4 finais."))
-        self.assertEqual({"video"}, recibo.exige(recibo.pronto_quando(BRU667["description"])))
+        self.assertEqual({"video"}, recibo.exige(recibo.pronto_quando(KRN667["description"])))
 
     def test_c_video_so_como_entrega_e_csv_nao_e_planilha(self):
         self.assertEqual(set(), recibo.exige("/busca mostra a miniatura nos perfis de exemplo com vídeo"))
@@ -248,7 +248,7 @@ class FixRodada1(unittest.TestCase):
 
     def test_g_url_so_4xx_5xx_e_falta(self):
         import urllib.error
-        issue = {**BRU667, "description": "**Pronto quando:** abre https://x.com/a", "attachments": {"nodes": []}}
+        issue = {**KRN667, "description": "**Pronto quando:** abre https://x.com/a", "attachments": {"nodes": []}}
         site = {"dominio": "x.com", "repo": None, "ids": {}}
         for exc, faltou in ((urllib.error.HTTPError("u", 404, "n", {}, None), True), (OSError("rede"), False)):
             with mock.patch("hub.sites.ativos", return_value=[site]), mock.patch("urllib.request.urlopen", side_effect=exc):
@@ -264,7 +264,7 @@ class FixRodada1(unittest.TestCase):
                       f"[{url}](<{url}>)", url):
             for status in (200, 404):
                 with self.subTest(texto=texto, status=status):
-                    issue = {**BRU667, "description": "**Pronto quando:** " + texto,
+                    issue = {**KRN667, "description": "**Pronto quando:** " + texto,
                              "attachments": {"nodes": []}}
                     def abrir(req, **kwargs):
                         self.assertEqual(url, req.full_url)
@@ -282,7 +282,7 @@ class ProvaUrlInc60(unittest.TestCase):
     URL = "https://clientej-com-br.example/lei/sp/lei-123"
 
     def avaliar(self, corpo, abrir, comentario=None):
-        issue = {**BRU667, "identifier": "KRN-975", "title": "Leis estaduais no ar",
+        issue = {**KRN667, "identifier": "KRN-975", "title": "Leis estaduais no ar",
                  "description": "Prova na issue: URLs reais respondendo no ar.",
                  "attachments": {"nodes": []}, "comments": {"nodes": [
                      {"createdAt": "2026-10-17T02:00:00Z", "user": {"app": True}, "body": corpo},
@@ -344,7 +344,7 @@ class FixRodada3(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def test_1_falha_no_meio_nao_repete_o_que_ja_foi_feito(self):
-        a = {**BRU667, "id": "id-a", "identifier": "KRN-1", "comments": {"nodes": []}, "completedAt": "2026-10-14T20:10:00Z"}
+        a = {**KRN667, "id": "id-a", "identifier": "KRN-1", "comments": {"nodes": []}, "completedAt": "2026-10-14T20:10:00Z"}
         b = {**a, "id": "id-b", "identifier": "KRN-2"}
         movidas, comentarios, falhar = [], [], [True]
 
@@ -363,7 +363,7 @@ class FixRodada3(unittest.TestCase):
 
     def test_falha_lendo_pr_esgota_com_incidente_unico_e_retoma_quando_o_github_volta(self):
         import subprocess
-        issue = {**BRU667, "description": "Corrigir."}
+        issue = {**KRN667, "description": "Corrigir."}
         erro = subprocess.CalledProcessError(1, ["gh", "api"])
         with mock.patch.object(recibo.esperas, "gh_api", side_effect=erro) as gh, \
              mock.patch.object(recibo.incidentes, "registrar") as incidente, \
@@ -394,7 +394,7 @@ class FixRodada3(unittest.TestCase):
         def get(url):
             raise TimeoutError("lento")
         pr = {"merged": True, "merge_commit_sha": MERGE, "state": "closed", "base": {"ref": "main"}}
-        issue = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
+        issue = {**KRN667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
         for merged_at, esperar in (("2026-10-14T20:00:00Z", True), ("2026-10-14T10:00:00Z", False)):
             r = recibo.conferir(issue, gh=lambda c: {**pr, "merged_at": merged_at}, get=get, base_dados=self.dados, agora=T0)
             self.assertEqual((esperar, []), (r["esperar"], r["faltas"]), r)
@@ -431,7 +431,7 @@ class FixRodada3(unittest.TestCase):
 
     def test_6_reabrir_que_falha_e_logado(self):
         logs = []
-        issue = {**BRU667, "comments": {"nodes": []}}
+        issue = {**KRN667, "comments": {"nodes": []}}
 
         def reabrir(ident, fala):
             raise OSError("fila")
@@ -450,8 +450,8 @@ class Conferir(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_bru667_sem_videos_e_dependendo_do_ana(self):
-        r = recibo.conferir(BRU667, gh=gh_falso(), get=None, base_dados=self.dados)
+    def test_krn667_sem_videos_e_dependendo_do_ana(self):
+        r = recibo.conferir(KRN667, gh=gh_falso(), get=None, base_dados=self.dados)
         self.assertFalse(r["ok"])
         self.assertTrue(any("vídeo" in f for f in r["faltas"]), r["faltas"])
         self.assertTrue(r["depende_fulano"])
@@ -474,17 +474,17 @@ class Conferir(unittest.TestCase):
         anexos = Path(self.dados) / "claude" / "anexos"
         anexos.mkdir(parents=True)
         (anexos / "KRN-667.jsonl").write_text(json.dumps({"quando": "2026-10-14T20:30:00+00:00", "link": "[reel-A.mp4](https://uploads.linear.app/x/reel-A.mp4)", "texto": None}) + "\n")
-        r = recibo.conferir(BRU667, gh=gh_falso(), base_dados=self.dados, agora=T0)  # 6 min após o Done: o envio sai no recibo
+        r = recibo.conferir(KRN667, gh=gh_falso(), base_dados=self.dados, agora=T0)  # 6 min após o Done: o envio sai no recibo
         self.assertTrue(r["ok"], r)
 
     def test_pr_aberto_e_falta(self):  # Codex fc916834: Done da conta com PR aberto não passa (o do Ana é pulado)
-        issue = {**BRU667, "description": "Corrigir rodapé."}
+        issue = {**KRN667, "description": "Corrigir rodapé."}
         r = recibo.conferir(issue, gh=gh_falso(merged=False), base_dados=self.dados)
         self.assertFalse(r["ok"])
         self.assertTrue(any("ainda está aberto" in f for f in r["faltas"]), r)
 
     def test_issue_sem_pr_e_sem_exigencia_passa(self):  # Review Focus 1
-        issue = {**BRU667, "description": "Qual o status da coleta?", "attachments": {"nodes": []}, "comments": {"nodes": []}}
+        issue = {**KRN667, "description": "Qual o status da coleta?", "attachments": {"nodes": []}, "comments": {"nodes": []}}
         self.assertTrue(recibo.conferir(issue, gh=gh_falso(), base_dados=self.dados)["ok"])
 
     def test_repo_sem_deploy_conhecido_nao_cobra_no_ar(self):  # Review Focus 2
@@ -561,13 +561,13 @@ class Vigiar(unittest.TestCase):
                              reabrir_fn=lambda ident, fala: self.reabertas.append(ident) or ident, log=lambda *a: None)
 
     def test_primeira_rodada_so_marca_o_desde(self):  # Review Focus 4: nada de reabrir Done antigos no deploy
-        self.assertEqual([], self._vigiar([BRU667], T0))
+        self.assertEqual([], self._vigiar([KRN667], T0))
         self.assertEqual([], self.movidas)
 
-    def test_bru667_vai_para_travada_uma_vez_e_registra_incidente(self):
+    def test_krn667_vai_para_travada_uma_vez_e_registra_incidente(self):
         self._vigiar([], T0 - dt.timedelta(hours=1))  # 1ª rodada: desde = 19:20
-        self._vigiar([BRU667], T0)
-        self._vigiar([BRU667], T0 + dt.timedelta(minutes=5))  # mesmo completedAt: não repete
+        self._vigiar([KRN667], T0)
+        self._vigiar([KRN667], T0 + dt.timedelta(minutes=5))  # mesmo completedAt: não repete
         self.assertEqual([("id-667", "s-travada")], self.movidas)
         self.assertEqual(1, len(self.comentarios))
         self.assertIn("assinar", self.comentarios[0][1])
@@ -576,7 +576,7 @@ class Vigiar(unittest.TestCase):
         self.assertEqual(["pronto_sem_recibo"], [i["classe"] for i in inc])
 
     def test_sem_depender_do_ana_volta_para_in_progress_e_fila(self):
-        issue = {**BRU667, "comments": {"nodes": []}}
+        issue = {**KRN667, "comments": {"nodes": []}}
         self._vigiar([], T0 - dt.timedelta(hours=1))
         tarefas = self._vigiar([issue], T0)
         self.assertEqual([("id-667", "s-ip")], self.movidas)
@@ -590,7 +590,7 @@ class FixRodada4(unittest.TestCase):
         self.dados = self.tmp.name
         self.addCleanup(self.tmp.cleanup)
         self.janelas = []
-        self.issue = {**BRU667, "identifier": "KRN-9", "comments": {"nodes": []}, "completedAt": "2026-10-14T20:10:00Z"}
+        self.issue = {**KRN667, "identifier": "KRN-9", "comments": {"nodes": []}, "completedAt": "2026-10-14T20:10:00Z"}
 
     def consulta(self, q, **v):
         self.janelas.append(v["d"])
@@ -654,7 +654,7 @@ class FixFinal(unittest.TestCase):
         self.dados = self.tmp.name
         self.addCleanup(self.tmp.cleanup)
         self.movidas, self.reabertas = [], []
-        self.issue = {**BRU667, "comments": {"nodes": []}}
+        self.issue = {**KRN667, "comments": {"nodes": []}}
 
     def _vigiar(self, historico=None, **kw):
         def consulta(q, **v):
@@ -694,7 +694,7 @@ class FixFinal(unittest.TestCase):
         self.assertIn("KRN-667", est["pendentes"])
 
     def test_i3_cartao_de_ui_nao_e_o_ana(self):
-        issue = {**BRU667, "comments": {"nodes": [{"createdAt": "2026-10-14T20:19:00Z", "user": {"app": True},
+        issue = {**KRN667, "comments": {"nodes": [{"createdAt": "2026-10-14T20:19:00Z", "user": {"app": True},
                                                    "body": "Ajustei o cartão do Conector; os mp4 ficam para depois."}]}}
         self.assertFalse(recibo.conferir(issue, gh=gh_falso(), base_dados=self.dados)["depende_fulano"])
         self.assertTrue(recibo.RE_DONO.search("falta o cartão de crédito"))
@@ -712,7 +712,7 @@ class FixFinal(unittest.TestCase):
             t = (T0 - dt.timedelta(minutes=40)).timestamp()
             os.utime(arq, (t, t))
             self.assertFalse(recibo._avisou("KRN-733", self.dados, "2020-01-01T00:00:00Z", T0))
-            issue = {**BRU667, "identifier": "KRN-733", "description": "**Pronto quando:** aviso ao Ana.",
+            issue = {**KRN667, "identifier": "KRN-733", "description": "**Pronto quando:** aviso ao Ana.",
                      "attachments": {"nodes": []}, "comments": {"nodes": []}}
             os.utime(arq, (T0.timestamp(), T0.timestamp()))
             self.assertTrue(recibo.conferir(issue, gh=gh_falso(), base_dados=self.dados, agora=T0)["esperar"])

@@ -72,7 +72,7 @@ class Portao(unittest.TestCase):
     def avaliar(self, i, gh, comentario=None):
         return recibo.conferir(i, gh, lambda u: {"commit": "a" * 40}, self.dados, AGORA, comentario=comentario)
 
-    def test_bru887_com_prs_abertos(self):
+    def test_krn887_com_prs_abertos(self):
         i = issue("KRN-887", prs=["https://github.com/example-org/nimbus-hub/pull/294", "https://github.com/example-org/nimbus-hub/pull/322"],
                   comentarios=[("PRs abertos, aguardo a revisão.", True)])
         r = self.avaliar(i, gh_falso({"example-org/nimbus-hub#294": ("open", False), "example-org/nimbus-hub#322": ("open", False)}))
@@ -99,7 +99,7 @@ class Portao(unittest.TestCase):
                     if estado4[0] == "open":
                         self.assertTrue(any(f"{repo}#4 ainda está aberto" in f for f in r["faltas"]))
 
-    def test_inc171_bru1114_merge_nao_substitui_medicoes(self):
+    def test_inc171_krn1114_merge_nao_substitui_medicoes(self):
         texto = ('Volto quando saírem. O ajuste não foi medido no `seomator audit`: '
                  'a razão texto/HTML só se confirma depois do deploy.\n\n'
                  '**Falta:** 1. Merge do #309 (a label `merge` está liberada). '
@@ -119,7 +119,7 @@ class Portao(unittest.TestCase):
                     self.assertEqual(2, sum("pendência aberta" in f for f in r["faltas"]))
                     self.assertEqual(not merged, any("ainda está aberto" in f for f in r["faltas"]))
 
-    def test_bru954_falta_no_fim(self):
+    def test_krn954_falta_no_fim(self):
         i = issue("KRN-954", comentarios=[("Merge feito, mas ainda não está no ar.\n\nFalta conferir depois do deploy:\n- curl", True)])
         r = self.avaliar(i, gh_falso({}))
         self.assertFalse(r["ok"])
@@ -269,7 +269,7 @@ class Portao(unittest.TestCase):
                 "* **Entrega ao Fulano:** quando a issue promete PDF ou WhatsApp, o aviso tem que constar em `avisos/enviados`.\n"
                 "Se o hub mandar o relatório por WhatsApp, o aviso consta.")
 
-    def test_dispensa_aviso_nenhum_bru979(self):
+    def test_dispensa_aviso_nenhum_krn979(self):
         sem = issue("KRN-979", descricao=self.DESC_979, comentarios=[("Feito.", True)])
         self.assertTrue(portao_done.promete_aviso(sem))
         com = {**sem, "description": self.DESC_979 + "\n\naviso: nenhum"}

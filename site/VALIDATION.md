@@ -1,6 +1,6 @@
 # Validação · 17/10/2026
 
-- 16 testes focados do gerador, incluindo comandos iguais aos de docs/INSTALAR.md, nomes autorizados,
+- 17 testes focados do gerador, incluindo comandos iguais aos de docs/INSTALAR.md, nomes autorizados,
   ausência do sexto projeto, backlinks sem nofollow, CNPJ, copy institucional e determinismo.
 - Navegador real em inglês e português, 320/390/768/1440 px: sem transbordamento, menu sem
   sobreposição, imagens carregadas, navegação, tema persistido e nenhuma exceção JavaScript.

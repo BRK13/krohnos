@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "krohnos"
+dynamic = ["version"]
+description = "Krohnos: harness, painel e rotinas para agentes de IA que trabalham em equipe (stdlib)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = []
+
+[project.optional-dependencies]
+cofre = ["cryptography"]
+
+[project.urls]
+Homepage = "https://github.com/BRK13/krohnos"
+Repository = "https://github.com/BRK13/krohnos"
+
+[project.scripts]
+krohnos = "hub.cli:main"
+
+[tool.setuptools]
+packages = ["hub", "hub.comum", "hub.mcp_grupos"]
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.setuptools.package-data]
+hub = ["cerebro.html", "marca/*", "assets/grafo/*"]

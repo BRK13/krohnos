@@ -1,0 +1,66 @@
+{
+  "id": "loja-g",
+  "ids_antigos": [],
+  "ativo": false,
+  "nome": "Loja g",
+  "dominio": "exemplo-g.test",
+  "hosts_alternativos": [
+    "www.exemplo-g.test"
+  ],
+  "hosts_citacao": [
+    "citacao-g.test"
+  ],
+  "repo": {
+    "github": "dono/loja-g",
+    "base": "main",
+    "pacotes": "yarn",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:exemplo-g.test",
+    "ga4": "123456789",
+    "ga4_medicao": "G-ABCDEF1234",
+    "clarity": "abcdef1234",
+    "gmb_cid": "12345678901",
+    "dokploy_app": "app-1"
+  },
+  "marca": {
+    "nome": "Loja g",
+    "aliases": [
+      "Lojag"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "OAB",
+  "contexto": "Linha um.\n\nLinha três, com acento: ação.\n",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [],
+  "monitor": {
+    "buscas": [
+      "a"
+    ],
+    "painel": [],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 10,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "x"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": null
+}

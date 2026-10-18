@@ -1,0 +1,70 @@
+# Krohnos Hub: 4 serviços, uma imagem. O krohnos.toml mora no volume `config` (`krohnos init` o cria); os segredos ficam no volume `cofre`.
+# TLS fica por sua conta (Caddy/Traefik na frente do painel; o README traz o bloco).
+x-base: &base
+  image: ${KROHNOS_IMAGEM:-krohnos-hub:latest}  # KROHNOS_IMAGEM só muda o nome (scripts/teste-instalacao.sh usa um nome próprio)
+  build: .
+  restart: unless-stopped
+  init: true  # PID 1 repassa o SIGTERM (docker stop rápido)
+  environment: &env
+    KROHNOS_CONFIG: /etc/krohnos/krohnos.toml
+    HUB_DATA: /var/lib/krohnos
+    NIMBUS_HOME: /var/lib/krohnos/home
+    KROHNOS_LOCK_DIR: /tmp
+  volumes:
+    - dados:/var/lib/krohnos
+    - home:/home/krohnos  # logins do claude/codex sobrevivem a recriar o contêiner
+    - config:/etc/krohnos  # volume (não arquivo): /comecar grava o toml por tmp + os.replace, que não funciona em bind de arquivo
+
+services:
+  painel:
+    <<: *base
+    command: ["painel"]
+    ports:  # só no loopback: o login do painel não vai em HTTP para a rede; o seu proxy TLS aponta para 127.0.0.1:8787
+      - "127.0.0.1:${KROHNOS_PAINEL_PORTA:-8787}:${KROHNOS_PAINEL_PORTA:-8787}"
+    environment:
+      <<: *env
+      KROHNOS_PAINEL_PORTA: "${KROHNOS_PAINEL_PORTA:-8787}"
+      KROHNOS_CAMINHOS_SEGREDOS: /etc/krohnos/cofre  # senha do dono e tokens (painel.env...) ficam no volume do cofre
+    volumes:
+      - dados:/var/lib/krohnos
+      - home:/home/krohnos
+      - cofre:/etc/krohnos/cofre
+      - config:/etc/krohnos  # volume (não arquivo): /comecar grava o toml por tmp + os.replace, que não funciona em bind de arquivo
+
+  agenda:
+    <<: *base
+    command: ["agenda"]
+    healthcheck:
+      disable: true
+    environment:
+      <<: *env
+      KROHNOS_CAMINHOS_SEGREDOS: /etc/krohnos/cofre
+    # Ações seguras apenas (rerodar-rotina, limpar-* dentro do volume). `reiniciar-servico` só com o socket do Docker:
+    # desligado por padrão; para ligar, monte /var/run/docker.sock e defina KROHNOS_DOCKER_SOCKET=1 (dá poder de root no host).
+    volumes:
+      - dados:/var/lib/krohnos
+      - home:/home/krohnos
+      - cofre:/etc/krohnos/cofre
+      - config:/etc/krohnos  # volume (não arquivo): /comecar grava o toml por tmp + os.replace, que não funciona em bind de arquivo
+
+  webhook:
+    <<: *base
+    command: ["webhook"]
+    ports:  # só no loopback: o seu proxy TLS (Caddy/Traefik) fica na frente e aponta para 127.0.0.1:8790
+      - "127.0.0.1:${KROHNOS_WEBHOOK_PORTA:-8790}:8790"
+    healthcheck:
+      disable: true
+
+  mcp:
+    <<: *base
+    command: ["mcp"]
+    ports:
+      - "127.0.0.1:${KROHNOS_MCP_PORTA:-4181}:4181"
+    healthcheck:
+      disable: true
+
+volumes:
+  dados:
+  home:
+  config:
+  cofre:

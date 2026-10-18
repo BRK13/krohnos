@@ -1,0 +1,49 @@
+{
+  "id": "loja-b",
+  "ids_antigos": [],
+  "ativo": true,
+  "nome": "Loja b",
+  "dominio": "exemplo-b.test",
+  "hosts_alternativos": [
+    "www.exemplo-b.test"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "dono/loja-b",
+    "base": "main",
+    "pacotes": "yarn",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": null,
+    "ga4": null,
+    "ga4_medicao": null,
+    "clarity": "abcdef1234",
+    "dokploy_app": null
+  },
+  "marca": {
+    "nome": "Loja b",
+    "aliases": [
+      "Lojab"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": null,
+  "contexto": "Loja de exemplo.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [],
+  "monitor": null,
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": null
+}

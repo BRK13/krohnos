@@ -1,0 +1,119 @@
+{
+  "id": "clientei",
+  "ids_antigos": [
+    "clienteipsi-v2"
+  ],
+  "ativo": true,
+  "nome": "ClienteI Pessoa Teixeira",
+  "dominio": "clientef-com.example",
+  "hosts_alternativos": [
+    "www.clientef-com.example"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "example-org/clienteipsi-v2",
+    "base": "main",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:clientef-com.example",
+    "ga4": "100000002",
+    "ga4_medicao": "G-TESTE00002",
+    "clarity": "clarity0002",
+    "gmb_cid": "900000000000000002",
+    "dokploy_app": "dokploy-app-clientei"
+  },
+  "marca": {
+    "nome": "ClienteI Pessoa Teixeira",
+    "aliases": [
+      "Cliente F"
+    ],
+    "identificador": "12345|clientef",
+    "nome_generico": false
+  },
+  "conselho": "CFP",
+  "contexto": "ClienteI Pessoa Teixeira (clientef-com.example): cadastro de teste, texto fictício. Recomende páginas em clientef-com.example.",
+  "frase_canonica": "serviço de exemplo do site clientei",
+  "meta": "Meta de exemplo do site clientei.",
+  "concorrentes": [
+    "Zenklub",
+    "Vittude",
+    "Doctoralia",
+    "Psicologia Viva",
+    "Psico Prô Mundo"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 clientei",
+      "buscas 2 clientei",
+      "buscas 3 clientei",
+      "buscas 4 clientei",
+      "buscas 5 clientei",
+      "buscas 6 clientei",
+      "buscas 7 clientei",
+      "buscas 8 clientei",
+      "buscas 9 clientei",
+      "buscas 10 clientei"
+    ],
+    "painel": [
+      "painel 1 clientei",
+      "painel 2 clientei",
+      "painel 3 clientei",
+      "painel 4 clientei",
+      "painel 5 clientei",
+      "painel 6 clientei",
+      "painel 7 clientei",
+      "painel 8 clientei",
+      "painel 9 clientei",
+      "painel 10 clientei",
+      "painel 11 clientei",
+      "painel 12 clientei"
+    ],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 12,
+    "max_prompts_painel": 18,
+    "repeticoes_sem_nome": 2,
+    "termos_gsc": [
+      "termos_gsc 1 clientei",
+      "termos_gsc 2 clientei",
+      "termos_gsc 3 clientei",
+      "termos_gsc 4 clientei",
+      "termos_gsc 5 clientei",
+      "termos_gsc 6 clientei",
+      "termos_gsc 7 clientei"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    }
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 clientei",
+      "palavras 2 clientei",
+      "palavras 3 clientei",
+      "palavras 4 clientei",
+      "palavras 5 clientei",
+      "palavras 6 clientei",
+      "palavras 7 clientei",
+      "palavras 8 clientei"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
+}

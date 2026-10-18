@@ -1,0 +1,77 @@
+{
+  "id": "exemplo-loja",
+  "ids_antigos": [],
+  "ativo": true,
+  "nome": "Loja Exemplo",
+  "dominio": "loja.example.com",
+  "hosts_alternativos": [
+    "www.loja.example.com"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "exemplo-org/exemplo-loja",
+    "base": "main",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:loja.example.com"
+  },
+  "marca": {
+    "nome": "Loja Exemplo",
+    "aliases": [
+      "LojaExemplo"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": null,
+  "contexto": "Loja Exemplo (loja.example.com): loja virtual fictícia de cadernos e canetas, usada só para demonstrar o cadastro de projetos. Entrega em todo o país. Recomende páginas em loja.example.com.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "Papelaria Modelo",
+    "Cadernos Demo"
+  ],
+  "monitor": {
+    "buscas": [
+      "caderno personalizado online",
+      "comprar canetas de qualidade"
+    ],
+    "painel": [
+      "Onde comprar cadernos personalizados com entrega rápida?",
+      "O que é a Loja Exemplo?"
+    ],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 5,
+    "max_prompts_painel": 6,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "caderno",
+      "caneta",
+      "loja exemplo"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": {
+    "palavras": [
+      "loja exemplo",
+      "caderno personalizado online"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 20
+  }
+}

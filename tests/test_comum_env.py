@@ -83,12 +83,12 @@ class CliTest(unittest.TestCase):
     def test_get(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d, ".env")
-            p.write_text("export SEGREDO_KRN920_X='valor'\n")
+            p.write_text("export SEGREDO_BRU920_X='valor'\n")
             out = io.StringIO()
             with redirect_stdout(out):
-                self.assertEqual(env.main(["get", "SEGREDO_KRN920_X", str(p)]), 0)
+                self.assertEqual(env.main(["get", "SEGREDO_BRU920_X", str(p)]), 0)
             self.assertEqual(out.getvalue(), "valor\n")
-            self.assertEqual(env.main(["get", "NAO_EXISTE_KRN920", str(p)]), 1)
+            self.assertEqual(env.main(["get", "NAO_EXISTE_BRU920", str(p)]), 1)
 
 
 if __name__ == "__main__":

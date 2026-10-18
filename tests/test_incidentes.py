@@ -15,7 +15,7 @@ class Incidentes(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_registra_krn667_e_aparece_pendente_na_retro(self):
+    def test_registra_bru667_e_aparece_pendente_na_retro(self):
         i = incidentes.registrar("KRN-667 foi para Done sem os vídeos", "pronto_sem_recibo",
                                  "hub/recibo.py: Done só com recibo", issue="KRN-667", base_dados=self.dados, agora=T0)
         self.assertTrue(i["id"].startswith("INC-"))

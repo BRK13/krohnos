@@ -131,7 +131,7 @@ class PromessaSemGancho(unittest.TestCase):
         self.assertEqual(1, volta.linear["conferencias"])
         self.assertEqual(1, volta.linear["promessas"])
 
-    def test_krn589(self):
+    def test_bru589(self):
         self.assertTrue(parada.promessa_sem_gancho("O agente das correções no modelo está rodando. Mandei o progresso para o Linear e aguardo."))
 
     def test_entrega_normal(self):
@@ -274,7 +274,7 @@ class Vigiar(Base):
         self.assertEqual([], out)
         self.assertFalse((self.dados / "claude" / "parada" / "KRN-589.json").exists())
 
-    def test_krn589_sessao_morreu_issue_em_progresso_sem_nada_rodando(self):
+    def test_bru589_sessao_morreu_issue_em_progresso_sem_nada_rodando(self):
         out, _, _, _ = self._vigiar([], issues=[self.issue("O agente das correções está rodando. Aguardo.")])
         self.assertEqual(["linear-krn-589"], [t.nome for t in out])
         self.assertIn("nada roda depois que a sessão termina", out[0].fala)

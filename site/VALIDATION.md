@@ -4,8 +4,9 @@
 - Navegador real em inglês e português, 320/390/768/1440 px: sem transbordamento, menu sem
   sobreposição, navegação, tema persistido e nenhuma exceção JavaScript.
 - Leitura sem JavaScript e preferência por movimento reduzido verificadas.
-- `inspect.mjs` (18/10/2026): 0 FAIL nas duas línguas em 1440/768/390 px. Duas regras foram dispensadas por decisão de marca e política, não por medição: `few-pictures` (identidade de ferramenta dev, sem fotografias na tela de entrada) e `no-footage` (sem vídeo gerado automático, política de produto). Três WARN aceitos: combinação Inter, Instrument Serif itálico e monospace pedida na identidade, e movimento discreto (a fita de luz, `hero-gl`, é o único movimento contínuo).
-- Capturas desktop, celular e menu aberto conferidas visualmente.
+- `inspect.mjs` (18/10/2026, rodado por `tests/browser_test.py` com `--allow few-pictures,no-footage`): 0 FAIL nas duas línguas em 1440/768/390 px. Duas regras foram dispensadas por decisão de marca e política, não por medição: `few-pictures` (identidade de ferramenta dev, sem fotografias na tela de entrada) e `no-footage` (sem vídeo gerado automático, BRU-825). Três WARN restantes, em EN e PT: `mixed-font-headline` e `font-count` (o título do hero tem `Local control.` em Instrument Serif itálico, a terceira família; não foi pedido na identidade monoespaçada e terminal, é escolha de design a confirmar com o Bruno) e `still-page` (movimento discreto; a fita de luz, `hero-gl`, é o único movimento contínuo).
+- Capturas desktop, celular e menu aberto conferidas visualmente. Capturas dos projetos vieram
+  das páginas públicas em 17/10/2026, com consentimento opcional de medição recusado quando disponível.
 - Não executado build de produção ou suíte completa localmente. Geração temporária somente nos testes focados.
 - Publicação e autodeploy ainda exigem revisão do PR, operação administrativa e prova de um merge no ar.
   O HTML final contém `meta[name=krohnos-release]` com `2026-10-17` para a conferência após o deploy.

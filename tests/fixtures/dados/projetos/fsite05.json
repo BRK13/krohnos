@@ -1,0 +1,144 @@
+{
+  "id": "fsite05",
+  "ids_antigos": [
+    "cliente-a"
+  ],
+  "ativo": true,
+  "nome": "Cliente A",
+  "dominio": "clientea-com.example",
+  "hosts_alternativos": [
+    "www.clientea-com.example"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "example-org/cliente-a-v2",
+    "base": "master",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:clientea-com.example",
+    "ga4": "100000004",
+    "ga4_medicao": "G-TESTE00004",
+    "clarity": "clarity0004",
+    "gmb_cid": "900000000000000004",
+    "dokploy_app": "dokploy-app-fsite05"
+  },
+  "marca": {
+    "nome": "Cliente A",
+    "aliases": [
+      "ClienteA",
+      "Método ClienteM"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "COFFITO",
+  "contexto": "Cliente A (clientea-com.example): cadastro de teste, texto fictício. Recomende páginas em clientea-com.example.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "Fisioclin",
+    "Orthophysio",
+    "Força Fisioterapia",
+    "Pró Physis",
+    "Fisiotrauma",
+    "Clínica Mecânica Humana",
+    "Bendita Coluna",
+    "Posture",
+    "Espaço fsite05",
+    "Aquafisio"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 fsite05",
+      "buscas 2 fsite05",
+      "buscas 3 fsite05",
+      "buscas 4 fsite05",
+      "buscas 5 fsite05",
+      "buscas 6 fsite05",
+      "buscas 7 fsite05",
+      "buscas 8 fsite05",
+      "buscas 9 fsite05",
+      "buscas 10 fsite05"
+    ],
+    "painel": [
+      "painel 1 fsite05",
+      "painel 2 fsite05",
+      "painel 3 fsite05",
+      "painel 4 fsite05",
+      "painel 5 fsite05",
+      "painel 6 fsite05",
+      "painel 7 fsite05",
+      "painel 8 fsite05",
+      "painel 9 fsite05",
+      "painel 10 fsite05",
+      "painel 11 fsite05",
+      "painel 12 fsite05"
+    ],
+    "locais": [
+      1001541
+    ],
+    "max_buscas": 15,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 fsite05",
+      "termos_gsc 2 fsite05",
+      "termos_gsc 3 fsite05",
+      "termos_gsc 4 fsite05",
+      "termos_gsc 5 fsite05",
+      "termos_gsc 6 fsite05",
+      "termos_gsc 7 fsite05",
+      "termos_gsc 8 fsite05",
+      "termos_gsc 9 fsite05"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": "MedicalClinic",
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    }
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 fsite05",
+      "palavras 2 fsite05",
+      "palavras 3 fsite05",
+      "palavras 4 fsite05",
+      "palavras 5 fsite05",
+      "palavras 6 fsite05",
+      "palavras 7 fsite05",
+      "palavras 8 fsite05",
+      "palavras 9 fsite05",
+      "palavras 10 fsite05",
+      "palavras 11 fsite05",
+      "palavras 12 fsite05",
+      "palavras 13 fsite05",
+      "palavras 14 fsite05",
+      "palavras 15 fsite05",
+      "palavras 16 fsite05",
+      "palavras 17 fsite05",
+      "palavras 18 fsite05",
+      "palavras 19 fsite05",
+      "palavras 20 fsite05",
+      "palavras 21 fsite05",
+      "palavras 22 fsite05",
+      "palavras 23 fsite05",
+      "palavras 24 fsite05",
+      "palavras 25 fsite05"
+    ],
+    "local": 1001541,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
+}

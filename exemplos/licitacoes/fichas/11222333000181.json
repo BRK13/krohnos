@@ -1,0 +1,38 @@
+{
+ "empresa": "asite01",
+ "atualizado_em": "2026-10-17",
+ "razao_social": "EMPRESA EXEMPLO LTDA",
+ "fantasia": "Empresa Exemplo",
+ "cnpj": "11.222.333/0001-81",
+ "porte": "ME",
+ "simples_nacional": true,
+ "abertura": "2020-01-01",
+ "marcas": ["Produto Exemplo"],
+ "capital_social": {"valor": 10000.0, "fonte": "contrato social (exemplo)"},
+ "endereco": "Rua Exemplo, 1, Cidade Exemplo/UF, 00000-000",
+ "regiao_atuacao": ["Brasil (software, sem filtro de UF)"],
+ "socios": ["Fulano Exemplo"],
+ "cnae": {
+  "principal": {"codigo": "6202-3/00", "descricao": "Desenvolvimento e licenciamento de programas de computador customizáveis"},
+  "secundarios": [{"codigo": "6209-1/00", "descricao": "Suporte técnico, manutenção e outros serviços em TI"}]
+ },
+ "servicos": [
+  {
+   "nome": "Sistema de gestão (SaaS)",
+   "palavras_busca": ["sistema de gestão", "software", "licenciamento de software"],
+   "preco_praticado": {"valor": null, "unidade": "mensalidade", "fonte": "exemplo"}
+  }
+ ],
+ "atestados": [],
+ "certidoes": [
+  {"tipo": "federal", "nome": "CND federal (RFB e PGFN)", "validade": "2026-11-04", "emissao": "2026-05-08", "numero": "0000.0000.0000.0000", "arquivo": null},
+  {"tipo": "fgts", "nome": "CRF do FGTS", "validade": "2026-10-29", "observacao": "exemplo", "arquivo": null},
+  {"tipo": "trabalhista", "nome": "CNDT", "validade": "2027-03-01", "arquivo": null},
+  {"tipo": "estadual_df", "nome": "Certidão estadual", "validade": "2027-01-15", "arquivo": null},
+  {"tipo": "municipal_df", "nome": "Certidão municipal", "validade": null, "observacao": "isenta (exemplo)", "arquivo": null},
+  {"tipo": "falencia", "nome": "Falência e recuperação judicial", "validade": null, "observacao": "ainda não pedida (exemplo)", "arquivo": null}
+ ],
+ "equipe_tecnica": [{"nome": "Fulano Exemplo", "registro": null, "papel": "sócio administrador"}],
+ "barreiras_conhecidas": [],
+ "pendencias_para_o_fulano": ["Pedir a certidão de falência e recuperação judicial (exemplo)."]
+}

@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cérebro · Pereiraos</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* tokens de hub/ui.py (docs/kronos/MARCA.md), tema escuro */
+:root{--bg:#010805;--sup:#07150e;--sup-2:#0b2016;--linha:#133323;--linha-2:#245039;--tx:#F5F1E7;--tx-2:#BDB6A8;--tx-3:#8F897D;
+--ac:#B0976A;--ac-forte:#C4AD82;--ok:#8EA382;--al:#C98E4E;--ru:#D07F6E;--g2:#D9D2C3;--g5:#8A8378;--g6:#A88BA0;
+--f-titulo:"Marcellus",Georgia,serif;--f-texto:"Geist",system-ui,sans-serif;--f-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--r:14px;--r-s:10px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 var(--f-texto);font-variant-numeric:tabular-nums;overflow:hidden}
+#mapa{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:default}
+header{position:fixed;top:0;left:0;right:0;padding:18px 24px 0;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+header>*{pointer-events:auto}
+.marca{font:400 13px var(--f-titulo);letter-spacing:.24em;color:var(--tx-3);text-transform:uppercase}
+h1{font:400 30px/1.1 var(--f-titulo);margin:2px 0 4px;letter-spacing:.01em}
+.sub{color:var(--tx-3);font-size:13px}
+.modo{display:flex;gap:6px;align-items:center}
+button{font:500 13px var(--f-texto);color:var(--tx-2);background:var(--sup);border:1px solid var(--linha-2);border-radius:999px;padding:7px 16px;cursor:pointer;min-height:44px;min-width:44px}
+button[aria-pressed=true]{background:var(--ac);border-color:var(--ac);color:#1C1C1C}
+button:focus-visible,a:focus-visible{outline:2px solid var(--ac-forte);outline-offset:2px}
+#terminal{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:2px 18px;align-items:baseline;padding:10px 14px;margin:0 -24px;background:#010805;border-top:1px solid var(--linha-2);font:13px/1.5 var(--f-mono);color:var(--tx-3)}
+#terminal .pr{color:var(--ac-forte)}
+#terminal b{font-weight:600;color:var(--tx)}
+#terminal .ok b{color:var(--ok)}#terminal .fa b{color:var(--ru)}#terminal .cu b{color:var(--ac-forte)}
+#faixa{position:relative;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;justify-content:space-between}
+#modelos{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:center;font:13px var(--f-mono);color:var(--tx-2)}
+#modelos .tit{color:var(--tx-3);font-family:var(--f-texto)}
+#modelos i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+#modelos b{font-weight:600;color:var(--tx);margin-left:6px}
+#baixo{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;align-items:start}
+#sessao h2,#eventos h2{font:500 13px var(--f-texto);color:var(--tx-2);margin:0 0 6px}
+#log{border:1px solid var(--linha);border-radius:var(--r-s);background:#041009;padding:6px 12px;height:300px;overflow:auto;font:13px/1.5 var(--f-mono);color:var(--tx-2)}
+#log .lin{display:grid;grid-template-columns:76px 30px 62px 150px 40px 84px 90px;gap:0 10px;min-width:520px;padding:4px 6px;white-space:nowrap}
+#log .lin:nth-child(odd){background:#08180f}
+#log .h{color:var(--tx-3)}#log .ok{color:var(--ok)}#log .fa{color:var(--ru)}#log .it{color:var(--tx-3)}#log .u{text-align:right}#log .vazio{color:var(--tx-3)}
+#rodape{position:fixed;left:24px;right:24px;bottom:16px;display:flex;gap:12px;align-items:center}
+#linha{flex:1;min-width:0;width:100%;height:36px;cursor:pointer;border-bottom:1px solid var(--linha)}
+#hora{font-size:12px;color:var(--tx-2);min-width:118px;text-align:right}
+#ticker{position:fixed;left:24px;top:132px;width:340px;font-size:12px;color:var(--tx-3);pointer-events:none}
+#ticker div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .6s}
+#detalhe{position:fixed;right:16px;top:90px;width:min(340px,calc(100% - 32px));max-height:calc(100% - 200px);overflow:auto;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r);padding:16px 18px;display:none}
+#detalhe.aberto{display:block}
+#detalhe h2{font:500 18px var(--f-texto);margin:0 0 8px}
+#detalhe ul{list-style:none;margin:0;padding:0}
+#detalhe li{padding:5px 0;border-top:1px solid var(--linha);color:var(--tx-2);font-size:13px}
+#detalhe li:first-child{border-top:0}
+#detalhe .ev{color:var(--tx-3);font-size:12px}
+#detalhe a{color:var(--ac-forte)}
+#detalhe .fechar{position:absolute;right:6px;top:6px;padding:0}
+.rm{display:none}
+.volta{display:none;font-size:13px;color:var(--tx-3);text-decoration:none;align-items:center;min-height:44px}
+.vivo .volta{display:inline-flex}
+/* versão compacta (quadro da tela inicial): só o mapa; clicar abre a tela inteira */
+.compacto #legenda,.compacto header,.compacto #ticker,.compacto #rodape{display:none}
+.compacto,.compacto #mapa{background:transparent;cursor:pointer}
+/* Tela inteira: os textos ficam no fluxo, fora do desenho. */
+html,body{height:auto;overflow-x:hidden;overflow-y:auto}
+body:not(.compacto){display:flex;flex-direction:column;gap:12px;padding:18px 24px 0}
+header{position:static;padding:0;pointer-events:auto}
+#legenda{position:relative;margin-left:auto}
+#legenda summary{cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--tx-2);list-style:none;border:1px solid var(--linha-2);border-radius:50%;font:500 16px var(--f-texto)}
+#legenda summary::-webkit-details-marker{display:none}
+#legenda[open] summary{background:var(--ac);border-color:var(--ac);color:#1C1C1C}
+#legenda p{position:absolute;right:0;top:50px;z-index:4;margin:0;width:min(360px,100%);padding:12px 14px;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r-s);color:var(--tx-2);font-size:13px;line-height:1.5}
+#mapa{position:static;flex:none;width:100%;height:auto;background:radial-gradient(ellipse at 45% 45%,#103c252e,transparent 65%),linear-gradient(135deg,#010805,#071d12,#010805)}
+#ticker{position:static;width:100%;height:300px;font-size:14px;overflow-y:auto;flex:none;pointer-events:auto;border:1px solid var(--linha);border-radius:var(--r-s);padding:8px 12px}
+#ticker div{white-space:normal;overflow-wrap:anywhere;padding:5px 0}
+.compacto #eventos,.compacto #sessao,.compacto #baixo,.compacto #faixa,.compacto #terminal{display:none}
+#rodape{position:static}
+.compacto #mapa{position:absolute;inset:0}
+@media (max-width:700px){
+  body:not(.compacto){padding:14px 16px;gap:10px}
+  header{flex-direction:column;gap:8px}
+  h1{font-size:24px}
+  .modo{flex-wrap:wrap}
+  #detalhe{z-index:3;top:16px;max-height:calc(100dvh - 32px)}
+  #terminal{margin:0 -16px;padding:10px 16px;gap:2px 12px;font-size:12px}
+  #baixo{grid-template-columns:minmax(0,1fr)}
+  #log{height:auto;max-height:260px}
+  #ticker{height:160px}
+  #hora{min-width:92px}
+}
+@media (prefers-reduced-motion:reduce){.rm{display:inline}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a class="volta" href="/pendencias">← Painel</a>
+    <div class="marca">Pereiraos</div>
+    <h1>Cérebro</h1>
+    <div class="sub" id="sub">a operação ao vivo</div>
+  </div>
+  <div class="modo" role="group" aria-label="Modo">
+    <button id="b-vivo" aria-pressed="false">Ao vivo</button>
+    <button id="b-replay" aria-pressed="true">Replay 24 h</button>
+    <button id="b-pausa" aria-pressed="false">Pausar</button>
+  </div>
+</header>
+<div id="faixa">
+  <div id="modelos" aria-label="Cor por modelo"></div>
+  <details id="legenda" class="sub"><summary aria-label="Como ler o mapa" title="Como ler o mapa">?</summary><p>Cada ponto é uma etapa do trabalho, da esquerda para a direita (no celular, de cima para baixo): você, o orquestrador, a fila, as contas, a revisão, o CI e o que vai ao ar. O pulso que corre pela linha é um acontecimento real. A bolinha em órbita é uma tarefa em andamento. O disco que enche é a cota da conta (5 h; no Codex, a semana). O anel verde e vermelho é a parte que deu certo e a que falhou nas últimas 24 h. A cor é o modelo.</p></details>
+</div>
+<canvas id="mapa" aria-label="Mapa da operação: nós e eventos" role="img"></canvas>
+<div id="baixo">
+  <section id="sessao" aria-label="Últimas execuções"><h2>Session log · últimas 10 execuções</h2><div id="log" tabindex="0" role="table" aria-label="Últimas 10 execuções das contas"></div></section>
+  <section id="eventos" aria-label="Eventos recentes"><h2>Eventos recentes</h2><div id="ticker" aria-live="off"></div></section>
+</div>
+<div id="rodape"><canvas id="linha" aria-label="Eventos das últimas 24 h; clique para ir a um horário"></canvas><div id="hora"></div></div>
+<div id="terminal" role="status"></div>
+<aside id="detalhe" aria-live="polite"><button class="fechar" aria-label="Fechar">×</button><div id="det-corpo"></div></aside>
+<script>
+"use strict";
+const DADOS = /*DADOS*/null;
+const URL_AO_VIVO = /*VIVO*/null;   // no painel: /cerebro.json (polling de 5 s); no protótipo, null (foto parada)
+const COMPACTO = /*COMPACTO*/false;
+if (URL_AO_VIVO) document.body.classList.add("vivo");
+if (COMPACTO) document.body.classList.add("compacto");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {sup:css("--sup"), linha:css("--linha"), linha2:css("--linha-2"), tx:css("--tx"), tx2:css("--tx-2"), tx3:css("--tx-3"),
+  ac:css("--ac"), acf:css("--ac-forte"), ok:css("--ok"), al:css("--al"), ru:css("--ru"), g2:css("--g2"), g5:css("--g5"), g6:css("--g6")};
+// tipo de evento → cor, forma, tamanho, raio (merge e deploy soltam um raio na aresta)
+const TIPOS = {
+  issue:{cor:C.g2, forma:"q", r:2.6, rot:"issues"}, msg:{cor:C.tx2, forma:"o", r:2.4, rot:"mensagens"},
+  resposta:{cor:C.tx2, forma:"o", r:2.2}, pegou:{cor:C.ac, forma:"o", r:2.8, rot:"tarefas pegas"},
+  fim:{cor:C.g5, forma:"o", r:2}, commit:{cor:C.g5, forma:"o", r:1.8, rot:"commits"},
+  pr:{cor:C.acf, forma:"d", r:3.2, rot:"PRs"}, codex:{cor:C.g6, forma:"o", r:2.8, rot:"revisões Codex"},
+  codex_achado:{cor:C.al, forma:"o", r:2.8}, ci_ok:{cor:C.ok, forma:"o", r:2.8, rot:"CI verde"},
+  ci_falha:{cor:C.ru, forma:"o", r:3, rot:"CI vermelho"}, merge:{cor:C.ac, forma:"d", r:3.6, raio:1, rot:"merges"},
+  deploy:{cor:C.ok, forma:"d", r:4, raio:1, rot:"no ar"}, proposta:{cor:C.g6, forma:"q", r:2.8, rot:"propostas"},
+  pedido:{cor:C.g5, forma:"d", r:2.8}, aviso:{cor:C.tx, forma:"a", r:3.4, rot:"avisos"},
+  alerta:{cor:C.al, forma:"a", r:4, rot:"alertas"}, erro:{cor:C.ru, forma:"a", r:3.2, rot:"erros"}};
+const FUNDO = css("--bg");
+const MONO = css("--f-mono") || "ui-monospace, monospace";
+let PLACAR = null, MODELO_COR = {};
+const DUR_REPLAY = +(new URLSearchParams(location.search).get("dur") || 30), DUR_PULSO = 1.1;
+const reduzir = matchMedia("(prefers-reduced-motion: reduce)");
+const cv = document.getElementById("mapa"), ctx = cv.getContext("2d");
+const lc = document.getElementById("linha"), lx = lc.getContext("2d");
+let W = 0, H = 0, DPR = 1, celular = false, escala = 1;
+let nos = [], porId = {}, arestas = [], porPar = {}, eventos = [], T0 = 0, T1 = 0;
+let modo = "replay", pausado = false, relogio = 0, ponteiro = 0, pulsos = [], raios = [], visto = [];
+let foco = null, caminho = new Set(), tempoEnergia = 0;
+const COLUNAS = [["voce"],["orch"],["fila"],["c1","c2","c3","c4","codex"],["ci"],["deploy"]];
+function focar(n){
+  foco = n?.id || null; caminho = new Set();
+  if(n){
+    const visitar = (id, campo, outro) => { for(const e of arestas){ if(!e.infra && !e.retorno && e[campo] === id && !caminho.has(e)){ caminho.add(e); visitar(e[outro],campo,outro); } } };
+    visitar(n.id,"b","a"); visitar(n.id,"a","b");
+    if(n.id === "debugger") for(const e of arestas) if(e.retorno) caminho.add(e);
+  }
+  desenhar();
+}
+let rng = mulberry32(868), SITES_ORDEM = [];
+const chaves = new Set(), chave = e => e.t + "|" + e.tipo + "|" + e.rot;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function carregar(d){
+  const antigo = porId, antigas = porPar;
+  nos = d.nos.map(n => { const a = antigo[n.id] || {};
+    return Object.assign({flash:a.flash || 0, corFlash:a.corFlash || C.ac, fase:a.fase ?? Math.random()*6, usoVisual:a.usoVisual ?? n.cota_pct ?? 0}, n); });
+  porId = Object.fromEntries(nos.map(n => [n.id, n]));
+  PLACAR = d.placar || null;
+  MODELO_COR = Object.fromEntries(((PLACAR||{}).modelos||[]).map(m => [m.id, m.cor]));
+  for (const n of nos) n.corModelo = MODELO_COR[n.modelo] || null;
+  SITES_ORDEM = nos.filter(n => n.grupo === "site").map(n => n.id);
+  const colunas = [...COLUNAS, SITES_ORDEM];
+  const pares = colunas.slice(0,-1).flatMap((col,i) => col.flatMap(a => colunas[i+1].map(b => [a,b])));
+  const maquinas = [["orch","hub"],["orch","pc"],...["c1","c2","c3","c4","codex","ci","deploy"].map(id=>[id,"hub"]),...SITES_ORDEM.map(id=>[id,id === "clientej" ? "prec1" : "hub"]),["clientej","prec2"]];
+  const infraestrutura = [...maquinas,...(d.arestas || []).filter(([a,b])=>porId[a]?.grupo === "infra" || porId[b]?.grupo === "infra")];
+  const ligacoes = [...pares.map(([a,b])=>({a,b,infra:false})),...infraestrutura.map(([a,b])=>({a,b,infra:true})),...[ ["ci","debugger"], ["debugger","orch"] ].map(([a,b])=>({a,b,infra:false,retorno:true}))];
+  const unicos = new Set();
+  arestas = ligacoes.filter(({a,b})=>porId[a] && porId[b] && !unicos.has(a+"|"+b) && unicos.add(a+"|"+b)).map(({a,b,infra,retorno},i)=>{
+    const v = (antigas[a+"|"+b] || [{}])[0];
+    return {a,b,i,infra,retorno,energia:v.energia||0,cor:v.cor||C.ac,total:0};
+  });
+  porPar = {}; for (const e of arestas){ porPar[e.a+"|"+e.b] = [e, 1]; porPar[e.b+"|"+e.a] = [e, -1]; }
+  eventos = d.eventos.map(e => Object.assign({ms:Date.parse(e.t)}, e));
+  for (const e of eventos) chaves.add(chave(e));
+  T0 = Date.parse(d.desde); T1 = Date.parse(d.agora);
+  for (const e of eventos){ const p = porPar[e.de+"|"+e.para]; if (p) p[0].total++; }
+  medir(); desenharLinha(); renderPlacar();
+}
+
+// legenda de modelos, session log e rodapé de terminal: dado real do servidor (placar), nada calculado aqui
+function renderPlacar(){
+  const P = PLACAR; if (!P) return;
+  const mo = document.getElementById("modelos");
+  mo.innerHTML = '<span class="tit">modelo</span>' + P.modelos.map(m => `<span><i style="background:${esc(m.cor)}"></i>${esc(m.rot)}<b>${m.n}</b></span>`).join("") + '<span class="tit">tarefas em 24 h</span>';
+  const lg = document.getElementById("log"), cor = id => MODELO_COR[id] || C.tx3;
+  lg.innerHTML = P.log.length ? P.log.map(r => `<div class="lin" role="row"><span class="h">${esc(r.hora)}</span><span>${esc(r.conta)}</span>` +
+    `<span style="color:${cor(r.modelo)}">${esc(r.modelo)}</span><span>${esc(r.nome)}</span>` +
+    `<span class="${r.interrompida ? "it" : r.ok ? "ok" : "fa"}">${r.interrompida ? "INT" : r.ok ? "OK" : "FAIL"}</span>` +
+    `<span>${r.turnos != null ? r.turnos + " turnos" : "—"}</span>` +
+    `<span class="u ${r.ok ? "" : "fa"}">${!r.ok && r.erro ? esc(r.erro.slice(0,14)) : r.custo != null ? "US$ " + r.custo.toFixed(2).replace(".", ",") : "—"}</span></div>`).join("")
+    : '<div class="vazio">sem leitura: nenhuma execução terminou nas últimas 24 h</div>';
+  const R = P.rodape;
+  document.getElementById("terminal").innerHTML = `<span class="pr">~/kronos $ cerebro --hoje</span><span class="ok">ok [<b>${R.ok}</b>]</span>` +
+    `<span class="fa">fail [<b>${R.falha}</b>]</span><span>contas [<b>${R.contas}/${R.contas_total}</b>]</span>` +
+    `<span class="cu">custo do dia [<b>${esc(R.custo_txt)}</b>]</span>`;
+}
+
+function medir(){
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = cv.getBoundingClientRect().width; celular = W < 700 && innerHeight > innerWidth;
+  const vertical = celular && !COMPACTO, TOPO = COMPACTO ? 28 : vertical ? 0 : 152;
+  const pm = vertical ? posicoesCelular() : null;
+  H = COMPACTO ? Math.max(440,innerHeight) : vertical ? pm.H : Math.max(900,innerHeight - 300);
+  cv.style.height = H+"px";
+  if (cv.width !== Math.round(W*DPR) || cv.height !== Math.round(H*DPR)){ cv.width = W*DPR; cv.height = H*DPR; }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  escala = COMPACTO ? .7 : celular ? 1 : Math.max(.8,Math.min(1.1,W/1400));
+  const colunas = [...COLUNAS,SITES_ORDEM];
+  for(const n of nos){
+    const col = colunas.findIndex(c=>c.includes(n.id)), ids = col < 0 ? nos.filter(x=>x.grupo==="infra").map(x=>x.id) : colunas[col], i=ids.indexOf(n.id);
+    if(vertical){
+      [n.px, n.py] = pm.pos[n.id] || [W/2, 0];
+    }else{
+      n.px = col < 0 ? W*(.2+i*.2) : 65+col*(W-145)/6;
+      n.py = col < 0 ? (COMPACTO?H-28:H-110) : (COMPACTO?28:TOPO)+(ids.length===1?.43:i/Math.max(1,ids.length-1))*(H-(COMPACTO?140:260)-(COMPACTO?0:TOPO-40));
+    }
+    if(COMPACTO && W < 700 && col >= 0 && ids.length === 1 && col % 2) n.py -= 45;
+    if(n.id === "debugger" && !vertical){ n.px = 65+4*(W-145)/6; /* embaixo do CI: no meio caía em cima do Codex */ n.py = H-(COMPACTO?80:220); }
+    n.raio = (n.grupo==="orch"?17:12)*escala;
+
+  }
+  for(const e of arestas){
+    const A=porId[e.a], B=porId[e.b], vertical=celular&&!COMPACTO;
+    const ax=A.px+(vertical?0:A.raio), ay=A.py+(vertical?A.raio:0), bx=B.px-(vertical?0:B.raio), by=B.py-(vertical?B.raio:0);
+    const mx=(ax+bx)/2,my=(ay+by)/2;
+    e.pts=[];
+    for(let i=0;i<=32;i++){const t=i/32,u=1-t;
+      e.pts.push([u*u*u*ax+3*u*u*t*(vertical?ax:mx)+3*u*t*t*(vertical?bx:mx)+t*t*t*bx,u*u*u*ay+3*u*u*t*(vertical?my:ay)+3*u*t*t*(vertical?my:by)+t*t*t*by]);
+    }
+    if(!vertical && !e.infra && COLUNAS[3].includes(e.a) && e.b === "ci"){
+      const jx=bx-40*escala, jy=by;
+      e.pts=[];
+      for(let i=0;i<=32;i++){
+        if(i<=24){const t=i/24,u=1-t;e.pts.push([u*u*u*ax+3*u*u*t*mx+3*u*t*t*(jx-20)+t*t*t*jx,u*u*u*ay+3*u*u*t*ay+3*u*t*t*jy+t*t*t*jy]);}
+        else e.pts.push([jx+(bx-jx)*(i-24)/8,jy]);
+      }
+    }
+    if(vertical && !e.infra && (COLUNAS[3].includes(e.a) || COLUNAS[3].includes(e.b) || SITES_ORDEM.includes(e.b))){
+      const start=[A.px,A.py+A.raio], end=[B.px,B.py-B.raio], gutter=28;
+      e.pts=[];
+      const knots=[start,[gutter,start[1]+30],[gutter,end[1]-30],end];
+      for(let i=0;i<=32;i++){const t=i/32,u=1-t;e.pts.push([u*u*u*knots[0][0]+3*u*u*t*knots[1][0]+3*u*t*t*knots[2][0]+t*t*t*knots[3][0],u*u*u*knots[0][1]+3*u*u*t*knots[1][1]+3*u*t*t*knots[2][1]+t*t*t*knots[3][1]]);}
+    }
+  }
+  const r = lc.getBoundingClientRect();
+  if (lc.width !== Math.round(r.width*DPR) || lc.height !== Math.round(r.height*DPR)){ lc.width = r.width*DPR; lc.height = r.height*DPR; }
+  lx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+// Celular: o mesmo fluxo em pilha vertical, na mesma ordem. Cada etapa com placar ganha o espaço dele acima do nó.
+const BLOCO = 128;
+function posicoesCelular(){
+  const pos = {}, esq = W*.24, dir = W*.76, col3 = COLUNAS[3], meio = W/2;
+  let y = 34;
+  pos.voce = [meio, y]; y += 96;
+  for (const id of ["orch","fila"]){ y += BLOCO; pos[id] = [meio, y]; y += 92; }
+  y += BLOCO;
+  col3.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === col3.length-1) y += 150; });
+  for (const id of ["ci","deploy"]){ y += BLOCO - 28; pos[id] = [meio, y]; y += 92; }
+  pos.debugger = [W-62, pos.ci[1]];
+  SITES_ORDEM.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === SITES_ORDEM.length-1) y += 100; });
+  y += 20;
+  nos.filter(n => n.grupo === "infra").forEach((n,i,l) => { pos[n.id] = [i%2 ? dir : esq, y]; if (i%2 || i === l.length-1) y += 100; });
+  return {pos, H: y + 30};
+}
+
+function ponto(e, t, dir){ const p = e.pts, f = (dir > 0 ? t : 1-t)*32, i = Math.min(31, f|0), r = f-i;
+  return [p[i][0]+(p[i+1][0]-p[i][0])*r, p[i][1]+(p[i+1][1]-p[i][1])*r]; }
+
+function adicionarPulso(p){
+  const limite = celular ? 140 : 360;
+  pulsos.push(p);
+  if(pulsos.length > limite) pulsos.splice(0,pulsos.length-limite);
+}
+
+function disparar(ev){
+  let tp = TIPOS[ev.tipo] || TIPOS.fim;
+  if (ev.modelo && MODELO_COR[ev.modelo] && ev.tipo !== "erro") tp = Object.assign({}, tp, {cor: MODELO_COR[ev.modelo]});   // pulso da tarefa na cor do modelo
+  const par = porPar[ev.de+"|"+ev.para];
+  visto.push(ev); if (visto.length > 400) visto.splice(0, 200);
+  ticker(ev);
+  if (!par && ev.de !== ev.para){
+    const origem=[...COLUNAS,SITES_ORDEM].findIndex(c=>c.includes(ev.de)), destino=[...COLUNAS,SITES_ORDEM].findIndex(c=>c.includes(ev.para));
+    if(origem>=0 && destino>=0 && origem!==destino){
+      const dir=destino>origem?1:-1; let de=ev.de;
+      for(let i=origem+dir;dir>0?i<=destino:i>=destino;i+=dir){const para=i===destino?ev.para:([...COLUNAS,SITES_ORDEM][i][0]);const rota=porPar[de+"|"+para];if(rota){rota[0].energia=1;rota[0].cor=tp.cor;adicionarPulso({e:rota[0],dir:rota[1],t:0,tp,alvo:para});}de=para;}
+    }
+  }
+  if (!par){ const n = porId[ev.para] || porId[ev.de]; if (n){ n.flash = 1; n.corFlash = tp.cor; } return; }
+  par[0].energia = 1; par[0].cor = tp.cor;
+  adicionarPulso({e:par[0], dir:par[1], t:0, tp, alvo:ev.para});
+  if (tp.raio && !reduzir.matches) raios.push({e:par[0], vida:1, cor:tp.cor});
+}
+
+function passo(dt){
+  tempoEnergia = (tempoEnergia + dt) % 120;
+  if (modo === "replay"){
+    relogio += dt;
+    const fim = DUR_REPLAY + 2.5;
+    if (relogio > fim){ relogio = 0; ponteiro = 0; visto = []; }
+    const agoraMs = T0 + Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*(T1-T0);
+    while (ponteiro < eventos.length && eventos[ponteiro].ms <= agoraMs) disparar(eventos[ponteiro++]);
+  }
+  for (const p of pulsos){ p.t += dt/DUR_PULSO;
+    if (p.t >= 1 && !p.chegou){ p.chegou = 1; const n = porId[p.alvo]; if (n){ n.flash = 1; n.corFlash = p.tp.cor; } p.e.energia = Math.min(1, p.e.energia+.35); p.e.cor = p.tp.cor; } }
+  pulsos = pulsos.filter(p => p.t < 1.15);
+  for (const r of raios) r.vida -= dt*2.6; raios = raios.filter(r => r.vida > 0);
+  for (const e of arestas) e.energia *= Math.exp(-dt*1.6);
+  for (const n of nos){ n.flash *= Math.exp(-dt*2.4); n.fase += dt*(.7 + (n.carga||0)*1.6); n.usoVisual += ((n.cota_pct||0)-n.usoVisual)*(1-Math.exp(-dt*6)); }
+}
+
+function forma(f, x, y, r){
+  ctx.beginPath();
+  if (f === "q") ctx.rect(x-r, y-r, 2*r, 2*r);
+  else if (f === "d"){ ctx.moveTo(x, y-r*1.3); ctx.lineTo(x+r*1.3, y); ctx.lineTo(x, y+r*1.3); ctx.lineTo(x-r*1.3, y); ctx.closePath(); }
+  else ctx.arc(x, y, r, 0, 6.2832);
+}
+
+// Conceito da fita de site/assets/hero-gl.js (example-org/pereiraos), adaptado ao mapa.
+// Camada pequena, sem biblioteca; os nós e dados continuam no Canvas 2D.
+const energia = (() => {
+  const tela = document.createElement("canvas");
+  let gl, programa, tempo, tamanho, brilho, ultimo = -Infinity, falhou = false, visivel = true;
+  if("IntersectionObserver" in window) new IntersectionObserver(es=>{visivel=es[es.length-1].isIntersecting;}).observe(cv);
+  function preparar(){
+    try {
+      gl = tela.getContext("webgl", {alpha:true, antialias:false, depth:false, preserveDrawingBuffer:true, powerPreference:"low-power"});
+      if(!gl) return false;
+      const shader = (tipo, fonte) => {
+        const s = gl.createShader(tipo); gl.shaderSource(s, fonte); gl.compileShader(s);
+        if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw Error("shader");
+        return s;
+      };
+      programa = gl.createProgram();
+      gl.attachShader(programa, shader(gl.VERTEX_SHADER, "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}"));
+      gl.attachShader(programa, shader(gl.FRAGMENT_SHADER, `precision mediump float;
+        uniform float t, evento; uniform vec2 res;
+        void main(){
+          vec2 uv=gl_FragCoord.xy/res;
+          float s=res.y>res.x ? uv.y : uv.x;
+          float v=res.y>res.x ? uv.x : uv.y;
+          float centro=.5+.15*sin(s*6.28+t*.35);
+          float giro=abs(cos(s*7.-t*.4));
+          float largura=.018+.11*giro;
+          float d=abs(v-centro)/largura;
+          float corpo=(1.-smoothstep(.65,1.,d))*(.12+.2*(1.-giro));
+          float borda=exp(-abs(d-.85)*16.)*.3;
+          float halo=exp(-d*d*.9)*.08;
+          float luz=(corpo+borda+halo)*(.45+evento*.55);
+          gl_FragColor=vec4(vec3(.16,.72,.44)*luz,luz*.55);
+        }`));
+      gl.linkProgram(programa);
+      if(!gl.getProgramParameter(programa, gl.LINK_STATUS)) return false;
+      gl.useProgram(programa);
+      const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+      const pos=gl.getAttribLocation(programa,"p"); gl.enableVertexAttribArray(pos); gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
+      tempo=gl.getUniformLocation(programa,"t"); tamanho=gl.getUniformLocation(programa,"res"); brilho=gl.getUniformLocation(programa,"evento");
+      tela.addEventListener("webglcontextlost", e=>{e.preventDefault(); falhou=true; cv.dataset.energia="estatica"; desenhar();});
+      return true;
+    } catch (_) { return false; }
+  }
+  return {desenhar(){
+    if(reduzir.matches || falhou){cv.dataset.energia="estatica";return;}
+    if(!gl && !preparar()){falhou=true;cv.dataset.energia="estatica";return;}
+    cv.dataset.energia="webgl";
+    if(!visivel || document.hidden) return;
+    const agora=performance.now();
+    // No máximo 24 fps e 720 px no maior eixo, independente do DPR.
+    if(agora-ultimo>=1000/24){
+      const escala=Math.min(1,720/Math.max(W,H));
+      const w=Math.max(1,Math.round(W*escala)), h=Math.max(1,Math.round(H*escala));
+      if(tela.width!==w || tela.height!==h){tela.width=w;tela.height=h;}
+      gl.viewport(0,0,w,h); gl.uniform2f(tamanho,w,h);
+      gl.uniform1f(tempo,tempoEnergia); gl.uniform1f(brilho,Math.min(1,pulsos.length/4));
+      gl.drawArrays(gl.TRIANGLES,0,3); ultimo=agora;
+    }
+    ctx.drawImage(tela,0,0,W,H);
+  }};
+})();
+
+function desenhar(){
+  ctx.clearRect(0, 0, W, H);
+  energia.desenhar();
+  const estatico = reduzir.matches;
+  const maxTotal = Math.max(1, ...arestas.map(e => e.total));
+  ctx.lineCap = "round";
+  for (const e of arestas){   // arestas: linha fina; com energia, acende na cor do último pulso
+    if(e.infra && foco!==e.a && foco!==e.b) continue;
+    ctx.beginPath(); ctx.moveTo(e.pts[0][0], e.pts[0][1]); for (const p of e.pts) ctx.lineTo(p[0], p[1]);
+    ctx.strokeStyle = C.linha2; ctx.globalAlpha = foco ? (caminho.has(e) || e.infra ? .65 : .025) : .3;
+    ctx.lineWidth = 1; ctx.stroke();
+    if(!estatico && cv.dataset.energia === "webgl" && e.energia > .02){
+      ctx.save(); ctx.strokeStyle=e.cor || "#29b870";
+      ctx.globalAlpha=e.energia*.12*(foco && !caminho.has(e) ? .08 : 1);
+      ctx.lineWidth=12*escala; ctx.shadowColor="#29b870"; ctx.shadowBlur=14; ctx.stroke(); ctx.restore();
+    }
+    if (e.energia > .02){ ctx.strokeStyle = e.cor; ctx.globalAlpha = e.energia*.55*(foco && !caminho.has(e) && !e.infra ? .08 : 1); ctx.lineWidth = 1.4; ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "lighter";
+  for (const r of raios){ if(foco && !caminho.has(r.e) && !r.e.infra) continue; if(r.e.infra && foco!==r.e.a && foco!==r.e.b) continue;   // raio: polilinha tremida ao longo da aresta, some em ~0,4 s
+    ctx.beginPath(); const e = r.e;
+    for (let i = 0; i <= 32; i += 2){ const p = e.pts[i], j = (i === 0 || i === 32) ? 0 : (rng()-.5)*9*escala; ctx.lineTo(p[0]+j, p[1]+j*.6); }
+    ctx.strokeStyle = r.cor; ctx.globalAlpha = r.vida*.8; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  for (const p of pulsos){
+    if((foco && !caminho.has(p.e) && !p.e.infra) || estatico || (p.e.infra && foco!==p.e.a && foco!==p.e.b)) continue;
+    const t = Math.min(1, p.t), [x, y] = ponto(p.e, t, p.dir), s = p.tp.r*escala, a = p.t > 1 ? 1-(p.t-1)/.15 : 1;
+    ctx.strokeStyle = p.tp.cor; ctx.lineWidth = s*.9; ctx.beginPath();   // rastro curto
+    for (let k = 5; k >= 0; k--){ const q = ponto(p.e, Math.max(0, t-k*.025), p.dir); ctx.lineTo(q[0], q[1]); }
+    ctx.globalAlpha = .35*a; ctx.stroke();
+    ctx.fillStyle = p.tp.cor; ctx.globalAlpha = .18*a; forma("o", x, y, s*2.6); ctx.fill();   // halo
+    ctx.globalAlpha = a; forma(p.tp.forma === "a" ? "o" : p.tp.forma, x, y, s); ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const n of nos){
+    const relacionado = !foco || foco===n.id || [...caminho].some(e=>e.a===n.id||e.b===n.id) || arestas.some(e=>e.infra && (e.a===foco&&e.b===n.id || e.b===foco&&e.a===n.id));
+    ctx.save(); if(!relacionado) ctx.globalAlpha=.2;
+    const resp = estatico ? 0 : Math.sin(n.fase)*.05*(.3 + (n.carga||0)), r = n.raio*(1 + resp + n.flash*.18);
+    if (n.alerta){   // problema: anel de alerta que pulsa (parado no modo reduzido)
+      const k = estatico ? .5 : (Math.sin(n.fase*2.2)+1)/2;
+      ctx.strokeStyle = C.al; ctx.globalAlpha = .25 + .45*k; ctx.lineWidth = 2;
+      forma("o", n.px, n.py, r + 5 + 4*k); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (n.flash > .03){ ctx.fillStyle = n.corFlash; ctx.globalAlpha = n.flash*.22; forma("o", n.px, n.py, r*2.1); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.fillStyle = C.sup; forma("o", n.px, n.py, r); ctx.fill();
+    ctx.strokeStyle = n.flash > .1 ? n.corFlash : (n.estourou ? C.ru : n.alerta ? C.al : (n.corModelo || C.linha2)); ctx.lineWidth = n.corModelo ? 2.2 : 1.5; ctx.stroke();
+    anelResultado(n, r);
+    if(n.grupo === "conta" || n.id === "codex"){
+      if(n.cota_pct != null){
+        const pct = estatico ? (n.cota_pct||0) : n.usoVisual;
+        const cor = n.estourou || n.cota_pct >= 100 ? C.ru : n.cota_pct >= 70 ? C.al : C.ac;
+        // Área proporcional ao uso; 0% conserva apenas um ponto visível.
+        ctx.fillStyle = cor;
+        forma("o", n.px, n.py, raioCota(r, pct)); ctx.fill();
+      }
+    }else{
+      ctx.fillStyle = C.ac; ctx.globalAlpha = .35 + .65*Math.max(n.carga||0,n.flash);
+      forma("o", n.px, n.py, Math.max(2,r*.32*(.5+(n.carga||0)*.5))); ctx.fill(); ctx.globalAlpha=1;
+    }
+    for (let k = 0; k < (n.ativo||0); k++){   // sessões rodando na conta: grãos em órbita
+      const ang = (estatico ? 0 : n.fase*.6) + k*6.2832/n.ativo;
+      ctx.fillStyle = C.ac; forma("o", n.px + Math.cos(ang)*(r+9*escala), n.py + Math.sin(ang)*(r+9*escala), 1.8*escala); ctx.fill();
+    }
+    ctx.strokeStyle = FUNDO; ctx.lineWidth = 4; ctx.lineJoin = "round";   // contorno do fundo: rótulo legível sobre as arestas
+    ctx.font = `500 ${Math.round(12*escala)}px Geist, system-ui`; ctx.fillStyle = n.alerta ? C.al : C.tx2;
+    for(const caixa of caixasRotulos(n)){
+      ctx.font = caixa.font; ctx.fillStyle = caixa.titulo ? (n.alerta ? C.al : C.tx2) : (n.estourou ? C.ru : C.tx3);
+      ctx.strokeText(caixa.texto,n.px,caixa.y); ctx.fillText(caixa.texto,n.px,caixa.y);
+    }
+    ctx.restore();
+    if(!relacionado){ctx.fillStyle=FUNDO;ctx.globalAlpha=.78;ctx.fillRect(n.px-88,n.py-28,176,85);ctx.globalAlpha=1;}
+  }
+  desenharPlacar();
+}
+
+// Anel junto do nó: a parte que deu certo (verde) e a que falhou (vermelho) nas últimas 24 h.
+function anelResultado(n, r){
+  if (COMPACTO) return;
+  const e = (PLACAR?.etapas || []).find(x => x.no === n.id);
+  const ok = n.grupo === "conta" ? n.ok24 : e?.ok, falha = n.grupo === "conta" ? n.falha24 : e?.falha;
+  if (!(ok + falha > 0) || n.id === "fila") return;
+  const R = r + 4.5, ini = -Math.PI/2, fim = ini + 2*Math.PI*ok/(ok+falha);
+  ctx.lineWidth = 2; ctx.lineCap = "butt";
+  ctx.strokeStyle = C.ok; ctx.globalAlpha = .85; ctx.beginPath(); ctx.arc(n.px, n.py, R, ini, fim); ctx.stroke();
+  if (falha){ ctx.strokeStyle = C.ru; ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(n.px, n.py, R, fim, ini + 2*Math.PI); ctx.stroke(); }
+  ctx.globalAlpha = 1; ctx.lineCap = "round";
+}
+
+// ---------- placar por etapa: número grande, barra e linhas curtas, no topo da coluna (celular: acima do nó) ----------
+function quebrar(t, larg){
+  const out = []; let l = "";
+  for (const p of String(t).split(" ")){ const x = l ? l+" "+p : p; if (l && ctx.measureText(x).width > larg){ out.push(l); l = p; } else l = x; }
+  return l ? [...out, l] : out;
+}
+function corPct(p){ return p >= 90 ? C.ok : p >= 70 ? C.al : C.ru; }
+function placarBloco(e, x, y0, larg, deBaixo){
+  ctx.font = `400 10.5px ${MONO}`;
+  const nl = e.linhas.flatMap(t => quebrar(t, larg)), alto = 62 + nl.length*13, y = deBaixo ? y0 - alto : y0;
+  ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.lineJoin = "round";
+  ctx.font = `500 10.5px Geist, system-ui`; ctx.fillStyle = C.tx3;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "1.4px";
+  ctx.fillText((e.rot + (e.no === "fila" ? "" : " · 24 h")).toUpperCase(), x, y);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  const dado = e.pct != null || e.no === "fila";
+  ctx.font = dado ? `600 28px ${MONO}` : `500 14px ${MONO}`;
+  ctx.fillStyle = e.no === "fila" ? C.tx : dado ? corPct(e.pct) : C.tx3;
+  ctx.fillText(e.grande, x, y + (dado ? 15 : 24));
+  const bw = Math.min(larg*.7, 120), bx = x - bw/2, by = y + 50;
+  if (dado){
+    ctx.fillStyle = C.linha2; ctx.fillRect(bx, by, bw, 4);
+    const f = e.no === "fila" ? Math.min(1, +e.grande/12) : e.pct/100;
+    ctx.fillStyle = e.no === "fila" ? C.ac : C.ok; ctx.fillRect(bx, by, bw*f, 4);
+    if (e.no !== "fila" && e.falha){ ctx.fillStyle = C.ru; ctx.fillRect(bx + bw*f, by, bw*(1-f), 4); }
+  }
+  ctx.font = `400 10.5px ${MONO}`; ctx.fillStyle = C.tx2; ctx.strokeStyle = FUNDO; ctx.lineWidth = 3;
+  nl.forEach((t,k) => { ctx.strokeText(t, x, y + 62 + k*13); ctx.fillText(t, x, y + 62 + k*13); });
+}
+function desenharPlacar(){
+  if (COMPACTO || !PLACAR) return;
+  const col = (W-145)/6, larg = celular ? W-40 : Math.min(200, col-14);
+  for (const e of PLACAR.etapas){
+    const n = porId[e.no];
+    if (!n || e.no === "codex") continue;   // a revisão mostra o placar nas linhas do próprio nó
+    if (celular) placarBloco(e, W/2, n.py - n.raio - 10, larg, true); else placarBloco(e, n.px, 12, larg, false);
+  }
+}
+
+function raioCota(raio, pct){
+  return Math.max(Math.min(2*escala, raio), raio*Math.sqrt(Math.max(0, Math.min(100, pct))/100));
+}
+
+// Mesmas medidas usadas no desenho e na regressão de colisões do canvas.
+function caixasRotulos(n){
+  const sub = COMPACTO && n.grupo === "infra" ? "" : resumo(n);
+  return [n.rot, ...(sub ? sub.split("\n") : [])].map((texto,i)=>{
+    const tamanho = Math.round((i ? 11 : 12)*escala);
+    const font = `${i ? 400 : 500} ${tamanho}px Geist, system-ui`;
+    ctx.font = font;
+    const largura = ctx.measureText(texto).width;
+    const y = n.py+n.raio+8+(i ? (15+(i-1)*(COMPACTO?10:13))*escala : 0);
+    return {texto,font,titulo:i===0,x:n.px-largura/2,y,w:largura,h:tamanho+2};
+  });
+}
+
+function resumo(n){
+  if (n.grupo === "conta" || n.id === "codex") {
+    const medidas = [], l = [];
+    if(n.cota != null) medidas.push(`${n.janela || "5 h"} ${Math.round(n.cota)}%`);
+    if(n.semana != null && n.id !== "codex") medidas.push(`sem ${Math.round(n.semana)}%`);
+    if (n.grupo === "conta"){   // a tarefa de agora (KRN-n e o título curto), ou o porquê de estar parada
+      l.push(n.estourou ? `pausada · ${COMPACTO ? "" : "volta "}${n.estourou}` : n.ativo ? `${n.tarefa || "tarefa"}${n.minutos != null ? ` · ${n.minutos} min` : ""}` : "ociosa");
+      if (!celular && !COMPACTO && n.ativo && n.titulo) l.push(n.titulo.length > 30 ? n.titulo.slice(0,29).trimEnd() + "…" : n.titulo);
+    } else {
+      if (medidas.length) l.push(medidas.join(" · "));
+      l.push(`${n.ativo||0} rodando`, ...(n.estourou ? [`volta ${n.estourou}`] : []));
+    }
+    if (n.grupo === "conta" && medidas.length) l.push(medidas.join(" · "));
+    if (!COMPACTO && n.grupo === "conta" && n.ok24 != null) l.push(`${n.ok24} ok · ${n.falha24} falhou`);
+    if (!COMPACTO && n.id === "codex") l.push(...((PLACAR?.etapas || []).find(x => x.no === "codex")?.linhas || []));
+    return l.join("\n");
+  }
+  if (n.id === "debugger") return `${n.ativo||0} consertando`;
+  if (n.id === "fila") return (n.linhas[0]||"");
+  if (n.grupo === "site") return n.alerta ? "fora do ar" : "";
+  if (["hub","prec1","prec2"].includes(n.id)) {
+    const partes = (n.linhas[0]||"").split(" · ");
+    return n.id === "hub" ? partes[0] : [partes.slice(0,2).join(" · "),partes.slice(2).join(" · ")].filter(Boolean).join("\n");
+  }
+  if (n.id === "pc") return n.linhas[0] || "";
+  return "";
+}
+
+// ---------- contadores, linha do tempo, ticker, detalhe ----------
+function contar(){
+  const ate = modo === "replay" ? T0 + Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*(T1-T0) : T1;
+  const h = new Date(ate);
+  document.getElementById("hora").textContent = (modo === "replay" ? "" : URL_AO_VIVO ? "agora, " : "foto de ") +
+    h.toLocaleString("pt-BR", {weekday:"short", hour:"2-digit", minute:"2-digit", timeZone:"America/Sao_Paulo"});
+}
+
+function desenharLinha(){
+  const w = lc.width/DPR, h = lc.height/DPR, n = 96, bins = new Array(n).fill(0);
+  for (const e of eventos){ const i = Math.min(n-1, Math.floor((e.ms-T0)/(T1-T0)*n)); if (i >= 0) bins[i]++; }
+  const m = Math.max(1, ...bins), bw = w/n;
+  lx.clearRect(0, 0, w, h);
+  bins.forEach((v, i) => { const bh = Math.max(1, v/m*(h-6)); lx.fillStyle = C.linha2; lx.fillRect(i*bw+1, h-bh, bw-2, bh); });
+  if (modo === "replay"){ const x = Math.min(relogio, DUR_REPLAY)/DUR_REPLAY*w;
+    lx.fillStyle = C.ac; lx.globalAlpha = .55; for (let i = 0; i < n && i*bw < x; i++){ const bh = Math.max(1, bins[i]/m*(h-6)); lx.fillRect(i*bw+1, h-bh, bw-2, bh); }
+    lx.globalAlpha = 1; lx.fillRect(x-1, 0, 2, h); }
+}
+
+const tk = document.getElementById("ticker"); let ultimoTicker = 0;
+function ticker(ev, inicial = false){
+  const agora = performance.now(); if (!inicial && agora - ultimoTicker < 350) return; ultimoTicker = agora;
+  const d = document.createElement("div"); d.textContent = ev.rot; d.style.color = (TIPOS[ev.tipo]||{}).cor;
+  tk.prepend(d); while (tk.children.length > 40) tk.lastChild.remove();
+}
+
+const det = document.getElementById("detalhe"), detC = document.getElementById("det-corpo");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const link = u => /^https:\/\//.test(u||"") ? u : "";
+function abrir(n){
+  const evs = (modo === "replay" ? visto : eventos).filter(e => e.de === n.id || e.para === n.id).slice(-8).reverse();
+  const cotas = n.grupo === "conta" || n.id === "codex" ? `<p>${n.id === "codex" ? "Cota semanal" : "Janela de 5 h"}: ${n.cota_pct ?? "sem leitura"}${n.cota_pct == null ? "" : "%"} · Semana: ${n.semana_pct ?? "sem leitura"}${n.semana_pct == null ? "" : "%"}</p>` : "";
+  detC.innerHTML = `<h2>${esc(n.rot)}</h2>${cotas}<ul>${n.linhas.map(l => `<li>${esc(l)}</li>`).join("") || "<li>sem leitura coletada</li>"}</ul>` +
+    (link(n.url) ? `<p><a href="${esc(n.url)}" target="_blank" rel="noopener">abrir →</a></p>` : "") +
+    (evs.length ? `<p class="sub">Últimos eventos</p><ul>${evs.map(e => `<li class="ev">${new Date(e.ms).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"})} · ${link(e.url) ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.rot)}</a>` : esc(e.rot)}</li>`).join("")}</ul>` : "");
+  det.classList.add("aberto"); det.querySelector(".fechar").focus();
+}
+det.querySelector(".fechar").onclick = () => det.classList.remove("aberto");
+addEventListener("keydown", e => { if (e.key === "Escape") det.classList.remove("aberto"); });
+function noEm(x, y){ return nos.find(n => Math.hypot(n.px-x, n.py-y) < n.raio + 12); }
+cv.addEventListener("click", e => { if (COMPACTO){ top.location.href = "/cerebro"; return; }
+  const r = cv.getBoundingClientRect(), n = noEm(e.clientX-r.left, e.clientY-r.top); focar(n); if (n) abrir(n); });
+cv.addEventListener("mousemove", e => { const r=cv.getBoundingClientRect(), n=noEm(e.clientX-r.left,e.clientY-r.top); cv.style.cursor=n?"pointer":"default"; focar(n); });
+cv.addEventListener("mouseleave",()=>focar(null));
+lc.addEventListener("click", e => { if (modo !== "replay") return; const r = lc.getBoundingClientRect();
+  irPara((e.clientX - r.left)/r.width*DUR_REPLAY); });
+
+function irPara(seg){   // pula o replay para um ponto sem disparar a enxurrada de pulsos do trecho pulado
+  relogio = seg; const ms = T0 + seg/DUR_REPLAY*(T1-T0);
+  ponteiro = 0; while (ponteiro < eventos.length && eventos[ponteiro].ms <= ms) ponteiro++;
+  visto = eventos.slice(Math.max(0, ponteiro-400), ponteiro); pulsos = []; raios = [];
+}
+
+// ---------- modos ----------
+const bV = document.getElementById("b-vivo"), bR = document.getElementById("b-replay"), bP = document.getElementById("b-pausa");
+function setModo(m){
+  modo = m; bV.setAttribute("aria-pressed", m === "vivo"); bR.setAttribute("aria-pressed", m === "replay");
+  pulsos = []; raios = []; irPara(0);
+  tk.replaceChildren();
+  if(m === "vivo") eventos.slice(-40).forEach(e => ticker(e, true));
+  document.getElementById("sub").textContent = m === "replay" ? `replay: as últimas 24 h em ${DUR_REPLAY} s` :
+    (URL_AO_VIVO ? "ao vivo: eventos chegam a cada 5 s" : "foto de agora (no painel os eventos chegam ao vivo)");
+  desenharLinha(); contar();
+}
+bV.onclick = () => setModo("vivo"); bR.onclick = () => setModo("replay");
+bP.onclick = () => { pausado = !pausado; bP.setAttribute("aria-pressed", pausado); bP.textContent = pausado ? "Continuar" : "Pausar"; };
+
+let ultimoVivo = DADOS.agora;   // a página já vem com as 24 h; o polling só pede o que veio depois
+async function buscarVivo(){
+  if (!URL_AO_VIVO || document.hidden) return;
+  try {
+    const r = await fetch(URL_AO_VIVO + "?desde=" + encodeURIComponent(ultimoVivo), {cache:"no-store"});
+    if (!r.ok) return;
+    const d = await r.json(), novos = d.eventos.filter(e => !chaves.has(chave(e)));
+    const todos = eventos.map(({ms, ...e}) => e).concat(novos).filter(e => e.t >= d.desde).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+    const emReplay = modo === "replay" ? relogio : null;
+    chaves.clear(); carregar(Object.assign({}, d, {eventos: todos}));
+    if (emReplay !== null) irPara(emReplay);   // o replay segue do ponto em que estava, com a janela nova
+    if (modo === "vivo" && !reduzir.matches) novos.slice(-40).forEach((e, i) => setTimeout(() => disparar(Object.assign({ms:Date.parse(e.t)}, e)), i*120));
+    ultimoVivo = d.agora;
+    if (reduzir.matches || pausado){ ponteiro = eventos.length; desenhar(); desenharLinha(); }
+    contar();
+  } catch (_) { /* rede caiu: tenta no próximo ciclo */ }
+}
+
+// ---------- laço ----------
+carregar(DADOS);
+const tq = new URLSearchParams(location.search).get("t");
+const qModo = new URLSearchParams(location.search).get("modo");
+setModo(qModo === "replay" || (!URL_AO_VIVO && qModo !== "vivo") ? "replay" : "vivo");   // no painel abre ao vivo
+new ResizeObserver(() => { medir(); desenhar(); desenharLinha(); }).observe(cv);
+addEventListener("resize", () => { medir(); desenhar(); desenharLinha(); });
+if (tq !== null){   // ?t=N: replay congelado em N s (prints reproduzíveis)
+  const alvo = parseFloat(tq); irPara(Math.max(0, alvo-1.5)); for (let s = 0; s < 1.5; s += 1/60) passo(1/60);
+  desenhar(); desenharLinha(); contar(); window.__pronto = true;
+} else if (reduzir.matches){   // movimento reduzido: mapa parado, arestas com espessura pelo volume de 24 h e contadores cheios
+  setModo("vivo"); ponteiro = eventos.length; desenhar(); desenharLinha(); contar();
+  document.getElementById("sub").textContent = "mapa parado (movimento reduzido): toque num nó para explorar" +
+    (URL_AO_VIVO ? "; contadores e alertas a cada 5 s" : "");
+  addEventListener("resize", () => { desenhar(); contar(); });
+  if (URL_AO_VIVO) setInterval(buscarVivo, 5000);
+} else {
+  let ant = performance.now(), quadro = 0;
+  (function laco(agora){
+    const dt = Math.min((agora - ant)/1000, 1/20); ant = agora;
+    if (!pausado && !document.hidden){ if(!reduzir.matches) passo(dt); desenhar(); if (++quadro % 6 === 0){ desenharLinha(); contar(); } }
+    requestAnimationFrame(laco);
+  })(ant);
+  if (URL_AO_VIVO){ buscarVivo(); setInterval(buscarVivo, 5000); }
+}
+</script>
+</body>
+</html>

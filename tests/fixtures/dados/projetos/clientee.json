@@ -1,0 +1,136 @@
+{
+  "id": "clientee",
+  "ids_antigos": [
+    "clientee-moraes-site"
+  ],
+  "ativo": true,
+  "nome": "ClienteE & Moraes Advogados",
+  "dominio": "clienteeemoraesadv-com.example",
+  "hosts_alternativos": [
+    "www.clienteeemoraesadv-com.example"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "jpexemplo/clientee-moraes-site",
+    "base": "master",
+    "pacotes": "npm",
+    "deploy": null
+  },
+  "ids": {
+    "gsc": "sc-domain:clienteeemoraesadv-com.example",
+    "ga4": "100000007",
+    "ga4_medicao": "G-TESTE00007",
+    "clarity": "clarity0007",
+    "dokploy_app": null
+  },
+  "marca": {
+    "nome": "ClienteE & Moraes",
+    "aliases": [
+      "ClienteE e Moraes"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "OAB",
+  "contexto": "ClienteE & Moraes Advogados (clienteeemoraesadv-com.example): cadastro de teste, texto fictício. O repositório é de terceiro: PR sim, na base `master`; merge só quando a issue tiver a label `merge`. Recomende páginas em clienteeemoraesadv-com.example.",
+  "frase_canonica": "serviço de exemplo do site clientee",
+  "meta": null,
+  "concorrentes": [
+    "Gabriel Bulhões",
+    "Vieira Rios Advogados",
+    "Machado de Almeida Castro Advocacia",
+    "Motta Callegari Advogados",
+    "Dupret Pessoa Advogados"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 clientee",
+      "buscas 2 clientee",
+      "buscas 3 clientee",
+      "buscas 4 clientee",
+      "buscas 5 clientee",
+      "buscas 6 clientee",
+      "buscas 7 clientee",
+      "buscas 8 clientee",
+      "buscas 9 clientee",
+      "buscas 10 clientee"
+    ],
+    "painel": [
+      "painel 1 clientee",
+      "painel 2 clientee",
+      "painel 3 clientee",
+      "painel 4 clientee",
+      "painel 5 clientee",
+      "painel 6 clientee",
+      "painel 7 clientee",
+      "painel 8 clientee",
+      "painel 9 clientee",
+      "painel 10 clientee",
+      "painel 11 clientee",
+      "painel 12 clientee",
+      "painel 13 clientee",
+      "painel 14 clientee",
+      "painel 15 clientee",
+      "painel 16 clientee",
+      "painel 17 clientee",
+      "painel 18 clientee",
+      "painel 19 clientee",
+      "painel 20 clientee"
+    ],
+    "locais": [
+      1001541
+    ],
+    "max_buscas": 15,
+    "max_prompts_painel": 20,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 clientee",
+      "termos_gsc 2 clientee",
+      "termos_gsc 3 clientee",
+      "termos_gsc 4 clientee",
+      "termos_gsc 5 clientee",
+      "termos_gsc 6 clientee",
+      "termos_gsc 7 clientee",
+      "termos_gsc 8 clientee",
+      "termos_gsc 9 clientee",
+      "termos_gsc 10 clientee",
+      "termos_gsc 11 clientee"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": "LegalService",
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    }
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 clientee",
+      "palavras 2 clientee",
+      "palavras 3 clientee",
+      "palavras 4 clientee",
+      "palavras 5 clientee",
+      "palavras 6 clientee",
+      "palavras 7 clientee",
+      "palavras 8 clientee",
+      "palavras 9 clientee",
+      "palavras 10 clientee",
+      "palavras 11 clientee",
+      "palavras 12 clientee",
+      "palavras 13 clientee",
+      "palavras 14 clientee"
+    ],
+    "local": 1001541,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_nota": "Linhas no formato do searchAnalytics.query (dimensions query, page), inventadas para o teste.",
+  "rows": [
+    {"keys": ["quiropraxia brasilia", "https://clientea-com.example/quiropraxia"], "clicks": 2, "impressions": 900, "ctr": 0.0022, "position": 3.0},
+    {"keys": ["fisioterapia asa norte", "https://clientea-com.example/unidades/asa-norte"], "clicks": 60, "impressions": 400, "ctr": 0.15, "position": 2.0},
+    {"keys": ["cliente a", "https://clientea-com.example/"], "clicks": 1, "impressions": 250, "ctr": 0.004, "position": 1.0},
+    {"keys": ["liberacao miofascial preco", "https://clientea-com.example/pacotes"], "clicks": 0, "impressions": 150, "ctr": 0.0, "position": 6.0},
+    {"keys": ["fisioterapia para hernia de disco", "https://clientea-com.example/blog/coluna"], "clicks": 0, "impressions": 80, "ctr": 0.0, "position": 18.0},
+    {"keys": ["fisioterapia para hernia de disco", "https://clientea-com.example/"], "clicks": 0, "impressions": 30, "ctr": 0.0, "position": 25.0},
+    {"keys": ["dor lombar tratamento", "https://clientea-com.example/blog/x"], "clicks": 0, "impressions": 120, "ctr": 0.0, "position": 14.0},
+    {"keys": ["pilates asa norte", "https://clientea-com.example/blog/y"], "clicks": 0, "impressions": 70, "ctr": 0.0, "position": 22.0},
+    {"keys": ["acupuntura brasilia", "https://clientea-com.example/blog/z"], "clicks": 1, "impressions": 300, "ctr": 0.003, "position": 15.0},
+    {"keys": ["drenagem linfatica", "https://clientea-com.example/blog/w"], "clicks": 0, "impressions": 40, "ctr": 0.0, "position": 30.0}
+  ],
+  "titulos": {
+    "https://clientea-com.example/blog/x": "Dor lombar: tratamento com fisioterapia em Brasília"
+  },
+  "sitemap": [
+    "https://clientea-com.example/",
+    "https://clientea-com.example/pilates/asa-norte",
+    "https://clientea-com.example/blog/coluna"
+  ]
+}

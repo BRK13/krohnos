@@ -1,0 +1,122 @@
+{
+  "id": "asite01",
+  "ids_antigos": [
+    "cliente-c"
+  ],
+  "ativo": true,
+  "nome": "Cliente C",
+  "dominio": "clientec-com.example",
+  "hosts_alternativos": [
+    "www.clientec-com.example"
+  ],
+  "hosts_citacao": [
+    "app.clientec-com.example"
+  ],
+  "repo": {
+    "github": "example-org/cliente-c",
+    "base": "develop",
+    "pacotes": "yarn",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:clientec-com.example",
+    "ga4": "100000001",
+    "ga4_medicao": "G-TESTE00001",
+    "clarity": "clarity0001",
+    "gmb_cid": "sem_perfil",
+    "dokploy_app": "dokploy-app-asite01"
+  },
+  "marca": {
+    "nome": "Cliente C",
+    "aliases": [
+      "ClienteC"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": null,
+  "contexto": "Cliente C (clientec-com.example): cadastro de teste, texto fictício. Recomende páginas em clientec-com.example.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "Escriba",
+    "Siplan",
+    "Officer Soft",
+    "Livro Caixa Web",
+    "CartSys",
+    "Argon",
+    "Alkasoft"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 asite01",
+      "buscas 2 asite01",
+      "buscas 3 asite01",
+      "buscas 4 asite01",
+      "buscas 5 asite01",
+      "buscas 6 asite01",
+      "buscas 7 asite01",
+      "buscas 8 asite01",
+      "buscas 9 asite01",
+      "buscas 10 asite01"
+    ],
+    "painel": [
+      "painel 1 asite01",
+      "painel 2 asite01",
+      "painel 3 asite01",
+      "painel 4 asite01",
+      "painel 5 asite01",
+      "painel 6 asite01",
+      "painel 7 asite01",
+      "painel 8 asite01"
+    ],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 10,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 asite01",
+      "termos_gsc 2 asite01",
+      "termos_gsc 3 asite01",
+      "termos_gsc 4 asite01",
+      "termos_gsc 5 asite01",
+      "termos_gsc 6 asite01",
+      "termos_gsc 7 asite01",
+      "termos_gsc 8 asite01",
+      "termos_gsc 9 asite01"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": "SoftwareApplication",
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    },
+    "cookie_nao_medir": "asite01_nao_medir"
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 asite01",
+      "palavras 2 asite01",
+      "palavras 3 asite01",
+      "palavras 4 asite01",
+      "palavras 5 asite01",
+      "palavras 6 asite01",
+      "palavras 7 asite01",
+      "palavras 8 asite01"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
+}

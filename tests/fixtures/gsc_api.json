@@ -1,0 +1,63 @@
+{
+ "query": {
+  "rows": [
+   {
+    "keys": [
+     "https://example.com/a/"
+    ],
+    "clicks": 30,
+    "impressions": 1000,
+    "ctr": 0.03333333,
+    "position": 6.04
+   },
+   {
+    "keys": [
+     "https://example.com/b"
+    ],
+    "clicks": 5,
+    "impressions": 400,
+    "ctr": 0.0125,
+    "position": 9.5
+   },
+   {
+    "keys": [
+     "https://example.com/d"
+    ],
+    "clicks": 2,
+    "impressions": 100,
+    "ctr": 0.02,
+    "position": 12.0
+   },
+   {
+    "keys": [
+     "https://example.com/c"
+    ],
+    "clicks": 0,
+    "impressions": 10,
+    "ctr": 0,
+    "position": 30.26
+   }
+  ]
+ },
+ "discover": {
+  "rows": [
+   {
+    "keys": [
+     "https://example.com/a"
+    ],
+    "clicks": 3,
+    "impressions": 90,
+    "ctr": 0.0333
+   }
+  ]
+ },
+ "inspect": {
+  "inspectionResult": {
+   "indexStatusResult": {
+    "verdict": "PASS",
+    "coverageState": "Submitted and indexed",
+    "googleCanonical": "https://example.com/a"
+   }
+  }
+ }
+}

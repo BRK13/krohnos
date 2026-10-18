@@ -1,0 +1,42 @@
+{
+  "id": "loja-e",
+  "ids_antigos": [],
+  "ativo": true,
+  "nome": "Loja e",
+  "dominio": "exemplo-e.test",
+  "hosts_alternativos": [
+    "www.exemplo-e.test"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "dono/loja-e",
+    "base": "develop",
+    "pacotes": "pnpm"
+  },
+  "ids": {},
+  "marca": {
+    "nome": "Loja e",
+    "aliases": [
+      "Lojae"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": null,
+  "contexto": "Loja de exemplo.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [],
+  "monitor": null,
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": null
+}

@@ -1,0 +1,13 @@
+title = "Kronos Hub"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Pastas que não são código do hub: planos locais, git, dependências"
+paths = [
+  '''\.superpowers/''',
+  '''(^|/)\.git/''',
+  '''(^|/)node_modules/''',
+  '''^vendor/''',
+]

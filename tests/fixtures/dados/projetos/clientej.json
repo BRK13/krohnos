@@ -1,0 +1,161 @@
+{
+  "id": "clientej",
+  "ids_antigos": [
+    "clienteh"
+  ],
+  "ativo": true,
+  "nome": "ClienteJ",
+  "dominio": "clientej-com-br.example",
+  "hosts_alternativos": [
+    "www.clientej-com-br.example"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "example-org/clienteh",
+    "base": "main",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:clientej-com-br.example",
+    "ga4": "100000005",
+    "ga4_medicao": "G-TESTE00005",
+    "clarity": "clarity0005",
+    "gmb_cid": "sem_perfil",
+    "dokploy_app": null
+  },
+  "marca": {
+    "nome": "ClienteJ",
+    "aliases": [
+      "clientej-com-br.example"
+    ],
+    "identificador": null,
+    "nome_generico": true
+  },
+  "conselho": "OAB",
+  "contexto": "ClienteJ (clientej-com-br.example): cadastro de teste, texto fictício. Recomende páginas em clientej-com-br.example.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "jsite10",
+    "Jus IA",
+    "Escavador",
+    "tsite14",
+    "Jurisprudências.ai",
+    "vLex",
+    "lexter-ai.example",
+    "JusDocs"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 clientej",
+      "buscas 2 clientej",
+      "buscas 3 clientej",
+      "buscas 4 clientej",
+      "buscas 5 clientej",
+      "buscas 6 clientej",
+      "buscas 7 clientej",
+      "buscas 8 clientej",
+      "buscas 9 clientej",
+      "buscas 10 clientej"
+    ],
+    "painel": [
+      "painel 1 clientej",
+      "painel 2 clientej",
+      "painel 3 clientej",
+      "painel 4 clientej",
+      "painel 5 clientej",
+      "painel 6 clientej",
+      "painel 7 clientej",
+      "painel 8 clientej"
+    ],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 10,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 clientej",
+      "termos_gsc 2 clientej",
+      "termos_gsc 3 clientej",
+      "termos_gsc 4 clientej",
+      "termos_gsc 5 clientej",
+      "termos_gsc 6 clientej",
+      "termos_gsc 7 clientej",
+      "termos_gsc 8 clientej"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": "SoftwareApplication",
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "example-org/exemplo scripts/blog.mts"
+    },
+    "cookie_nao_medir": "jm_nao_medir"
+  },
+  "ranking": {
+    "palavras": [
+      "palavras 1 clientej",
+      "palavras 2 clientej",
+      "palavras 3 clientej",
+      "palavras 4 clientej",
+      "palavras 5 clientej",
+      "palavras 6 clientej",
+      "palavras 7 clientej",
+      "palavras 8 clientej"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  },
+  "medicao": {
+    "eventos": [
+      "planos_vista",
+      "cadastro_iniciado",
+      "decisao_aberta",
+      "checkout_iniciado",
+      "assinatura_paga",
+      "ia_usada",
+      "anexo_enviado",
+      "mcp_conectado",
+      "search",
+      "sign_up"
+    ],
+    "tags": [
+      "logado",
+      "plano",
+      "origem",
+      "meio",
+      "secao",
+      "area"
+    ],
+    "funis": [
+      {
+        "nome": "Planos até o pagamento",
+        "etapas": [
+          "planos_vista",
+          "checkout_iniciado",
+          "assinatura_paga"
+        ]
+      },
+      {
+        "nome": "Busca até o cadastro",
+        "etapas": [
+          "search",
+          "decisao_aberta",
+          "cadastro_iniciado",
+          "sign_up"
+        ]
+      }
+    ]
+  }
+}

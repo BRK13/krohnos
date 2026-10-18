@@ -1,0 +1,63 @@
+# kronos.toml de exemplo (valores fictícios). Copie para /etc/kronos/kronos.toml (ou ~/.kronos/kronos.toml no PC,
+# ou aponte KRONOS_CONFIG). Cada chave pode ser sobrescrita por KRONOS_<SECAO>_<CHAVE>, ex. KRONOS_PAINEL_PORTA=9000.
+# SEGREDO NUNCA VAI AQUI: senha, token e chave de API ficam no cofre. Chave com esses nomes é recusada.
+
+[caminhos]
+dados = "/var/lib/kronos"        # projetos, tarefas, relatórios e bancos
+cofre = "/etc/kronos/cofre"      # credenciais
+repos = "~/repos"                # clones base dos repositórios
+trabalho = "~/trabalho"          # worktrees das tarefas
+# codigo = "/opt/kronos"         # onde está este repositório (padrão: o próprio repo)
+segredos = "/etc/kronos"         # pasta dos .env (linear.env, apps/...)
+home_agentes = "~"               # onde ficam as pastas ~/.claude-N das contas
+# Dados do dono (cadastro de sites, tarefas, hub.json). Sem nada aqui valem os de exemplos/ (ou, na VPS antiga, os do repo).
+# Ordem: KRONOS_PROJETOS/KRONOS_TAREFAS/KRONOS_HUB_JSON > estas chaves > <dados>/projetos|tarefas|hub.json (se existir) > exemplos/.
+# projetos = "/var/lib/kronos/privado/projetos"
+# tarefas = "/var/lib/kronos/privado/tarefas"
+# hub_json = "/var/lib/kronos/privado/hub.json"
+# privado = "/var/lib/kronos/privado"   # clone do repo privado: o deploy/atualizar.sh dá pull nele (ou KRONOS_PRIVADO)
+#   (fichas das empresas da triagem de licitações: <privado>/licitacoes/fichas/*.json; sem ele, exemplos/licitacoes/fichas)
+
+[dono]
+nome = "Ana Exemplo"
+email = "ana@exemplo.test"
+whatsapp = ""
+fuso = "America/Sao_Paulo"
+idioma = "pt-BR"
+
+[github]
+org = "exemplo-org"
+base_padrao = "main"
+
+[linear]
+time = "EXE"
+projeto_padrao = ""
+
+[painel]
+dominio = "kronos.exemplo.test"
+porta = 8787
+
+[mcp]
+url = "http://localhost:4181/mcp"
+
+[agentes]
+contas = ["1", "2"]
+modelos = {}
+limite_usd_dia = 0               # 0 = sem limite
+
+[agentes.faixas]
+"1" = "construtor"
+"2" = "revisor"
+
+[plugins]
+caminho = ""                     # pasta com pacotes kronos_plugin_* (ex.: "/opt/kronos/plugins")
+ligados = []                     # nomes sem o prefixo, ex.: ["reels", "funil_wpp"]; ["*"] liga todos os encontrados
+
+[produto]
+nome = "Pereiraos"              # a marca vem só daqui
+cli = "kronos"
+site = ""
+
+# Negócios do BI: ids do armazém e nomes curtos; não depende dos sites de SEO.
+[bi.negocios]
+exemplo-loja = "Loja exemplo"

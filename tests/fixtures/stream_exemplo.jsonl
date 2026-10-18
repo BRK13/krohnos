@@ -1,0 +1,8 @@
+{"type":"system","subtype":"init","session_id":"sessao-sintetica","model":"modelo-x"}
+{"type":"assistant","timestamp":"2026-01-01T10:00:00Z","message":{"content":[{"type":"thinking","thinking":"","signature":"ASSINATURA-NUNCA-GRAVAR"},{"type":"text","text":"Vou listar os arquivos."},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls -la"}}]}}
+{"type":"user","timestamp":"2026-01-01T10:00:02Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"a.txt\nb.txt","is_error":false}]}}
+{"type":"assistant","timestamp":"2026-01-01T10:00:03Z","message":{"content":[{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"/tmp/nao-existe.txt"}}]}}
+{"type":"user","timestamp":"2026-01-01T10:00:04Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_2","content":[{"type":"text","text":"arquivo não existe"}],"is_error":true}]}}
+{"type":"assistant","timestamp":"2026-01-01T10:00:05Z","message":{"content":[{"type":"tool_use","id":"toolu_3","name":"Grep","input":{"pattern":"foo"}}]}}
+{"type":"user","timestamp":"2026-01-01T10:00:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_3","content":"x.py:1:foo"}]}}
+{"type":"result","subtype":"success","is_error":false,"result":"pronto"}

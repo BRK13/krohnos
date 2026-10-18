@@ -1,0 +1,75 @@
+{
+  "id": "exemplo-clinica",
+  "ids_antigos": [],
+  "ativo": true,
+  "nome": "Clínica Exemplo",
+  "dominio": "clinica.example.com",
+  "hosts_alternativos": [
+    "www.clinica.example.com"
+  ],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "exemplo-org/exemplo-clinica",
+    "base": "main",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": "sc-domain:clinica.example.com"
+  },
+  "marca": {
+    "nome": "Clínica Exemplo",
+    "aliases": [
+      "ClinicaExemplo"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "COFFITO",
+  "contexto": "Clínica Exemplo (clinica.example.com): clínica fictícia de fisioterapia, usada só para demonstrar o cadastro de projetos com conselho profissional. Atendimento com hora marcada. Recomende páginas em clinica.example.com.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [
+    "fsite05 Modelo"
+  ],
+  "monitor": {
+    "buscas": [
+      "fisioterapia perto de mim",
+      "clínica de fisioterapia para dor nas costas"
+    ],
+    "painel": [
+      "Qual clínica de fisioterapia atende dor nas costas?",
+      "O que é a Clínica Exemplo?"
+    ],
+    "locais": [
+      2076
+    ],
+    "max_buscas": 5,
+    "max_prompts_painel": 6,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "fisioterapia",
+      "clinica exemplo"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": {
+    "palavras": [
+      "clínica exemplo",
+      "fisioterapia para dor nas costas"
+    ],
+    "local": 2076,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 20
+  }
+}

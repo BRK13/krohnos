@@ -1,0 +1,4 @@
+#!/bin/bash
+# SEOmator da VPS com teto de CPU/memória e prioridade baixa (a VPS é dividida com os apps). Instalado em /usr/local/bin/seomator.
+if [ "$(id -u)" -eq 0 ]; then escopo=(systemd-run); else export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}; escopo=(systemd-run --user); fi
+exec "${escopo[@]}" --scope -q -p CPUQuota=200% -p MemoryMax=4G nice -n 19 /opt/seomator/node_modules/.bin/seomator "$@"

@@ -217,8 +217,7 @@ def page_html(data, lang):
 </main>
 <footer class="foot">
   <p class="footer-brand">Krohnos</p>
-  <p>Krohn Capital &amp; Participações Ltda. · CNPJ 62.101.237/0001-16</p>
-  <p><a href="mailto:brunokrohn@gmail.com">brunokrohn@gmail.com</a></p>
+  <p>contato: <a href="{s['repo']}/issues" rel="noopener">abra uma issue no GitHub</a></p>
   <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a></p>
 </footer>
 <div class="sr" id="live" role="status" aria-live="polite"></div>

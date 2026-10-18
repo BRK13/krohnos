@@ -92,9 +92,10 @@ class Build(unittest.TestCase):
     def test_production_proof_and_legal_footer(self):
         for rel in ["index.html", "pt/index.html"]:
             text = self.read(rel)
-            self.assertIn("62.101.237/0001-16", text)
-            self.assertIn("Krohn Capital &amp; Participações Ltda.", text)
-            self.assertIn('href="mailto:brunokrohn@gmail.com"', text)
+            self.assertNotIn("CNPJ", text)
+            self.assertNotIn("mailto:", text)
+            self.assertIn("abra uma issue no GitHub", text)
+            self.assertIn("AGPL-3.0", text)
             self.assertNotIn("Status:", text)
             self.assertIn("EVIDENCE.md", text)
             self.assertIn("EVIDENCE.md", text)

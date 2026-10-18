@@ -105,7 +105,7 @@ class Build(unittest.TestCase):
             text = self.read(rel)
             for term in ["Atenção", "Status:", "/comecar", "404"]:
                 self.assertNotIn(term, text)
-            self.assertLessEqual(text.count("<pre>"), 2)  # hero copy block + full install guide
+            self.assertLessEqual(text.count("<pre>"), 12)  # hero + install guide + one copyable block per guide section
         for lang in ("pt", "en"):
             inside = next(s for s in self.data[lang]["sections"] if s["id"] == "inside")
             self.assertTrue(3 <= len(inside["blocks"]) <= 6)

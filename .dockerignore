@@ -6,3 +6,7 @@
 **/*.toml.bak
 **/segredos/
 **/__pycache__/
+.env.*
+*.pem
+*.key
+!.env.example

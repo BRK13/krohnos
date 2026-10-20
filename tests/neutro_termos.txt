@@ -33,3 +33,11 @@ mensagem de marca
 start for free
 pricing
 see it in action
+
+# URLs oficiais de preço citadas na comparação do site (a palavra proibida aparece só no caminho do link)
+allow:ahrefs.com/pricing
+allow:similarweb.com/corp/pricing
+allow:dataforseo.com/pricing
+allow:claude.com/pricing
+allow:learn.chatgpt.com/docs/pricing
+allow:linear.app/pricing

@@ -52,7 +52,10 @@
       "close": "Close",
       "theme": "Theme",
       "language": "Português",
-      "language_label": "Leia em português"
+      "language_label": "Leia em português",
+      "how": "How it works",
+      "seo": "SEO",
+      "compare": "Comparison"
     },
     "ui": {
       "copy": "Copy",
@@ -64,7 +67,9 @@
       "star": "Follow on GitHub",
       "skip": "Skip to content",
       "command_label": "Install commands",
-      "terminal_label": "The flow of one task"
+      "terminal_label": "The flow of one task",
+      "code": "View the code",
+      "flow": "Flow"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",
@@ -129,6 +134,489 @@
         ]
       },
       {
+        "id": "orquestrador",
+        "title": "How the orchestrator works",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**The path of a task** Each step below is a module of the repository, with its real file name. Whoever writes a change does not review it, and nothing stays Done without a receipt. The plain-text summary is in [docs/ARQUITETURA.md](https://github.com/BRK13/krohnos/blob/main/docs/ARQUITETURA.md)."
+          },
+          {
+            "t": "proc",
+            "title": "Request: WhatsApp, panel or Linear",
+            "x": "Everything becomes an issue in Linear. From the panel, the action writes the request into the command inbox the WhatsApp bot also reads; in Linear, a webhook tells the hub when someone speaks on the issue.",
+            "flow": [
+              "WhatsApp",
+              "Panel",
+              "Linear",
+              "issue"
+            ],
+            "code": [
+              "hub/linear.py",
+              "hub/acoes.py",
+              "deploy/linear-webhook.py"
+            ],
+            "alt": true
+          },
+          {
+            "t": "proc",
+            "title": "Plan",
+            "x": "The agent starts by commenting a short plan on the issue. Plan items carry a check command (`check:`) that code runs, and anything that leaves for a third party (email, post, money) becomes a proposal only the owner can approve.",
+            "flow": [
+              "request",
+              "short plan",
+              "items with a check",
+              "proposal, if it leaves the house"
+            ],
+            "code": [
+              "hub/plano_itens.py",
+              "hub/propostas.py",
+              "hub/tarefas.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Issue in the queue, tick per account",
+            "x": "A cron every 5 minutes (`tick`) reads the scheduled tasks, enqueues what is due and starts at most one item per free account, by priority and arrival. Two accounts never take the same item or enter the same repository.",
+            "flow": [
+              "tarefas/*.md",
+              "queue",
+              "5-minute tick",
+              "free account"
+            ],
+            "code": [
+              "hub/agenda.py",
+              "deploy/agenda.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Accounts and lanes",
+            "x": "Each agent account has its own login, a lock (one job at a time), a pause when the usage limit is reached and a usage log. The lane says what it takes: construtor (builder: tracker requests), operador (operator: scheduled routines), revisor (reviewer) and codex (requests labelled for Codex). When one account's quota runs out, the work goes to another.",
+            "flow": [
+              "construtor",
+              "operador",
+              "revisor",
+              "codex"
+            ],
+            "code": [
+              "hub/conta.py",
+              "hub/roteamento.py",
+              "hub/esteira.py"
+            ],
+            "alt": true
+          },
+          {
+            "t": "proc",
+            "title": "Execution in its own worktree",
+            "x": "Every task runs in a git worktree of its own, never in the base clone. A global memory budget limits how many sessions open at once, because several builds together have taken a server down.",
+            "flow": [
+              "base clone",
+              "task worktree",
+              "commits",
+              "own branch"
+            ],
+            "code": [
+              "hub/linear.py",
+              "hub/memoria.py",
+              "hub/repos.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Pull request and review by another model",
+            "x": "The pull request is reviewed by a different model from the one that wrote it: Codex reviews what Claude did, and Claude reviews the `codex/` branches. The review comments findings on the tip commit; a serious finding goes back to the author, who fixes it and pushes again. The Codex-side script is not in the public repository yet.",
+            "flow": [
+              "PR",
+              "Codex review",
+              "findings",
+              "fix",
+              "new review"
+            ],
+            "code": [
+              "hub/revisor_merge.py",
+              "hub/revisar_codex.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Local CI and merge",
+            "x": "Tests run on a machine of your own, not in a hosted CI; a red `main` becomes an incident. The merge is mechanical, with no model in the middle: issue marked for merge, pull request open, CI green and the tip commit's review without a serious finding.",
+            "flow": [
+              "local CI",
+              "review without serious finding",
+              "mechanical merge"
+            ],
+            "code": [
+              "scripts/checar.sh",
+              "hub/main_vermelho.py",
+              "hub/automerge.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Waiting outside the session",
+            "x": "The agent never polls CI or a deploy: it records the wait and ends the session, and the hub wakes it when the status changes. Stuck work has an alarm and a time and attempt budget, and a cap on runs per task pauses the loop.",
+            "flow": [
+              "records the wait",
+              "ends the session",
+              "status changes",
+              "hub wakes the task"
+            ],
+            "code": [
+              "hub/esperas.py",
+              "hub/retomada.py",
+              "hub/parada.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Deploy and watchdog",
+            "x": "After the merge, the watchdog checks each app's latest deploy. A deploy stuck past its limit is cancelled and redone once; a deploy with an error is redone once; if the second one fails, it opens an issue in the repository with the end of the log.",
+            "flow": [
+              "merge",
+              "deploy",
+              "watchdog",
+              "redo once",
+              "issue with the log"
+            ],
+            "code": [
+              "hub/vigia_deploy.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Done gate with a receipt",
+            "x": "An issue stays Done only if every cited pull request is merged and live (the commit in production is checked), what the acceptance asked for exists (attachment, video, PDF, notice), the URLs open and the last comment leaves no open item (\"Missing\", \"I will be back\") without pointing to another issue. If something is missing, the issue goes back to In Progress with the reason, or becomes \"Stuck: needs the owner\" if it depends on them. The audit that created the gate found 873 Done issues, 9 with an open pull request, 7 with only closed ones and 187 with a pending note in the last comment.",
+            "flow": [
+              "Done",
+              "receipt checks",
+              "passed: stays Done",
+              "missing: reopens with the reason"
+            ],
+            "code": [
+              "hub/recibo.py",
+              "hub/portao_done.py",
+              "hub/portao.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Watchdog and debugger",
+            "x": "Every failure becomes an incident with the failure class and the part of the harness that changes, and goes into the repair log. The debugger tracks failures per repository, opens one pull request per error class and marks red as resolved only when the source confirms it.",
+            "flow": [
+              "failure",
+              "incident",
+              "debugger",
+              "fix PR",
+              "log"
+            ],
+            "code": [
+              "hub/debugger.py",
+              "hub/incidentes.py",
+              "hub/consertos.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Recipe library and \"does this already exist\"",
+            "x": "Before dispatching, the hub looks for recipes similar to the task using BM25 (exact words) and embeddings (meaning), merges the lists with RRF and pastes up to three into the prompt. A pull request that used a recipe cites the file in its body, and the hub counts the use. The same hybrid search covers memories, plans, issues and recipes in the second brain.",
+            "flow": [
+              "task",
+              "BM25 + vector",
+              "up to 3 recipes in the prompt",
+              "PR cites the recipe",
+              "use counted"
+            ],
+            "code": [
+              "hub/biblioteca_indice.py",
+              "hub/biblioteca_uso.py",
+              "hub/grafo.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Memory",
+            "x": "The owner's decisions live in memory files, one note per fact, with one index per project. A gate checks that no pointer broke and no decision of the owner disappeared, and the second-brain map shows the relations between repositories, domains, routines and decisions.",
+            "flow": [
+              "decision",
+              "memory note",
+              "index",
+              "gate checks",
+              "map"
+            ],
+            "code": [
+              "hub/memorias.py",
+              "hub/cerebro.py",
+              "hub/grafo.py"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "seo",
+        "title": "SEO with real data and cost",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Where each number comes from** Krohnos has no search index of its own. It combines sources the site owner can already use, pays per use where it needs market data, and keeps everything in a per-site store."
+          },
+          {
+            "t": "table",
+            "cap": "SEO data sources",
+            "head": [
+              "Source",
+              "What it provides",
+              "Cost",
+              "Code"
+            ],
+            "rows": [
+              [
+                "DataForSEO",
+                "Google SERP, keyword volume, keywords a site ranks for, search competitors, backlinks, and answers from ChatGPT, Gemini, Claude, Perplexity and Google AI Overview",
+                "Pay per use, no subscription; default daily cap of US$ 2",
+                "`hub/dataforseo.py`, `hub/ranking.py`, `hub/mcp_grupos/backlinks.py`, `hub/mcp_grupos/visibilidade_ia.py`"
+              ],
+              [
+                "Google Search Console",
+                "Clicks, impressions, query and page of your own site",
+                "Free",
+                "`hub/google.py`, `gsc_oportunidades.py`"
+              ],
+              [
+                "GA4",
+                "Visits, source, pages and events of your own site",
+                "Free",
+                "`hub/bi_ingest.py`, `hub/bi_historico.py`"
+              ],
+              [
+                "Clarity",
+                "Real recordings, clicks and scroll",
+                "Free, no traffic limit",
+                "`hub/bi_ingest.py`"
+              ],
+              [
+                "PageSpeed",
+                "Mobile LCP and TBT of the home page and the 3 most viewed pages",
+                "Google Cloud API key",
+                "`hub/velocidade.py`"
+              ],
+              [
+                "SEOmator",
+                "Technical audit (373 rules) running on your own machine",
+                "MIT package, no usage cost",
+                "`hub/seomator.py`, `deploy/seomator/lote.mjs`"
+              ]
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Weekly audit",
+            "x": "Every night SEOmator audits one site at a time, in batches of about 60 pages taken from the sitemap. Large sites get a slice of each section at a time, so every section is covered at least once a week, and a summary with the score and worst failures goes out per site.",
+            "flow": [
+              "sitemap",
+              "batch of 60 pages",
+              "score per site",
+              "weekly summary"
+            ],
+            "code": [
+              "hub/seomator.py",
+              "deploy/seomator/lote.mjs"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Opportunities",
+            "x": "Search Console shows what Google already sees: a gap is a query with 50 impressions or more, position worse than 10, zero clicks and no page on the site for it; a leak is a first-page result nobody clicks. The ranking measured every week on DataForSEO shows whether the position moved.",
+            "flow": [
+              "Search Console",
+              "gap or leak",
+              "weekly ranking",
+              "opportunity issue"
+            ],
+            "code": [
+              "gsc_oportunidades.py",
+              "hub/ranking.py",
+              "hub/impacto.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "AI visibility",
+            "x": "The tracker sends prompts from your market to the AI engines through DataForSEO and separates a mention (the name in the answer) from a citation (a page of the site among the sources). The cost estimate appears before the run: in the code, US$ 0.004 per ChatGPT, Gemini or Google AI Overview answer, US$ 0.04 on Perplexity and US$ 0.18 on Claude.",
+            "flow": [
+              "market prompts",
+              "5 AI engines",
+              "mention vs citation",
+              "cost estimated first"
+            ],
+            "code": [
+              "hub/mcp_grupos/visibilidade_ia.py",
+              "hub/mcp_grupos/visibilidade_ia_rodada.py",
+              "hub/citacao.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Automatic fixes, with review",
+            "x": "An audit failure that the project's rule allows fixing becomes an issue, enters the pipeline and follows the same path as any task: pull request, review by another model, CI, merge, deploy and receipt. Then the impact is measured: clicks and impressions 14 days before against 14 days after.",
+            "flow": [
+              "eligible failure",
+              "issue in the pipeline",
+              "PR + review",
+              "deploy",
+              "impact at 14 days"
+            ],
+            "code": [
+              "hub/esteira.py",
+              "hub/impacto.py",
+              "hub/acoes.py"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "comparacao",
+        "title": "Compared with Semrush and Ahrefs",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Features and cost, not quality** Prices and limits were read from the official pages on 2026-10-20, in US dollars, and change without notice: check the link before deciding. Semrush shows the monthly equivalent of the annual plan and the monthly-billing price; the table shows both."
+          },
+          {
+            "t": "table",
+            "cap": "What you pay and what you get",
+            "head": [
+              "Tool",
+              "What you pay per month",
+              "What you get (limits from the page itself)"
+            ],
+            "rows": [
+              [
+                "[Semrush](https://www.semrush.com/prices/)",
+                "SEO: US$ 139 (US$ 117.33 billed annually). Starter: US$ 199 (US$ 165.17). Pro+: US$ 299 (US$ 248.17). Advanced: on request. Extra user from US$ 45",
+                "SEO: 5 websites and 500 keywords a day. Starter: the same plus 50 AI prompts a day. Pro+: 15 websites, 1,500 keywords, 100 AI prompts"
+              ],
+              [
+                "[Ahrefs](https://ahrefs.com/pricing)",
+                "Lite: US$ 129. Standard: US$ 249. Advanced: US$ 449. Enterprise: US$ 1,499 (annual contract). Extra user: US$ 40, 60 or 80 depending on the plan",
+                "Lite: 5 non-verified projects, 750 tracked keywords, 6 months of history. Standard: 20 projects, 2,000 keywords, 2 years. Advanced: 50 projects, 5,000 keywords, 5 years. Enterprise: unlimited history"
+              ],
+              [
+                "[Similarweb](https://www.similarweb.com/corp/pricing/)",
+                "Does not publish prices: packages through sales",
+                "100+ countries, daily data, up to 37 additional months of history"
+              ],
+              [
+                "[DataForSEO](https://dataforseo.com/pricing)",
+                "No subscription; US$ 50 minimum credit deposit. Google SERP: US$ 0.0006 (standard queue), US$ 0.0012 (priority) or US$ 0.002 (live) per 10-result SERP",
+                "Data through an API, no interface: keywords, SERP, backlinks (US$ 0.024 per request plus US$ 0.000036 per row), page audit (from US$ 0.00015 per page)"
+              ]
+            ]
+          },
+          {
+            "t": "p",
+            "x": "**What they do and Krohnos does not** Krohnos does not crawl the web and has no backlink index of its own: it queries DataForSEO's. It does not estimate traffic of third-party sites, only measures yours through Search Console and GA4. Its history starts at installation, while Ahrefs states 6 months, 2 years or 5 years of history depending on the plan. It also has no ready-made keyword research interface: research runs through the API and the agent."
+          },
+          {
+            "t": "p",
+            "x": "**What Krohnos does and these tools do not advertise** It is not only SEO: it creates the issue, writes the fix, sends it through review by another model, deploys and checks the receipt. The data stays on your server, and the code is AGPL-3.0, open to audit."
+          },
+          {
+            "t": "table",
+            "cap": "Typical Krohnos cost",
+            "head": [
+              "Item",
+              "What it costs (source and date: 2026-10-20)"
+            ],
+            "rows": [
+              [
+                "Server",
+                "From € 5.99 a month, excluding VAT, at [Hetzner Cloud](https://www.hetzner.com/cloud/). It needs 2 GB of free RAM: check the plan's RAM on the page first"
+              ],
+              [
+                "DataForSEO",
+                "[Per use](https://dataforseo.com/pricing). Example calculation, not a measurement: 100 keywords checked per week on the standard queue are 400 SERPs a month, 400 × US$ 0.0006 = US$ 0.24. Krohnos' default daily cap is US$ 2 (`hub/dataforseo.py`), at most US$ 60 in 30 days"
+              ],
+              [
+                "Agent subscription",
+                "[Claude Pro](https://claude.com/pricing): US$ 20 a month (US$ 17 billed annually), Max from US$ 100. [ChatGPT Plus](https://learn.chatgpt.com/docs/pricing) with Codex: US$ 20. The plan's usage limit sets how much work fits"
+              ],
+              [
+                "Linear",
+                "[Free](https://linear.app/pricing): US$ 0, up to 250 issues and 2 teams. Basic: US$ 10 per user per month billed yearly"
+              ],
+              [
+                "Google, Clarity and SEOmator",
+                "[Search Console](https://support.google.com/webmasters/answer/9128668) and [Analytics](https://marketingplatform.google.com/about/analytics/): free. [Clarity](https://clarity.microsoft.com/): free, no traffic limit. SEOmator: MIT package"
+              ]
+            ]
+          },
+          {
+            "t": "p",
+            "x": "**In practice** Two US$ 20 agent subscriptions, a small server and cents of DataForSEO per site come in under Ahrefs' cheapest plan (US$ 129) and Semrush's SEO plan (US$ 139), but they deliver different things: there you buy data and reports, here you run the delivery. The author's own operation uses Max accounts, with a larger usage limit."
+          }
+        ]
+      },
+      {
+        "id": "precisa",
+        "title": "What you need to have",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Accounts and monthly cost** Sources and date are in the cost table above (2026-10-20). Krohnos itself is free (AGPL-3.0); what you pay for are the services it uses."
+          },
+          {
+            "t": "table",
+            "cap": "Required accounts",
+            "head": [
+              "Account",
+              "What for",
+              "Cost per month",
+              "Required?"
+            ],
+            "rows": [
+              [
+                "Claude Code or Codex",
+                "The agents that write and review",
+                "US$ 20 (Claude Pro or ChatGPT Plus); Max or Pro from US$ 100",
+                "At least one. Two, from different companies, for cross review"
+              ],
+              [
+                "Linear",
+                "The issue queue and the agent panel",
+                "US$ 0 on Free (250 issues, 2 teams); Basic US$ 10 per user",
+                "Yes"
+              ],
+              [
+                "Server",
+                "Runs the panel, the queue and the services",
+                "From € 5.99 excluding VAT",
+                "Yes, it can be your own PC"
+              ],
+              [
+                "DataForSEO",
+                "SERP, keywords, backlinks, AI visibility",
+                "Per use, US$ 50 minimum deposit",
+                "Optional: without it, ranking, backlinks and AI are off"
+              ],
+              [
+                "Google (Search Console, GA4, PageSpeed)",
+                "Clicks, visits and speed of your site",
+                "Search Console and GA4 are free",
+                "Optional"
+              ],
+              [
+                "Clarity",
+                "Session recordings and scroll",
+                "Free",
+                "Optional"
+              ]
+            ]
+          }
+        ]
+      },
+      {
         "id": "proof",
         "title": "Production operations",
         "blocks": [
@@ -139,6 +627,10 @@
           {
             "t": "p",
             "x": "**1,038 successful executions** On October 16, 2026, the usage log recorded 1,038 agent and routine executions completed successfully without interruption. [Measurement source and methodology](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
+          },
+          {
+            "t": "p",
+            "x": "**Two measured days** On 2026-10-15 the usage log has 1,342 runs, 1,316 completed successfully and without interruption; on 2026-10-16, 1,043 and 1,038. They count agents and routines, including resumptions, and are not the same as Done issues. The logs are private. [Methodology](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
           }
         ]
       },
@@ -283,7 +775,10 @@
       "close": "Fechar",
       "theme": "Tema",
       "language": "English",
-      "language_label": "Read in English"
+      "language_label": "Read in English",
+      "how": "Como funciona",
+      "seo": "SEO",
+      "compare": "Comparação"
     },
     "ui": {
       "copy": "Copiar",
@@ -295,7 +790,9 @@
       "star": "Acompanhar no GitHub",
       "skip": "Ir para o conteúdo",
       "command_label": "Comandos de instalação",
-      "terminal_label": "O fluxo de uma tarefa"
+      "terminal_label": "O fluxo de uma tarefa",
+      "code": "Ver o código",
+      "flow": "Fluxo"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",
@@ -360,6 +857,489 @@
         ]
       },
       {
+        "id": "orquestrador",
+        "title": "Como o orquestrador funciona",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**O caminho de uma tarefa** Cada etapa abaixo é um módulo do repositório, com o nome real do arquivo. Quem escreve a mudança não é quem revisa, e nada fica Done sem recibo. O resumo em texto está em [docs/ARQUITETURA.md](https://github.com/BRK13/krohnos/blob/main/docs/ARQUITETURA.md)."
+          },
+          {
+            "t": "proc",
+            "title": "Pedido: WhatsApp, painel ou Linear",
+            "x": "Tudo vira uma issue no Linear. Pelo painel, a ação grava o pedido na caixa de comandos que o bot do WhatsApp também lê; no Linear, um webhook avisa o hub quando alguém fala na issue.",
+            "flow": [
+              "WhatsApp",
+              "Painel",
+              "Linear",
+              "issue"
+            ],
+            "code": [
+              "hub/linear.py",
+              "hub/acoes.py",
+              "deploy/linear-webhook.py"
+            ],
+            "alt": true
+          },
+          {
+            "t": "proc",
+            "title": "Plano",
+            "x": "O agente começa comentando um plano curto na issue. Itens de plano levam um comando de checagem (`check:`) que o código roda, e o que sai para terceiro (e-mail, post, dinheiro) vira proposta que só o dono manda executar.",
+            "flow": [
+              "pedido",
+              "plano curto",
+              "itens com check",
+              "proposta, se sai para terceiro"
+            ],
+            "code": [
+              "hub/plano_itens.py",
+              "hub/propostas.py",
+              "hub/tarefas.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Issue na fila e tick por conta",
+            "x": "Um cron a cada 5 minutos (`tick`) lê as tarefas agendadas, enfileira o que venceu e põe no máximo um item por conta livre, por prioridade e ordem de chegada. Duas contas nunca pegam o mesmo item nem entram no mesmo repositório.",
+            "flow": [
+              "tarefas/*.md",
+              "fila",
+              "tick de 5 min",
+              "conta livre"
+            ],
+            "code": [
+              "hub/agenda.py",
+              "deploy/agenda.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Contas e faixas",
+            "x": "Cada conta de agente tem login, trava (um trabalho por vez), pausa quando bate o limite de uso e registro de consumo. A faixa diz o que ela pega: construtor (pedidos do Linear), operador (rotinas agendadas), revisor (revisão) e codex (pedidos marcados para o Codex). Quando a cota de uma conta acaba, o trabalho vai para outra.",
+            "flow": [
+              "construtor",
+              "operador",
+              "revisor",
+              "codex"
+            ],
+            "code": [
+              "hub/conta.py",
+              "hub/roteamento.py",
+              "hub/esteira.py"
+            ],
+            "alt": true
+          },
+          {
+            "t": "proc",
+            "title": "Execução em worktree própria",
+            "x": "Cada tarefa roda numa worktree git só dela, nunca no clone base. Um orçamento global de memória limita quantas sessões abrem ao mesmo tempo, porque várias builds juntas já derrubaram um servidor.",
+            "flow": [
+              "clone base",
+              "worktree da tarefa",
+              "commits",
+              "branch própria"
+            ],
+            "code": [
+              "hub/linear.py",
+              "hub/memoria.py",
+              "hub/repos.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "PR e revisão por outro modelo",
+            "x": "O PR é revisado por um modelo diferente do que o escreveu: o Codex revisa o que o Claude fez, e o Claude revisa as branches `codex/`. A revisão comenta achados no commit da ponta; achado sério volta para o autor, que corrige e empurra de novo. O script do Codex ainda não está no repositório público.",
+            "flow": [
+              "PR",
+              "revisão do Codex",
+              "achados",
+              "correção",
+              "nova revisão"
+            ],
+            "code": [
+              "hub/revisor_merge.py",
+              "hub/revisar_codex.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "CI local e merge",
+            "x": "Os testes rodam numa máquina própria, não num CI hospedado; `main` vermelha vira incidente. O merge é mecânico, sem modelo no meio: issue marcada para merge, PR aberto, CI verde e revisão da ponta sem achado sério.",
+            "flow": [
+              "CI local",
+              "revisão sem achado sério",
+              "merge mecânico"
+            ],
+            "code": [
+              "scripts/checar.sh",
+              "hub/main_vermelho.py",
+              "hub/automerge.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Espera fora da sessão",
+            "x": "O agente nunca fica consultando CI ou deploy: grava a espera e encerra a sessão, e o hub o acorda quando o status muda. Tarefa parada tem alarme, orçamento de tempo e tentativas, e o teto de execuções por tarefa pausa o laço.",
+            "flow": [
+              "grava a espera",
+              "encerra a sessão",
+              "status muda",
+              "hub acorda a tarefa"
+            ],
+            "code": [
+              "hub/esperas.py",
+              "hub/retomada.py",
+              "hub/parada.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Deploy e vigia",
+            "x": "Depois do merge, o vigia olha o deploy mais recente de cada app. Deploy travado além do limite é cancelado e refeito uma vez; deploy com erro é refeito uma vez; se o segundo falhar, abre issue no repositório com o fim do log.",
+            "flow": [
+              "merge",
+              "deploy",
+              "vigia",
+              "refaz uma vez",
+              "issue com o log"
+            ],
+            "code": [
+              "hub/vigia_deploy.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Portão de Done com recibo",
+            "x": "A issue só fica Done se todo PR citado está mergeado e no ar (o commit em produção confere), o que o aceite pedia existe (anexo, vídeo, PDF, aviso), as URLs abrem e o último comentário não deixa pendência (\"Falta\", \"volto quando\") sem apontar outra issue. Faltou algo: a issue volta para In Progress com o motivo, ou vira \"Travada: precisa do dono\" se depende dele. A auditoria que criou o portão achou 873 issues Done, 9 com PR aberto, 7 só com PRs fechados e 187 com pendência no último comentário.",
+            "flow": [
+              "Done",
+              "recibo confere",
+              "passou: fica Done",
+              "faltou: reabre com o motivo"
+            ],
+            "code": [
+              "hub/recibo.py",
+              "hub/portao_done.py",
+              "hub/portao.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Vigia e debugger",
+            "x": "Toda falha vira um incidente com a classe do erro e a peça do harness que muda, e entra no diário de consertos. O debugger acompanha as falhas por repositório, abre um PR por classe de erro e só dá o vermelho por resolvido quando a fonte confirma.",
+            "flow": [
+              "falha",
+              "incidente",
+              "debugger",
+              "PR de conserto",
+              "diário"
+            ],
+            "code": [
+              "hub/debugger.py",
+              "hub/incidentes.py",
+              "hub/consertos.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Biblioteca de receitas e \"já existe isto\"",
+            "x": "Antes de despachar, o hub procura receitas parecidas com a tarefa por BM25 (palavra exata) e embeddings (sentido), junta as listas por RRF e cola até três no prompt. O PR que usou uma receita cita o arquivo no corpo, e o hub conta o uso. A mesma busca híbrida cobre memórias, planos, issues e receitas no segundo cérebro.",
+            "flow": [
+              "tarefa",
+              "BM25 + vetor",
+              "até 3 receitas no prompt",
+              "PR cita a receita",
+              "uso contado"
+            ],
+            "code": [
+              "hub/biblioteca_indice.py",
+              "hub/biblioteca_uso.py",
+              "hub/grafo.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Memória",
+            "x": "As decisões do dono ficam em arquivos de memória, uma nota por fato, com um índice por projeto. Um portão confere que nenhum ponteiro quebrou e que nenhuma decisão do dono sumiu, e o mapa do segundo cérebro mostra as relações entre repositórios, domínios, rotinas e decisões.",
+            "flow": [
+              "decisão",
+              "nota de memória",
+              "índice",
+              "portão confere",
+              "mapa"
+            ],
+            "code": [
+              "hub/memorias.py",
+              "hub/cerebro.py",
+              "hub/grafo.py"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "seo",
+        "title": "SEO com dado e custo de verdade",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**De onde vem cada número** O Krohnos não tem base própria de busca. Ele junta fontes que o dono do site já pode usar, paga por uso onde precisa de dado de mercado e guarda tudo num armazém por site."
+          },
+          {
+            "t": "table",
+            "cap": "Fontes de dado de SEO",
+            "head": [
+              "Fonte",
+              "O que entrega",
+              "Custo",
+              "Código"
+            ],
+            "rows": [
+              [
+                "DataForSEO",
+                "SERP do Google, volume de palavras, palavras que o site ranqueia, concorrentes na busca, backlinks e respostas de ChatGPT, Gemini, Claude, Perplexity e Google AI Overview",
+                "Pago por uso, sem mensalidade; teto diário de US$ 2 por padrão",
+                "`hub/dataforseo.py`, `hub/ranking.py`, `hub/mcp_grupos/backlinks.py`, `hub/mcp_grupos/visibilidade_ia.py`"
+              ],
+              [
+                "Google Search Console",
+                "Cliques, impressões, consulta e página do próprio site",
+                "Gratuito",
+                "`hub/google.py`, `gsc_oportunidades.py`"
+              ],
+              [
+                "GA4",
+                "Visitas, origem, páginas e eventos do próprio site",
+                "Gratuito",
+                "`hub/bi_ingest.py`, `hub/bi_historico.py`"
+              ],
+              [
+                "Clarity",
+                "Gravações, cliques e rolagem reais",
+                "Gratuito, sem limite de tráfego",
+                "`hub/bi_ingest.py`"
+              ],
+              [
+                "PageSpeed",
+                "LCP e TBT mobile da home e das 3 páginas mais vistas",
+                "Chave do Google Cloud",
+                "`hub/velocidade.py`"
+              ],
+              [
+                "SEOmator",
+                "Auditoria técnica (373 regras) rodando na própria máquina",
+                "Pacote MIT, sem custo de uso",
+                "`hub/seomator.py`, `deploy/seomator/lote.mjs`"
+              ]
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Auditoria semanal",
+            "x": "Toda madrugada o SEOmator audita um site de cada vez, em lotes de cerca de 60 páginas tiradas do sitemap. Sites grandes dão uma fatia de cada seção por vez, para toda seção passar pelo menos uma vez por semana, e um resumo com nota e piores falhas sai por site.",
+            "flow": [
+              "sitemap",
+              "lote de 60 páginas",
+              "nota por site",
+              "resumo semanal"
+            ],
+            "code": [
+              "hub/seomator.py",
+              "deploy/seomator/lote.mjs"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Oportunidades",
+            "x": "O Search Console mostra o que o Google já enxerga: buraco é a busca com 50 impressões ou mais, posição pior que 10, zero clique e nenhuma página do site para ela; vazamento é página na primeira página que ninguém clica. O ranking medido toda semana no DataForSEO mostra se a posição mudou.",
+            "flow": [
+              "Search Console",
+              "buraco ou vazamento",
+              "ranking semanal",
+              "issue de oportunidade"
+            ],
+            "code": [
+              "gsc_oportunidades.py",
+              "hub/ranking.py",
+              "hub/impacto.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Visibilidade em IA",
+            "x": "O rastreador manda prompts do seu mercado aos motores de IA pelo DataForSEO e separa menção (o nome na resposta) de citação (uma página do site entre as fontes). A estimativa de custo aparece antes da rodada: no código, US$ 0,004 por resposta de ChatGPT, Gemini ou Google AI Overview, US$ 0,04 no Perplexity e US$ 0,18 no Claude.",
+            "flow": [
+              "prompts do mercado",
+              "5 motores de IA",
+              "menção x citação",
+              "custo estimado antes"
+            ],
+            "code": [
+              "hub/mcp_grupos/visibilidade_ia.py",
+              "hub/mcp_grupos/visibilidade_ia_rodada.py",
+              "hub/citacao.py"
+            ]
+          },
+          {
+            "t": "proc",
+            "title": "Correção automática, com revisão",
+            "x": "Falha da auditoria que a regra do projeto permite corrigir vira issue, entra na esteira e segue o mesmo caminho de qualquer tarefa: PR, revisão por outro modelo, CI, merge, deploy e recibo. Duas semanas depois, o impacto é medido: cliques e impressões 14 dias antes contra 14 dias depois.",
+            "flow": [
+              "falha elegível",
+              "issue na esteira",
+              "PR + revisão",
+              "deploy",
+              "impacto em 14 dias"
+            ],
+            "code": [
+              "hub/esteira.py",
+              "hub/impacto.py",
+              "hub/acoes.py"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "comparacao",
+        "title": "Comparação com Semrush e Ahrefs",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Recurso e custo, não qualidade** Preços e limites foram lidos nas páginas oficiais em 20/10/2026, em dólar, e mudam sem aviso: confira o link antes de decidir. Semrush mostra o valor mensal equivalente do plano anual e o valor do plano mensal; a tabela traz os dois."
+          },
+          {
+            "t": "table",
+            "cap": "O que você paga e o que você recebe",
+            "head": [
+              "Ferramenta",
+              "O que você paga por mês",
+              "O que você recebe (limites da própria página)"
+            ],
+            "rows": [
+              [
+                "[Semrush](https://www.semrush.com/prices/)",
+                "SEO: US$ 139 (US$ 117,33 no anual). Starter: US$ 199 (US$ 165,17). Pro+: US$ 299 (US$ 248,17). Advanced: sob consulta. Usuário extra a partir de US$ 45",
+                "SEO: 5 sites e 500 palavras por dia. Starter: o mesmo mais 50 prompts de IA por dia. Pro+: 15 sites, 1.500 palavras, 100 prompts de IA"
+              ],
+              [
+                "[Ahrefs](https://ahrefs.com/pricing)",
+                "Lite: US$ 129. Standard: US$ 249. Advanced: US$ 449. Enterprise: US$ 1.499 (contrato anual). Usuário extra: US$ 40, 60 ou 80 conforme o plano",
+                "Lite: 5 projetos não verificados, 750 palavras monitoradas, 6 meses de histórico. Standard: 20 projetos, 2.000 palavras, 2 anos. Advanced: 50 projetos, 5.000 palavras, 5 anos. Enterprise: histórico ilimitado"
+              ],
+              [
+                "[Similarweb](https://www.similarweb.com/corp/pricing/)",
+                "Não publica preço: pacotes sob contato comercial",
+                "Cobertura de mais de 100 países, dado diário, até 37 meses de histórico adicional"
+              ],
+              [
+                "[DataForSEO](https://dataforseo.com/pricing)",
+                "Sem assinatura; depósito mínimo de US$ 50 em crédito. SERP do Google: US$ 0,0006 (fila padrão), US$ 0,0012 (prioritária) ou US$ 0,002 (ao vivo) por SERP de 10 resultados",
+                "Dado por API, sem interface: palavras, SERP, backlinks (US$ 0,024 por requisição mais US$ 0,000036 por linha), auditoria de página (a partir de US$ 0,00015 por página)"
+              ]
+            ]
+          },
+          {
+            "t": "p",
+            "x": "**O que eles fazem e o Krohnos não** O Krohnos não rastreia a web e não tem índice próprio de backlinks: consulta o do DataForSEO. Não estima tráfego de sites de terceiros, só mede os seus pelo Search Console e GA4. O histórico dele começa na instalação, enquanto o Ahrefs declara 6 meses, 2 anos ou 5 anos de histórico conforme o plano. Também não tem interface de pesquisa de palavras pronta: a pesquisa roda pela API e pelo agente."
+          },
+          {
+            "t": "p",
+            "x": "**O que o Krohnos faz e essas ferramentas não anunciam** Ele não é só SEO: cria a issue, escreve a correção, passa por revisão de outro modelo, faz o deploy e confere o recibo. Os dados ficam no seu servidor, e o código é AGPL-3.0, aberto para auditar."
+          },
+          {
+            "t": "table",
+            "cap": "Custo típico do Krohnos",
+            "head": [
+              "Item",
+              "Quanto custa (fonte e data: 20/10/2026)"
+            ],
+            "rows": [
+              [
+                "Servidor",
+                "A partir de € 5,99 por mês, sem IVA, na [Hetzner Cloud](https://www.hetzner.com/cloud/). Precisa de 2 GB de RAM livres: confira a RAM do plano na página antes"
+              ],
+              [
+                "DataForSEO",
+                "[Por uso](https://dataforseo.com/pricing). Exemplo de conta, não medição: 100 palavras checadas por semana na fila padrão são 400 SERPs por mês, 400 × US$ 0,0006 = US$ 0,24. O teto diário padrão do Krohnos é US$ 2 (`hub/dataforseo.py`), no máximo US$ 60 em 30 dias"
+              ],
+              [
+                "Assinatura de agente",
+                "[Claude Pro](https://claude.com/pricing): US$ 20 por mês (US$ 17 no anual), Max a partir de US$ 100. [ChatGPT Plus](https://learn.chatgpt.com/docs/pricing) com Codex: US$ 20. O limite de uso do plano define quanto trabalho cabe"
+              ],
+              [
+                "Linear",
+                "[Free](https://linear.app/pricing): US$ 0, até 250 issues e 2 times. Basic: US$ 10 por usuário por mês no plano anual"
+              ],
+              [
+                "Google, Clarity e SEOmator",
+                "[Search Console](https://support.google.com/webmasters/answer/9128668) e [Analytics](https://marketingplatform.google.com/about/analytics/): gratuitos. [Clarity](https://clarity.microsoft.com/): gratuito, sem limite de tráfego. SEOmator: pacote MIT"
+              ]
+            ]
+          },
+          {
+            "t": "p",
+            "x": "**Na prática** Duas assinaturas de agente de US$ 20, um servidor pequeno e centavos de DataForSEO por site ficam abaixo do plano mais barato do Ahrefs (US$ 129) e do SEO da Semrush (US$ 139), mas entregam coisas diferentes: lá você compra dado e relatório, aqui você opera a entrega. A operação do autor usa contas Max, com limite de uso maior."
+          }
+        ]
+      },
+      {
+        "id": "precisa",
+        "title": "O que você precisa ter",
+        "blocks": [
+          {
+            "t": "p",
+            "x": "**Contas e custo por mês** Fontes e data na tabela de custo acima (20/10/2026). O Krohnos em si é gratuito (AGPL-3.0); o que você paga são os serviços que ele usa."
+          },
+          {
+            "t": "table",
+            "cap": "Contas necessárias",
+            "head": [
+              "Conta",
+              "Para quê",
+              "Custo por mês",
+              "Obrigatória?"
+            ],
+            "rows": [
+              [
+                "Claude Code ou Codex",
+                "Os agentes que escrevem e revisam",
+                "US$ 20 (Claude Pro ou ChatGPT Plus); Max ou Pro a partir de US$ 100",
+                "Pelo menos uma. Duas, de empresas diferentes, para revisão cruzada"
+              ],
+              [
+                "Linear",
+                "A fila de issues e o painel do agente",
+                "US$ 0 no Free (250 issues, 2 times); Basic US$ 10 por usuário",
+                "Sim"
+              ],
+              [
+                "Servidor",
+                "Roda o painel, a fila e os serviços",
+                "A partir de € 5,99 sem IVA",
+                "Sim, pode ser o seu PC"
+              ],
+              [
+                "DataForSEO",
+                "SERP, palavras, backlinks, visibilidade em IA",
+                "Por uso, depósito mínimo de US$ 50",
+                "Opcional: sem ele, ranking, backlinks e IA ficam desligados"
+              ],
+              [
+                "Google (Search Console, GA4, PageSpeed)",
+                "Cliques, visitas e velocidade do seu site",
+                "Search Console e GA4 gratuitos",
+                "Opcional"
+              ],
+              [
+                "Clarity",
+                "Gravações de sessão e rolagem",
+                "Gratuito",
+                "Opcional"
+              ]
+            ]
+          }
+        ]
+      },
+      {
         "id": "proof",
         "title": "Operação em produção",
         "blocks": [
@@ -370,6 +1350,10 @@
           {
             "t": "p",
             "x": "**1.038 execuções bem-sucedidas** Em 16/10/2026, o registro de uso contabilizou 1.038 execuções de agentes e rotinas concluídas com sucesso e sem interrupção. [Fonte e metodologia de medição](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
+          },
+          {
+            "t": "p",
+            "x": "**Dois dias medidos** Em 15/10/2026 o registro de uso tem 1.342 execuções, 1.316 concluídas com sucesso e sem interrupção; em 16/10, 1.043 e 1.038. Contam agentes e rotinas, inclusive retomadas, e não equivalem a issues Done. Os logs são privados. [Metodologia](https://github.com/BRK13/krohnos/blob/main/site/EVIDENCE.md)."
           }
         ]
       },

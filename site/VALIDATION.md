@@ -21,3 +21,12 @@ critérios de conclusão, além da descrição técnica. É essa a vantagem
 editorial pretendida; não afirma superioridade técnica sobre concorrentes, cuja documentação pode ser
 mais apropriada para implementação. Não foi possível avaliar integralmente a discussão bloqueada.
 A busca equivalente em português trouxe uma discussão sobre Claude Code e um curso de OpenClaw.
+
+## Atualização de 20/10/2026 · conteúdo explicativo
+
+- Seções novas em português e inglês: como o orquestrador funciona (13 etapas, cada uma com diagrama e link para o arquivo), SEO com origem e custo de cada dado,
+  comparação com Semrush, Ahrefs e Similarweb com preço oficial, link e data, e o que é preciso ter. Fontes em `EVIDENCE.md`.
+- O Markdown copiável, `install.md`, `install.pt.md` e `llms.txt` incluem as mesmas seções (testes novos em `test_build.py`).
+- `inspect.mjs` (20/10/2026, `--allow few-pictures,no-footage`): 0 FAIL em EN e PT, 1440/768/390 px. WARN restantes: `mixed-font-headline`, `font-count` e `still-page` (os mesmos de antes) e `size-count` a 768 px.
+- As tabelas viram listas empilhadas no celular, sem rolagem lateral.
+- `tests/neutro_termos.txt` ganhou `allow:` para os endereços oficiais de preço citados (o termo proibido aparece só no caminho do link).

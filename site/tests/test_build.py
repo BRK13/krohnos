@@ -122,7 +122,7 @@ class Build(unittest.TestCase):
 
     def test_nav_links(self):
         t = self.read("index.html")
-        for u in ['href="#inside"',
+        for u in ['href="#orquestrador"', 'href="#seo"', 'href="#comparacao"',
                   'href="https://github.com/BRK13/krohnos/releases"', 'href="#hero-install"']:
             self.assertIn(u, t)
 
@@ -187,6 +187,59 @@ class Build(unittest.TestCase):
             h1 = re.search(r"<h1[^>]*>(.*?)</h1>", page, re.S).group(1)
             h1 = re.sub(r"\s+", " ", h.unescape(re.sub(r"<[^>]+>", "", h1))).strip()
             self.assertEqual(h1, h1_text, rel)
+
+
+    def test_explanation_sections_in_page_markdown_and_llms(self):
+        ids = ["orquestrador", "seo", "comparacao", "precisa"]
+        for lang, page, md in (("en", "index.html", "install.md"), ("pt", "pt/index.html", "install.pt.md")):
+            have = [s["id"] for s in self.data[lang]["sections"]]
+            self.assertEqual(have[:5], ["inside"] + ids)
+            self.assertIn("proof", have)
+            for sid in ids:
+                self.assertIn('id="%s"' % sid, self.read(page))
+                title = next(s["title"] for s in self.data[lang]["sections"] if s["id"] == sid)
+                self.assertIn("## " + title, self.read(md))
+        llms = self.read("llms.txt")
+        for sid in ids:
+            self.assertIn("https://krohnos.com/#" + sid, llms)
+
+    def test_every_process_links_an_existing_file(self):
+        repo = SITE.parent
+        seen = 0
+        for lang in ("en", "pt"):
+            for sec in self.data[lang]["sections"]:
+                for b in sec["blocks"]:
+                    if b["t"] != "proc":
+                        continue
+                    self.assertGreaterEqual(len(b["flow"]), 2, b["title"])
+                    self.assertTrue(b["code"], b["title"])
+                    for path in b["code"]:
+                        seen += 1
+                        self.assertTrue((repo / path).is_file(), path)
+                        self.assertIn("https://github.com/BRK13/krohnos/blob/main/" + path,
+                                      self.read("index.html" if lang == "en" else "pt/index.html"))
+        self.assertGreaterEqual(seen, 40)
+
+    def test_orchestrator_steps_use_real_module_names(self):
+        orq = next(s for s in self.data["pt"]["sections"] if s["id"] == "orquestrador")
+        files = {p for b in orq["blocks"] if b["t"] == "proc" for p in b["code"]}
+        for need in ["hub/agenda.py", "hub/linear.py", "hub/recibo.py", "hub/portao_done.py", "hub/vigia_deploy.py",
+                     "hub/debugger.py", "hub/biblioteca_indice.py", "hub/automerge.py", "hub/revisar_codex.py"]:
+            self.assertIn(need, files)
+        self.assertGreaterEqual(sum(b["t"] == "proc" for b in orq["blocks"]), 12)
+
+    def test_comparison_has_official_price_links_and_date(self):
+        for lang, date in (("pt", "20/10/2026"), ("en", "2026-10-20")):
+            sec = next(s for s in self.data[lang]["sections"] if s["id"] == "comparacao")
+            text = json.dumps(sec, ensure_ascii=False)
+            for url in ["https://www.semrush.com/prices/", "https://ahrefs.com/pricing",
+                        "https://www.similarweb.com/corp/pricing/", "https://dataforseo.com/pricing",
+                        "https://claude.com/pricing", "https://linear.app/pricing"]:
+                self.assertIn(url, text)
+            self.assertIn(date, text)
+            for row in next(b for b in sec["blocks"] if b["t"] == "table")["rows"]:
+                self.assertRegex(row[0], r"\]\(https://")
+            self.assertNotRegex(text, r"(?i)melhor que|better than|cheaper than|mais barato que")
 
 
 if __name__ == "__main__":

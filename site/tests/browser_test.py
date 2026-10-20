@@ -51,7 +51,7 @@ def main():
                             page.keyboard.press('Escape')
                             assert page.locator('#menu').get_attribute('aria-expanded') == 'false'
                             page.locator('#menu').click()
-                            page.locator('#nav a[href="#inside"]').click()
+                            page.locator('#nav a[href="#orquestrador"]').click()
                             assert page.locator('#menu').get_attribute('aria-expanded') == 'false'
                             page.evaluate('scrollTo(0,0)')
                         else:

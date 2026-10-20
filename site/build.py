@@ -50,6 +50,10 @@ def install_short(data):
     return "\n".join(commands(data))
 
 
+def code_url(data, path):
+    return "%s/blob/main/%s" % (data["site"]["repo"], path)
+
+
 # ---------- markdown ----------
 def block_md(b, data, lang):
     t = b["t"]
@@ -63,6 +67,16 @@ def block_md(b, data, lang):
         return "```%s\n%s\n```" % (b.get("lang", "bash"), b["x"])
     if t == "install":
         return "```bash\n%s\n```" % install_commented(data, lang)
+    if t == "proc":
+        ui = data[lang]["ui"]
+        return "### %s\n\n%s\n\n%s: %s\n\n%s: %s" % (
+            b["title"], b["x"], ui["flow"], (" | " if b.get("alt") else " → ").join(b["flow"]), ui["code"],
+            ", ".join("[`%s`](%s)" % (p, code_url(data, p)) for p in b["code"]))
+    if t == "table":
+        rows = [b["head"]] + b["rows"]
+        lines = ["| " + " | ".join(c.replace("|", "\\|") for c in r) + " |" for r in rows]
+        lines.insert(1, "|" + " --- |" * len(b["head"]))
+        return "**%s**\n\n%s" % (b["cap"], "\n".join(lines))
     raise ValueError(t)
 
 
@@ -101,6 +115,20 @@ def block_html(b, data, lang, sid, idx):
         return code_block("c-%s-%d" % (sid, idx), b["x"], ui, b.get("lang", "bash"))
     if t == "install":
         return code_block("c-install-full", install_commented(data, lang), ui, "bash")
+    if t == "proc":
+        flow = "".join("<li>%s</li>" % html.escape(x) for x in b["flow"])
+        links = " ".join('<a href="%s" rel="noopener"><code>%s</code></a>' % (code_url(data, p), html.escape(p))
+                         for p in b["code"])
+        return ('<article class="proc"><h3>%s</h3><p>%s</p><ol class="dgm%s" aria-label="%s">%s</ol>'
+                '<p class="src">%s: %s</p></article>') % (
+            html.escape(b["title"]), inline_html(b["x"]), " or" if b.get("alt") else "", html.escape(ui["flow"]), flow,
+            html.escape(ui["code"]), links)
+    if t == "table":
+        head = "".join('<th scope="col">%s</th>' % html.escape(h) for h in b["head"])
+        body = "".join("<tr>%s</tr>" % "".join('<td data-label="%s">%s</td>' % (html.escape(h), inline_html(c))
+                                                for h, c in zip(b["head"], r)) for r in b["rows"])
+        return ('<div class="tbl"><table><caption>%s</caption><thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>'
+                % (html.escape(b["cap"]), head, body))
     raise ValueError(t)
 
 
@@ -141,12 +169,14 @@ def page_html(data, lang):
     h1_l1 = (html.escape(hero["line1_before"]) + '<em class="alt">' + html.escape(hero["line1_em"]) +
              "</em>" + html.escape(hero["line1_after"]))
     links = (
+        '<a class="pill" href="#orquestrador">%s</a>'
+        '<a class="pill" href="#seo">%s</a>'
+        '<a class="pill" href="#comparacao">%s</a>'
         '<a class="pill" href="#hero-install">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
-        '<a class="pill" href="%s" rel="noopener">%s</a>'
-    ) % (html.escape(nav["install"]), "#inside", html.escape(nav["docs"]), s["repo"],
-         html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
+    ) % (html.escape(nav["how"]), html.escape(nav["seo"]), html.escape(nav["compare"]), html.escape(nav["install"]),
+         s["repo"], html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
     sections = "\n".join(section_html(sec, data, lang) for sec in c["sections"])
     other_href = "/pt/" if lang == "en" else "/"
     return f"""<!doctype html>
@@ -202,7 +232,7 @@ def page_html(data, lang):
     <p class="sub ap a3">{html.escape(hero['sub'])}</p>
     <div class="cta ap a5">
       <a class="btn solid" href="#hero-install">{html.escape(nav['install'])} <span aria-hidden="true">↗</span></a>
-      <a class="btn ghost" href="#inside">{html.escape(nav['docs'])}</a>
+      <a class="btn ghost" href="#orquestrador">{html.escape(nav['how'])}</a>
       <button class="btn ghost" type="button" data-md="md-page" data-label="{html.escape(ui['copy_md'])}" data-done="{html.escape(ui['copied_md'])}">{html.escape(ui['copy_md'])}</button>
     </div>
     <div class="hero-install" id="hero-install">{code_block("c-install-hero", install_short(data), ui, "bash")}</div>
@@ -241,6 +271,13 @@ Self-hosted install: clone the public repository and follow the five steps in th
 
 - [Install guide (Markdown, English)]({d}/install.md): requirements, the five install commands and what the panel does
 - [Guia de instalação (Markdown, português)]({d}/install.pt.md): requisitos, os cinco comandos de instalação e o que o painel faz
+
+## What the site explains (full text in install.md)
+
+- [How the orchestrator works, step by step]({d}/#orquestrador): request, plan, queue, accounts and lanes, worktree, review by another model, local CI, merge, deploy, Done gate with receipt, watchdog and debugger, recipe library, memory; each step links its module in the repository
+- [SEO with real data and real cost]({d}/#seo): where each number comes from (DataForSEO, Search Console, GA4, Clarity, PageSpeed, SEOmator, AI visibility) and what Krohnos does with it
+- [Comparison with Semrush, Ahrefs and Similarweb]({d}/#comparacao): official prices with link and date (2026-10-20), what they do that Krohnos does not, typical Krohnos cost
+- [What you need to have]({d}/#precisa): accounts, monthly cost of each one, what is optional
 
 ## Project
 

@@ -6,7 +6,8 @@ Não publica comandos de instalação sem teste em máquina limpa.
 
 - `content.json`: fonte única do conteúdo nas duas línguas.
 - `build.py`: gerador determinístico em Python stdlib, utilizado no CI e no Dockerfile.
-- `EVIDENCE.md`: fontes, data, limites e metodologia das métricas publicadas.
+- `EVIDENCE.md`: fontes, data, limites e metodologia das métricas e dos preços publicados.
+- Blocos de conteúdo: `p`, `ul`, `code`, `install`, `proc` (etapa com diagrama e arquivos do repositório) e `table`.
 - `assets/`: fontes locais Inter e Instrument Serif, e ampulheta aprovada.
 - `assets/hero-gl.js`: ativo legado preservado, sem carregamento na página.
 - `Dockerfile` e `nginx.conf`: geração e publicação pelo painel de hospedagem, com CSP restrita e sem CDN.

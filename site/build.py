@@ -21,6 +21,23 @@ def load():
     return json.loads((HERE / "content.json").read_text(encoding="utf-8"))
 
 
+def photo(b):
+    """Credit of a picture, read from assets/fotos/credits.json (written by assets.mjs --get)."""
+    found = [c for c in json.loads((HERE / "assets" / "fotos" / "credits.json").read_text(encoding="utf-8"))
+             if c["file"] == b["file"]]
+    if len(found) != 1:
+        raise ValueError("no single credit for " + b["file"])
+    return found[0]
+
+
+def photo_html(b, ui, cls):
+    c = photo(b)
+    return ('<figure class="%s"><img src="/%s" width="%d" height="%d" alt="%s" decoding="async">'
+            '<figcaption>%s <span class="credit">%s. <a href="%s" rel="noopener">%s</a></span></figcaption></figure>') % (
+        cls, c["file"], c["width"], c["height"], html.escape(b["alt"]), html.escape(b["cap"]),
+        html.escape(c["credit"]), html.escape(c["page"]), html.escape(ui["photo_source"]))
+
+
 # ---------- inline markup: `code`, **bold**, [text](url) ----------
 def inline_html(text):
     out = html.escape(text, quote=False)
@@ -63,6 +80,10 @@ def block_md(b, data, lang):
         return "\n".join("- " + x for x in b["x"])
     if t == "warn":
         return "> **" + ("Warning" if lang == "en" else "Atenção") + ":** " + b["x"]
+    if t == "img":
+        c = photo(b)
+        return "![%s](%s)\n\n*%s* %s. [%s](%s)" % (
+            b["alt"], c["file"], b["cap"], c["credit"], data[lang]["ui"]["photo_source"], c["page"])
     if t == "code":
         return "```%s\n%s\n```" % (b.get("lang", "bash"), b["x"])
     if t == "install":
@@ -111,6 +132,8 @@ def block_html(b, data, lang, sid, idx):
     if t == "warn":
         return '<p class="warn"><strong>%s:</strong> %s</p>' % (
             "Warning" if lang == "en" else "Atenção", inline_html(b["x"]))
+    if t == "img":
+        return photo_html(b, ui, "photo")
     if t == "code":
         return code_block("c-%s-%d" % (sid, idx), b["x"], ui, b.get("lang", "bash"))
     if t == "install":

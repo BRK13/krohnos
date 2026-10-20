@@ -69,7 +69,8 @@
       "command_label": "Install commands",
       "terminal_label": "The flow of one task",
       "code": "View the code",
-      "flow": "Flow"
+      "flow": "Flow",
+      "photo_source": "Photo source"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",
@@ -142,6 +143,12 @@
             "x": "**The path of a task** Each step below is a module of the repository, with its real file name. Whoever writes a change does not review it, and nothing stays Done without a receipt. The plain-text summary is in [docs/ARQUITETURA.md](https://github.com/BRK13/krohnos/blob/main/docs/ARQUITETURA.md)."
           },
           {
+            "t": "img",
+            "file": "assets/fotos/telephone-operators-at-weiss-collection.jpg",
+            "alt": "People working at a switchboard, 1915",
+            "cap": "A switchboard receives calls and routes them. The orchestrator does the same with requests: they come in, join a queue and go to whoever executes them."
+          },
+          {
             "t": "proc",
             "title": "Request: WhatsApp, panel or Linear",
             "x": "Everything becomes an issue in Linear. From the panel, the action writes the request into the command inbox the WhatsApp bot also reads; in Linear, a webhook tells the hub when someone speaks on the issue.",
@@ -205,6 +212,12 @@
               "hub/esteira.py"
             ],
             "alt": true
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/wisconsin-bell-telephone-company-switchboard.jpg",
+            "alt": "Operator at a Wisconsin Bell switchboard, 1930",
+            "cap": "Each lane has a role, as each operator had a line: the builder writes, the operator runs, the reviewer checks."
           },
           {
             "t": "proc",
@@ -335,6 +348,12 @@
             ]
           },
           {
+            "t": "img",
+            "file": "assets/fotos/wooden-card-catalog-furniture.jpg",
+            "alt": "Wooden cabinet with catalogue card drawers",
+            "cap": "The recipe library and the \"does this already exist\" search work like a card catalogue: before building, look for the card that already solves it."
+          },
+          {
             "t": "proc",
             "title": "Memory",
             "x": "The owner's decisions live in memory files, one note per fact, with one index per project. A gate checks that no pointer broke and no decision of the owner disappeared, and the second-brain map shows the relations between repositories, domains, routines and decisions.",
@@ -350,6 +369,12 @@
               "hub/cerebro.py",
               "hub/grafo.py"
             ]
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/copyright-card-catalog-files.jpg",
+            "alt": "Catalogue cards filed in drawers",
+            "cap": "The hub memory is written to files and read back at each task, like a card file someone consults later."
           }
         ]
       },
@@ -360,6 +385,12 @@
           {
             "t": "p",
             "x": "**Where each number comes from** Krohnos has no search index of its own. It combines sources the site owner can already use, pays per use where it needs market data, and keeps everything in a per-site store."
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/a-general-map-of-the-world-or.jpg",
+            "alt": "Double-hemisphere world map from 1794",
+            "cap": "SEO looks at the whole world of searches, pages and competitors. This period map is only a reference image, with no link to market data."
           },
           {
             "t": "table",
@@ -792,7 +823,8 @@
       "command_label": "Comandos de instalação",
       "terminal_label": "O fluxo de uma tarefa",
       "code": "Ver o código",
-      "flow": "Fluxo"
+      "flow": "Fluxo",
+      "photo_source": "Fonte da foto"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",
@@ -865,6 +897,12 @@
             "x": "**O caminho de uma tarefa** Cada etapa abaixo é um módulo do repositório, com o nome real do arquivo. Quem escreve a mudança não é quem revisa, e nada fica Done sem recibo. O resumo em texto está em [docs/ARQUITETURA.md](https://github.com/BRK13/krohnos/blob/main/docs/ARQUITETURA.md)."
           },
           {
+            "t": "img",
+            "file": "assets/fotos/telephone-operators-at-weiss-collection.jpg",
+            "alt": "Pessoas trabalhando numa central telefônica, em 1915",
+            "cap": "Uma central recebe as chamadas e as encaminha. O orquestrador faz o mesmo com os pedidos: entram, ganham uma fila e vão para quem executa."
+          },
+          {
             "t": "proc",
             "title": "Pedido: WhatsApp, painel ou Linear",
             "x": "Tudo vira uma issue no Linear. Pelo painel, a ação grava o pedido na caixa de comandos que o bot do WhatsApp também lê; no Linear, um webhook avisa o hub quando alguém fala na issue.",
@@ -928,6 +966,12 @@
               "hub/esteira.py"
             ],
             "alt": true
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/wisconsin-bell-telephone-company-switchboard.jpg",
+            "alt": "Operador numa central telefônica da Wisconsin Bell, em 1930",
+            "cap": "Cada faixa tem um papel, como cada operadora tinha a sua linha: o construtor escreve, o operador executa, o revisor confere."
           },
           {
             "t": "proc",
@@ -1058,6 +1102,12 @@
             ]
           },
           {
+            "t": "img",
+            "file": "assets/fotos/wooden-card-catalog-furniture.jpg",
+            "alt": "Móvel de madeira com gavetas de fichas de catálogo",
+            "cap": "A biblioteca de receitas e a busca \"já existe isto\" funcionam como um catálogo: antes de construir, procure a ficha que já resolve."
+          },
+          {
             "t": "proc",
             "title": "Memória",
             "x": "As decisões do dono ficam em arquivos de memória, uma nota por fato, com um índice por projeto. Um portão confere que nenhum ponteiro quebrou e que nenhuma decisão do dono sumiu, e o mapa do segundo cérebro mostra as relações entre repositórios, domínios, rotinas e decisões.",
@@ -1073,6 +1123,12 @@
               "hub/cerebro.py",
               "hub/grafo.py"
             ]
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/copyright-card-catalog-files.jpg",
+            "alt": "Fichas de catálogo arquivadas em gavetas",
+            "cap": "A memória do hub é escrita em arquivos e lida de volta a cada tarefa, como um arquivo de fichas que alguém consulta depois."
           }
         ]
       },
@@ -1083,6 +1139,12 @@
           {
             "t": "p",
             "x": "**De onde vem cada número** O Krohnos não tem base própria de busca. Ele junta fontes que o dono do site já pode usar, paga por uso onde precisa de dado de mercado e guarda tudo num armazém por site."
+          },
+          {
+            "t": "img",
+            "file": "assets/fotos/a-general-map-of-the-world-or.jpg",
+            "alt": "Mapa-múndi em dois hemisférios, de 1794",
+            "cap": "O SEO olha o mundo inteiro de buscas, páginas e concorrentes. Este mapa de época é só uma imagem de referência, sem relação com dado de mercado."
           },
           {
             "t": "table",

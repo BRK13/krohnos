@@ -27,6 +27,6 @@ A busca equivalente em português trouxe uma discussão sobre Claude Code e um c
 - Seções novas em português e inglês: como o orquestrador funciona (13 etapas, cada uma com diagrama e link para o arquivo), SEO com origem e custo de cada dado,
   comparação com Semrush, Ahrefs e Similarweb com preço oficial, link e data, e o que é preciso ter. Fontes em `EVIDENCE.md`.
 - O Markdown copiável, `install.md`, `install.pt.md` e `llms.txt` incluem as mesmas seções (testes novos em `test_build.py`).
-- `inspect.mjs` (20/10/2026, `--allow few-pictures,no-footage`): 0 FAIL em EN e PT, 1440/768/390 px. WARN restantes: `mixed-font-headline`, `font-count` e `still-page` (os mesmos de antes) e `size-count` a 768 px.
+- `inspect.mjs` (21/10/2026, `--allow no-footage`, medido em EN e PT): as seções têm 5 fotografias reais de domínio público ou CC BY-SA, com crédito por foto (`assets/fotos/credits.json`), e `few-pictures` passa em 768 e 390 px. Em 1440 px o desktop abre só o hero, que não tem foto, e a regra dá FAIL (`Only 0 picture(s)`). Decisão do Bruno (20/10/2026, BRU-1478): hero sem foto no desktop, como na decisão de 17/10; `few-pictures` em 1440 px fica como exceção de marca, liberada em `tests/browser_test.py` (pôr 4 imagens no hero quebraria a tela única). WARN restantes: `mixed-font-headline`, `font-count`, `still-page` e `size-count` a 768 px.
 - As tabelas viram listas empilhadas no celular, sem rolagem lateral.
 - `tests/neutro_termos.txt` ganhou `allow:` para os endereços oficiais de preço citados (o termo proibido aparece só no caminho do link).

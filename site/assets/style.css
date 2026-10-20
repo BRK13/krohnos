@@ -88,3 +88,6 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}
 @media(max-width:900px){.tbl{padding:4px 18px 10px}.tbl table{min-width:0}.tbl thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.tbl table,.tbl tbody,.tbl tr,.tbl td{display:block}.tbl tr{padding:14px 0 6px}.tbl td{padding:0 0 10px;border:0;white-space:normal;font-size:16px}.tbl td:first-child{font-size:18px;white-space:normal}.tbl td+td::before{content:attr(data-label);display:block;color:var(--muted);font-size:13px}.tbl tr:last-child td{border:0}.tbl caption{display:block}.sec-head{flex-direction:column;align-items:flex-start}}
 @media(prefers-reduced-motion:no-preference){.proc{transition:transform .2s}.proc:hover{transform:translateY(-2px)}}
 .dgm.or li::before{content:none}.dgm.or{gap:8px}
+
+.photo{grid-column:1/-1;margin:0 0 56px}.photo img{width:100%;height:auto;display:block;border-radius:3px}.photo figcaption{font-size:13px;color:var(--muted);padding-top:10px;max-width:70ch;line-height:1.5}.photo .credit{display:block;opacity:.8;font-size:13px}.photo .credit a{color:inherit}
+@media (max-height:819px){

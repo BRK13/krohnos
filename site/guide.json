@@ -1,0 +1,506 @@
+{
+ "en": {
+  "lang": "en",
+  "slug": "guides/comparison-pages-ai-citation",
+  "meta_title": "Comparison pages and AI citation: a protocol · Krohnos",
+  "meta_description": "How to write pages that answer what people search and ask AI, including comparisons with named competitors, with a quality gate, waves and honest measurement.",
+  "h1": "Comparison pages and AI citation",
+  "lede": "A protocol for writing, at scale and with a real gate, the pages that answer what your audience searches and asks ChatGPT, Gemini and Perplexity: \"A or B\", \"does A work\", \"alternatives to A\", symptom to service, and comparisons with named competitors. The goal is to be the source an answer engine can quote without risk.",
+  "published": "2026-10-21",
+  "back": "Back to Krohnos",
+  "on_page": "On this page",
+  "cmd_label": "Command",
+  "updated": "Published",
+  "sections": [
+   {
+    "id": "what",
+    "title": "What works and what does not",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Answer engines quote pages that state a checkable fact, say where it came from and the date, and answer one question each. They do not reward volume. The same technique applied by swapping a city name into one template produces doorway pages, which search engines demote."
+     },
+     {
+      "t": "ul",
+      "x": [
+       "**Works:** one real question per page, a direct answer, a table with sources, an honest section on where the other side is better, the same data in the visible page and in the schema.",
+       "**Does not work:** one template with the place changed, claims about a competitor you did not read on their own site, superlatives about your own brand, pages for places you do not serve.",
+       "**Expect citation more than clicks.** Comparison and question pages are written for answer engines and for people who already know a brand name; they rarely bring much search traffic on their own. Measure both before you promise either."
+      ]
+     },
+     {
+      "t": "warn",
+      "x": "This guide is a method, not legal advice. Brazilian references are listed so you can read the original texts before publishing."
+     }
+    ]
+   },
+   {
+    "id": "terms",
+    "title": "1. Find the terms",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Keep five separate lists. Each one has an owner and a rule."
+     },
+     {
+      "t": "table",
+      "cap": "Where terms come from",
+      "head": [
+       "List",
+       "Source",
+       "Rule"
+      ],
+      "rows": [
+       [
+        "Queries without a page",
+        "Search Console export (query by page), 90 days; `gsc_oportunidades.py` does the cross",
+        "Impressions at or above a floor and no page covering most of the words. A page already ranking near position 8 is reinforced, not duplicated."
+       ],
+       [
+        "Site search with no result",
+        "Your own search box log",
+        "Count at least 2 before it becomes a page."
+       ],
+       [
+        "Questions people ask AI",
+        "The AI visibility tracker prompts and what customers say they typed in the chat",
+        "Phrase the page title the way the question is asked."
+       ],
+       [
+        "Sources the engines cite",
+        "Cited domains and URLs per prompt and engine; the AI Overview collected over 7 or more days",
+        "What appears in 80% or more of the answers becomes a required section."
+       ],
+       [
+        "Queries with a competitor name",
+        "Search Console plus the competitor list in the site registry",
+        "Separate list. Only feeds the named templates, only with an opened public source, and the page starts hidden (noindex) until a person reviews it."
+       ]
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Cut every term the site already answers. If a page exists, improve it. Two pages for one query compete with each other."
+     }
+    ]
+   },
+   {
+    "id": "templates",
+    "title": "2. Choose the template",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Every template needs a verifiable fact, schema generated from the same data as the page, and internal links to pages that exist."
+     },
+     {
+      "t": "table",
+      "cap": "Templates",
+      "head": [
+       "Template",
+       "Example",
+       "Verifiable data",
+       "Notes"
+      ],
+      "rows": [
+       [
+        "A or B (concept)",
+        "Tendinitis or tendinosis?",
+        "Guideline or systematic review with a DOI you opened",
+        "No brand names; both sides neutral."
+       ],
+       [
+        "Does A work?",
+        "Does tape work?",
+        "Same; say \"not enough evidence\" with the source when it is true",
+        "Always send alarm signs to a professional."
+       ],
+       [
+        "You or Competitor A",
+        "Brand Example or Competitor A",
+        "The competitor's own public pages, opened, with the date checked",
+        "Two tables: where you lead and where the competitor ties or wins. \"Does not list\" never becomes \"does not have\"."
+       ],
+       [
+        "Alternatives to A",
+        "Alternatives to Competitor A",
+        "A list with a declared criterion",
+        "Your brand is not first by default."
+       ],
+       [
+        "Best A in a place",
+        "A in District One",
+        "Address, hours and coverage you really have",
+        "Only where you serve. No ranked list that puts you first."
+       ],
+       [
+        "Symptom to service",
+        "Pain behind the thigh: causes",
+        "Signs, causes, when to see a doctor",
+        "Condition rules of your profession apply."
+       ],
+       [
+        "Question to answer",
+        "How long is a visit?",
+        "A fact about your own business, dated",
+        "FAQ schema."
+       ]
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Common frame: direct answer in up to 80 words, table of 6 to 10 criteria, 4 to 6 sections titled as questions, \"when each one makes sense\", 5 to 10 FAQ items, sources, 3 to 6 internal links, author box with a real name and credential, review date."
+     }
+    ]
+   },
+   {
+    "id": "gate",
+    "title": "3. The quality gate",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Machine first, then a person reads a sample. These rules block publication until fixed:"
+     },
+     {
+      "t": "ul",
+      "x": [
+       "**Nothing invented about a competitor.** Every statement points to a source that someone opened, with the date. \"Does not list\" means the page you read does not mention it.",
+       "**A fact has a source.** DOI checked against the registry, URL opened. A dead link is an error.",
+       "**No promise of results.** No \"guaranteed\", \"100%\", \"cure\", no before and after, no testimonials where your profession forbids them.",
+       "**Professional board rules** loaded into the gate (medical, psychology, physiotherapy and legal boards each have their own advertising rules).",
+       "**Comparative advertising.** Objective, provable comparison; no general claim of superiority; no confusion between brands; no disparagement.",
+       "**No self-ranking.** Declared criterion, your brand not first by default, say where the competitor wins, no \"the best\" about yourself.",
+       "**No invented places.** A place page needs real service there.",
+       "**No doorway.** Sibling pages must differ: Jaccard similarity below 0.5, and one different question per page.",
+       "**No first-person experience you cannot back** (\"in my clinic I see…\") unless the professional approved it."
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Brazilian references to read before publishing comparisons: CONAR Code, article 32 (comparative advertising: objective, provable, not disparaging, self-regulation without force of law); Consumer Defense Code, articles 36 and 37 (misleading and abusive advertising); Industrial Property Law 9,279/1996, article 195, items I and II (false statements about a competitor to gain advantage as unfair competition). Check the official text; this is not legal advice."
+     },
+     {
+      "t": "p",
+      "x": "Run it with the command below. Exit code 1 means at least one error; warnings (long direct answer, a source that blocked the robot, a check older than 90 days) do not block."
+     }
+    ]
+   },
+   {
+    "id": "waves",
+    "title": "4. Scale in waves with a canary",
+    "blocks": [
+     {
+      "t": "ul",
+      "x": [
+       "**Plan file.** One row per page: slug, question, sides, template, linked service, whether you serve the place. Cut what the site already answers before any agent starts.",
+       "**Wave 0 (canary).** 3 to 6 pages of different templates, written by agents from a written brief (one file per page, never edit the page registry, drafts in a temp folder, research by web only, a report listing what was left out for lack of a source). A person reviews all of them. Named-competitor pages start hidden.",
+       "**Next waves.** 5 to 30 pages, one wave at a time; the next starts after the last was reviewed and merged. The registry and the sitemap belong to the orchestrator, not to the agent.",
+       "**Cadence.** A new site publishes at most 4 new pages a week; record a 28-day measurement window per page and do not edit a page inside its window.",
+       "**Tripwire.** After each wave check position by page type in Search Console and the similarity between siblings. A drop, or similarity over the limit, freezes the next wave and opens a consolidation: redirect the weak pages to the strong one with 301, do not mass noindex.",
+       "**Publish.** Notify IndexNow, keep a real `lastmod` in the sitemap, generate `llms.txt` from the content."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "measure",
+    "title": "5. Measure, and claim only what you measured",
+    "blocks": [
+     {
+      "t": "ul",
+      "x": [
+       "**Citation by AI:** an AI visibility tracker per site, neutral prompts separate from brand prompts, competitors registered with their domains. Read the 28-day trend only when the comparison is marked comparable; incomplete or missing baselines do not allow \"went up\" or \"went down\".",
+       "**By URL:** which page type the engines cite. Without it no template gets credit.",
+       "**Search Console:** impressions, clicks and position by page type and by wave, 28 days after the wave. The AI features report in the Search Console interface is not available through the API.",
+       "**Conversion:** ask people who say AI sent them what they typed in the chat.",
+       "**Wording:** a sentence like \"most cited\" needs the round, the date, the number of prompts, the engines and the competitor list. Otherwise write \"not measured\"."
+      ]
+     },
+     {
+      "t": "p",
+      "x": "A single round can swing a lot between weekly rounds with the same prompts. Read at least four rounds before you publish a result."
+     }
+    ]
+   },
+   {
+    "id": "command",
+    "title": "The command and a draft",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "`hub/paginas_comparacao.py` is Python standard library only. It reads the Search Console CSV, classifies each query into a template, separates create from reinforce, drops places you do not serve, writes draft skeletons with fields to fill (it writes no facts) and runs the gate."
+     },
+     {
+      "t": "code",
+      "lang": "bash",
+      "x": "# 1. terms: Search Console export (query, clicks, impressions, position, page) -> prioritized list\npython3 -m hub.paginas_comparacao termos --gsc queries.csv \\\n  --concorrentes \"Competitor A,Competitor B\" --lugares \"District One,District Two\" --atendemos \"District One\" \\\n  --paginas pages.txt --saida terms.json\n\n# 2. drafts: one skeleton per term with action \"criar\"; no fact is written for you\npython3 -m hub.paginas_comparacao rascunhos terms.json --pasta drafts/ --marca \"Brand Example\" --idioma en\n\n# 3. gate: exit code 1 on any error; run before the pull request\npython3 -m hub.paginas_comparacao portao drafts/*.md --idioma en"
+     },
+     {
+      "t": "p",
+      "x": "A passing draft looks like this (front matter, then sections; the gate checks both):"
+     },
+     {
+      "t": "code",
+      "lang": "markdown",
+      "x": "---\nmolde: vs\ntermo: brand-example or competitor a\nmarca: Brand Example\nconcorrente: Competitor A\nlugar:\natendimento: n/a\nconselho: none\nverificado_em: 2026-10-15\n---\n\n# Brand Example or Competitor A: which one fits you?\n\n## Direct answer\nOne or two self-contained paragraphs, up to 80 words.\n\n## Criterion\nCriterion: what each public site lists on 2026-10-15, alphabetical order.\n\n## Facts\n- One verifiable fact. [source: https://competitor-a.test/plans]\n\n## Table\n| Criterion | Brand | Other side | Source |\n| --- | --- | --- | --- |\n| Opening hours | until 8 pm | until 7 pm | https://competitor-a.test/hours |\n\n## Where the competitor wins\n- At least one item, with source."
+     },
+     {
+      "t": "p",
+      "x": "Source code and tests: [`hub/paginas_comparacao.py`](https://github.com/BRK13/krohnos/blob/main/hub/paginas_comparacao.py), [`tests/test_paginas_comparacao.py`](https://github.com/BRK13/krohnos/blob/main/tests/test_paginas_comparacao.py)."
+     }
+    ]
+   }
+  ]
+ },
+ "pt": {
+  "lang": "pt",
+  "slug": "pt/guias/paginas-de-comparacao-citacao-ia",
+  "meta_title": "Páginas de comparação e citação por IA: um protocolo · Krohnos",
+  "meta_description": "Como escrever páginas que respondem o que as pessoas buscam e perguntam à IA, inclusive comparações com concorrentes, com portão de qualidade, ondas e medição honesta.",
+  "h1": "Páginas de comparação e citação por IA",
+  "lede": "Um protocolo para escrever, em escala e com portão de verdade, as páginas que respondem o que o seu público busca e pergunta ao ChatGPT, ao Gemini e ao Perplexity: \"A ou B\", \"A funciona\", \"alternativas a A\", sintoma para serviço e comparação com concorrente nomeado. A meta é ser a fonte que um buscador de respostas pode citar sem risco.",
+  "published": "2026-10-21",
+  "back": "Voltar ao Krohnos",
+  "on_page": "Nesta página",
+  "cmd_label": "Comando",
+  "updated": "Publicado em",
+  "sections": [
+   {
+    "id": "what",
+    "title": "O que funciona e o que não funciona",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Os buscadores de resposta citam página que afirma um fato conferível, diz de onde veio e a data, e responde uma pergunta por página. Volume não ganha. A mesma técnica aplicada trocando o nome da cidade num molde só gera páginas doorway, que os buscadores rebaixam."
+     },
+     {
+      "t": "ul",
+      "x": [
+       "**Funciona:** uma pergunta real por página, resposta direta, tabela com fonte, seção honesta sobre onde o outro lado é melhor, o mesmo dado na página visível e no schema.",
+       "**Não funciona:** um molde com o lugar trocado, afirmação sobre concorrente que você não leu no site dele, superlativo sobre a própria marca, página de lugar onde você não atende.",
+       "**Espere mais citação do que clique.** Páginas de comparação e de pergunta são escritas para buscadores de resposta e para quem já conhece a marca; sozinhas raramente trazem muito tráfego de busca. Meça os dois antes de prometer qualquer um."
+      ]
+     },
+     {
+      "t": "warn",
+      "x": "Este guia é um método, não é aconselhamento jurídico. As referências brasileiras estão listadas para você ler o texto original antes de publicar."
+     }
+    ]
+   },
+   {
+    "id": "terms",
+    "title": "1. Descubra os termos",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Mantenha cinco listas separadas. Cada uma tem dono e regra."
+     },
+     {
+      "t": "table",
+      "cap": "De onde vêm os termos",
+      "head": [
+       "Lista",
+       "Fonte",
+       "Regra"
+      ],
+      "rows": [
+       [
+        "Buscas sem página",
+        "Exportação do Search Console (consulta por página), 90 dias; `gsc_oportunidades.py` faz o cruzamento",
+        "Impressões a partir de um piso e nenhuma página cobrindo a maioria das palavras. Página que já ranqueia perto da posição 8 é reforçada, não duplicada."
+       ],
+       [
+        "Busca interna sem resultado",
+        "Registro da caixa de busca do próprio site",
+        "Conte ao menos 2 antes de virar página."
+       ],
+       [
+        "Perguntas que as pessoas fazem à IA",
+        "Prompts do rastreador de visibilidade em IA e o que o cliente diz que digitou no chat",
+        "Escreva o título da página do jeito que a pergunta é feita."
+       ],
+       [
+        "Fontes que os buscadores de resposta citam",
+        "Domínios e URLs citados por prompt e motor; o AI Overview coletado por 7 dias ou mais",
+        "O que aparece em 80% ou mais das respostas vira seção obrigatória."
+       ],
+       [
+        "Buscas com nome de concorrente",
+        "Search Console mais a lista de concorrentes do cadastro do site",
+        "Lista separada. Só alimenta os moldes nominais, só com fonte pública aberta, e a página nasce oculta (noindex) até uma pessoa revisar."
+       ]
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Corte todo termo que o site já responde. Se a página existe, melhore-a. Duas páginas para a mesma busca competem entre si."
+     }
+    ]
+   },
+   {
+    "id": "templates",
+    "title": "2. Escolha o molde",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Todo molde exige um fato verificável, schema gerado do mesmo dado da página e links internos para páginas que existem."
+     },
+     {
+      "t": "table",
+      "cap": "Moldes",
+      "head": [
+       "Molde",
+       "Exemplo",
+       "Dado verificável",
+       "Observações"
+      ],
+      "rows": [
+       [
+        "A ou B (conceito)",
+        "Tendinite ou tendinose?",
+        "Diretriz ou revisão sistemática com DOI que você abriu",
+        "Sem nome de marca; os dois lados neutros."
+       ],
+       [
+        "A funciona?",
+        "Fita funciona?",
+        "Idem; diga \"não há evidência suficiente\" com a fonte quando for verdade",
+        "Sinal de alerta sempre manda ao profissional."
+       ],
+       [
+        "Você ou Concorrente A",
+        "Marca Exemplo ou Concorrente A",
+        "As páginas públicas do próprio concorrente, abertas, com a data da checagem",
+        "Duas tabelas: onde você lidera e onde o concorrente empata ou ganha. \"Não informa\" nunca vira \"não tem\"."
+       ],
+       [
+        "Alternativas a A",
+        "Alternativas ao Concorrente A",
+        "Lista com critério declarado",
+        "Sua marca não vem em 1º por padrão."
+       ],
+       [
+        "Melhor A em um lugar",
+        "A no Bairro Alfa",
+        "Endereço, horário e cobertura que você realmente tem",
+        "Só onde você atende. Sem lista ranqueada que ponha você em 1º."
+       ],
+       [
+        "Sintoma para serviço",
+        "Dor atrás da coxa: causas",
+        "Sinais, causas, quando procurar médico",
+        "Valem as regras de condição da sua profissão."
+       ],
+       [
+        "Pergunta para resposta",
+        "Quanto dura uma consulta?",
+        "Fato do seu próprio negócio, com data",
+        "Schema de perguntas frequentes."
+       ]
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Moldura comum: resposta direta de até 80 palavras, tabela de 6 a 10 critérios, 4 a 6 seções com título em forma de pergunta, \"quando cada um faz mais sentido\", 5 a 10 perguntas frequentes, fontes, 3 a 6 links internos, caixa de autor com nome real e registro, data de revisão."
+     }
+    ]
+   },
+   {
+    "id": "gate",
+    "title": "3. O portão de qualidade",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "Primeiro a máquina, depois uma pessoa lê uma amostra. Estas regras bloqueiam a publicação até corrigir:"
+     },
+     {
+      "t": "ul",
+      "x": [
+       "**Nada inventado sobre concorrente.** Toda afirmação aponta para uma fonte que alguém abriu, com a data. \"Não informa\" quer dizer que a página lida não menciona.",
+       "**Fato tem fonte.** DOI conferido no registro, URL aberta. Link morto é erro.",
+       "**Sem promessa de resultado.** Nada de \"garantido\", \"100%\", \"cura\", sem antes e depois, sem depoimento onde a sua profissão proíbe.",
+       "**Regras do conselho profissional** carregadas no portão (conselhos de medicina, psicologia, fisioterapia e advocacia têm cada um as suas regras de publicidade).",
+       "**Publicidade comparativa.** Comparação objetiva e comprovável; sem afirmação geral de superioridade; sem confusão entre marcas; sem denegrir.",
+       "**Sem autorranking.** Critério declarado, sua marca fora do 1º lugar por padrão, diga onde o concorrente ganha, sem \"o melhor\" sobre si mesmo.",
+       "**Sem lugar inventado.** Página de lugar exige atendimento real ali.",
+       "**Sem doorway.** Páginas irmãs precisam ser diferentes: similaridade de Jaccard abaixo de 0,5 e uma pergunta diferente por página.",
+       "**Sem experiência em primeira pessoa que você não pode provar** (\"no meu consultório eu vejo…\"), a menos que o profissional tenha aprovado."
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Referências brasileiras para ler antes de publicar comparações: Código do CONAR, art. 32 (publicidade comparativa: objetiva, comprovável, sem denegrir; autorregulação, sem força de lei); Código de Defesa do Consumidor, arts. 36 e 37 (publicidade enganosa e abusiva); Lei da Propriedade Industrial 9.279/1996, art. 195, incisos I e II (falsa afirmação sobre concorrente para obter vantagem, concorrência desleal). Confira o texto oficial; isto não é aconselhamento jurídico."
+     },
+     {
+      "t": "p",
+      "x": "Rode com o comando abaixo. Código de saída 1 quer dizer ao menos um erro; avisos (resposta direta longa, fonte que bloqueou o robô, checagem com mais de 90 dias) não bloqueiam."
+     }
+    ]
+   },
+   {
+    "id": "waves",
+    "title": "4. Escale em ondas, com canário",
+    "blocks": [
+     {
+      "t": "ul",
+      "x": [
+       "**Arquivo de pauta.** Uma linha por página: slug, pergunta, lados, molde, serviço ligado, se você atende o lugar. Corte o que o site já responde antes de qualquer agente começar.",
+       "**Onda 0 (canário).** 3 a 6 páginas de moldes diferentes, escritas por agentes a partir de um briefing escrito (um arquivo por página, nunca editar o registro de páginas, rascunhos em pasta temporária, pesquisa só pela web, relatório do que ficou de fora por falta de fonte). Uma pessoa revisa todas. Página de concorrente nomeado nasce oculta.",
+       "**Ondas seguintes.** 5 a 30 páginas, uma onda por vez; a próxima começa depois que a anterior foi revisada e mergeada. O registro e o sitemap são do orquestrador, não do agente.",
+       "**Cadência.** Site novo publica no máximo 4 páginas novas por semana; registre uma janela de medição de 28 dias por página e não edite a página dentro da janela.",
+       "**Tripwire.** Depois de cada onda confira a posição por tipo de página no Search Console e a similaridade entre irmãs. Queda, ou similaridade acima do limite, congela a próxima onda e abre uma consolidação: redirecione as fracas para a forte com 301, sem noindex em massa.",
+       "**Publicar.** Avise o IndexNow, mantenha `lastmod` real no sitemap, gere o `llms.txt` do conteúdo."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "measure",
+    "title": "5. Meça, e afirme só o que mediu",
+    "blocks": [
+     {
+      "t": "ul",
+      "x": [
+       "**Citação por IA:** um rastreador de visibilidade em IA por site, prompts neutros separados dos de marca, concorrentes cadastrados com o domínio. Leia a tendência de 28 dias só quando a comparação vier marcada como comparável; base incompleta ou ausente não permite dizer \"subiu\" nem \"desceu\".",
+       "**Por URL:** qual tipo de página os buscadores de resposta citam. Sem isso nenhum molde leva o crédito.",
+       "**Search Console:** impressões, cliques e posição por tipo de página e por onda, 28 dias depois da onda. O relatório de recursos de IA da interface do Search Console não sai pela API.",
+       "**Conversão:** pergunte a quem diz que veio da IA o que digitou no chat.",
+       "**Redação:** uma frase como \"a mais citada\" precisa da rodada, da data, do número de prompts, dos motores e da lista de concorrentes. Senão escreva \"não medido\"."
+      ]
+     },
+     {
+      "t": "p",
+      "x": "Uma rodada só pode variar muito entre rodadas semanais com os mesmos prompts. Leia ao menos quatro rodadas antes de publicar um resultado."
+     }
+    ]
+   },
+   {
+    "id": "command",
+    "title": "O comando e um rascunho",
+    "blocks": [
+     {
+      "t": "p",
+      "x": "`hub/paginas_comparacao.py` usa só a biblioteca padrão do Python. Lê o CSV do Search Console, classifica cada busca num molde, separa criar de reforçar, descarta lugar onde você não atende, grava esqueletos de rascunho com campos a preencher (não escreve nenhum fato) e roda o portão."
+     },
+     {
+      "t": "code",
+      "lang": "bash",
+      "x": "# 1. termos: exportação do Search Console (query, clicks, impressions, position, page) -> lista priorizada\npython3 -m hub.paginas_comparacao termos --gsc queries.csv \\\n  --concorrentes \"Concorrente A,Concorrente B\" --lugares \"Bairro Alfa,Bairro Beta\" --atendemos \"Bairro Alfa\" \\\n  --paginas pages.txt --saida terms.json\n\n# 2. rascunhos: um esqueleto por termo com ação \"criar\"; nenhum fato é escrito por você\npython3 -m hub.paginas_comparacao rascunhos terms.json --pasta drafts/ --marca \"Marca Exemplo\" --idioma pt\n\n# 3. portão: código de saída 1 em qualquer erro; rode antes do pull request\npython3 -m hub.paginas_comparacao portao drafts/*.md --idioma pt"
+     },
+     {
+      "t": "p",
+      "x": "Um rascunho que passa tem esta cara (cabeçalho, depois seções; o portão confere os dois):"
+     },
+     {
+      "t": "code",
+      "lang": "markdown",
+      "x": "---\nmolde: vs\ntermo: marca-exemplo ou concorrente a\nmarca: Marca Exemplo\nconcorrente: Concorrente A\nlugar:\natendimento: n/a\nconselho: none\nverificado_em: 2026-10-15\n---\n\n# Marca Exemplo ou Concorrente A: qual serve para você?\n\n## Resposta direta\nUm ou dois parágrafos auto-suficientes, até 80 palavras.\n\n## Critério\nCritério: o que cada site público informa em 15/10/2026, em ordem alfabética.\n\n## Fatos\n- Um fato verificável. [fonte: https://concorrente-a.test/plans]\n\n## Tabela\n| Critério | Marca | Outro lado | Fonte |\n| --- | --- | --- | --- |\n| Horário | até 20h | até 19h | https://concorrente-a.test/hours |\n\n## Onde o concorrente ganha\n- Ao menos um item, com fonte."
+     },
+     {
+      "t": "p",
+      "x": "Código e testes: [`hub/paginas_comparacao.py`](https://github.com/BRK13/krohnos/blob/main/hub/paginas_comparacao.py), [`tests/test_paginas_comparacao.py`](https://github.com/BRK13/krohnos/blob/main/tests/test_paginas_comparacao.py)."
+     }
+    ]
+   }
+  ]
+ }
+}

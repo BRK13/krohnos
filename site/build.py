@@ -2,7 +2,7 @@
 """Static site build for the Krohnos self-host page. Python stdlib only, deterministic.
 
 Single source of content: content.json (en + pt-BR). Output (default ./dist):
-  index.html, pt/index.html, llms.txt, install.md, install.pt.md,
+  index.html, pt/index.html, guias/x/index.html, pt/guias/x/index.html, llms.txt, install.md, install.pt.md,
   robots.txt, sitemap.xml, favicon.svg, assets/ (css, js, fonts).
 Usage: python3 build.py [--out DIR]
 """
@@ -93,6 +93,8 @@ def block_md(b, data, lang):
         return "### %s\n\n%s\n\n%s: %s\n\n%s: %s" % (
             b["title"], b["x"], ui["flow"], (" | " if b.get("alt") else " → ").join(b["flow"]), ui["code"],
             ", ".join("[`%s`](%s)" % (p, code_url(data, p)) for p in b["code"]))
+    if t == "flowchart":
+        return "**%s**\n\n%s" % (b["title"], "\n".join("%d. %s" % (i, n) for i, n in enumerate(b["notes"], 1)))
     if t == "table":
         rows = [b["head"]] + b["rows"]
         lines = ["| " + " | ".join(c.replace("|", "\\|") for c in r) + " |" for r in rows]
@@ -122,6 +124,30 @@ def code_block(cid, text, ui, label):
          html.escape(ui["copy"]), cid, html.escape(text))
 
 
+NODE_W, NODE_H, GAP, PAD_X, PAD_Y = 400, 64, 32, 20, 8
+
+
+def flowchart_svg(b, uid):
+    """Vertical flowchart as inline SVG: colours come from CSS classes (theme variables), text from content.json."""
+    n = len(b["steps"])
+    height = PAD_Y * 2 + n * NODE_H + (n - 1) * GAP
+    cx = PAD_X + NODE_W // 2
+    parts = []
+    for i, (name, sub) in enumerate(b["steps"]):
+        top = PAD_Y + i * (NODE_H + GAP)
+        parts.append('<rect class="fc-node" x="%d" y="%d" width="%d" height="%d" rx="4"/>' % (PAD_X, top, NODE_W, NODE_H))
+        parts.append('<text class="fc-n" x="%d" y="%d">%d</text>' % (PAD_X + 20, top + 38, i + 1))
+        parts.append('<text class="fc-t" x="%d" y="%d">%s</text>' % (PAD_X + 52, top + 29, html.escape(name)))
+        parts.append('<text class="fc-s" x="%d" y="%d">%s</text>' % (PAD_X + 52, top + 50, html.escape(sub)))
+        if i < n - 1:
+            y1, y2 = top + NODE_H, top + NODE_H + GAP
+            parts.append('<line class="fc-arrow" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (cx, y1 + 2, cx, y2 - 8))
+            parts.append('<polygon class="fc-head" points="%d,%d %d,%d %d,%d"/>' % (cx - 6, y2 - 9, cx + 6, y2 - 9, cx, y2 - 1))
+    return ('<svg class="fc" viewBox="0 0 %d %d" role="img" aria-labelledby="%s-t %s-d" focusable="false">'
+            '<title id="%s-t">%s</title><desc id="%s-d">%s</desc>%s</svg>') % (
+        NODE_W + 2 * PAD_X, height, uid, uid, uid, html.escape(b["title"]), uid, html.escape(b["desc"]), "".join(parts))
+
+
 def block_html(b, data, lang, sid, idx):
     ui = data[lang]["ui"]
     t = b["t"]
@@ -146,6 +172,11 @@ def block_html(b, data, lang, sid, idx):
                 '<p class="src">%s: %s</p></article>') % (
             html.escape(b["title"]), inline_html(b["x"]), " or" if b.get("alt") else "", html.escape(ui["flow"]), flow,
             html.escape(ui["code"]), links)
+    if t == "flowchart":
+        uid = "fc-%s-%d" % (sid, idx)
+        notes = "".join("<li>%s</li>" % inline_html(x) for x in b["notes"])
+        return ('<figure class="flow-fig">%s<figcaption><p class="fc-cap">%s</p><ol>%s</ol></figcaption></figure>') % (
+            flowchart_svg(b, uid), html.escape(b["title"]), notes)
     if t == "table":
         head = "".join('<th scope="col">%s</th>' % html.escape(h) for h in b["head"])
         body = "".join("<tr>%s</tr>" % "".join('<td data-label="%s">%s</td>' % (html.escape(h), inline_html(c))
@@ -196,10 +227,11 @@ def page_html(data, lang):
         '<a class="pill" href="#seo">%s</a>'
         '<a class="pill" href="#comparacao">%s</a>'
         '<a class="pill" href="#hero-install">%s</a>'
+        '<a class="pill" href="%s">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
     ) % (html.escape(nav["how"]), html.escape(nav["seo"]), html.escape(nav["compare"]), html.escape(nav["install"]),
-         s["repo"], html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
+         guide_url(data, lang), html.escape(nav["guide_x"]), s["repo"], html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
     sections = "\n".join(section_html(sec, data, lang) for sec in c["sections"])
     other_href = "/pt/" if lang == "en" else "/"
     return f"""<!doctype html>
@@ -271,10 +303,90 @@ def page_html(data, lang):
 <footer class="foot">
   <p class="footer-brand">Krohnos</p>
   <p>contato: <a href="{s['repo']}/issues" rel="noopener">abra uma issue no GitHub</a></p>
-  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a></p>
+  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a> · <a href="{guide_url(data, lang)}">{html.escape(nav['guide_x'])}</a></p>
 </footer>
 <div class="sr" id="live" role="status" aria-live="polite"></div>
 <script type="text/plain" id="md-page">{md_full}</script>
+</body>
+</html>
+"""
+
+
+def guide_url(data, lang, absolute=False):
+    path = "/" + data["guide_x"]["path"] + "/"
+    if lang == "pt":
+        path = "/pt" + path
+    return (data["site"]["domain"] + path) if absolute else path
+
+
+def guide_html(data, lang):
+    s = data["site"]
+    c = data["guide_x"][lang]
+    home = data[lang]
+    ui, nav = home["ui"], c["nav"]
+    other = "pt" if lang == "en" else "en"
+    url = {l: guide_url(data, l, True) for l in LANGS}
+    home_href = "/" if lang == "en" else "/pt/"
+    links = (
+        '<a class="pill" href="%s">%s</a><a class="pill" href="#instalar-x">%s</a><a class="pill" href="#cookies">%s</a>'
+        '<a class="pill" href="#configuracao">%s</a><a class="pill" href="#guardrails">%s</a>'
+        '<a class="pill" href="%s" rel="noopener">%s</a>'
+    ) % (home_href, html.escape(nav["home"]), html.escape(nav["install"]), html.escape(nav["cookies"]),
+         html.escape(nav["config"]), html.escape(nav["guardrails"]), s["repo"], html.escape(home["nav"]["github"]))
+    sections = "\n".join(section_html(sec, data, lang) for sec in c["sections"])
+    return f"""<!doctype html>
+<html lang="{c['lang']}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="krohnos-release" content="2026-10-17">
+<meta name="color-scheme" content="dark light">
+<title>{html.escape(c['meta_title'])}</title>
+<meta name="description" content="{html.escape(c['meta_description'])}">
+<link rel="canonical" href="{url[lang]}">
+<link rel="alternate" hreflang="en" href="{url['en']}">
+<link rel="alternate" hreflang="pt-BR" href="{url['pt']}">
+<link rel="alternate" hreflang="x-default" href="{url['en']}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="{html.escape(home['name'])}">
+<meta property="og:title" content="{html.escape(c['meta_title'])}">
+<meta property="og:description" content="{html.escape(c['meta_description'])}">
+<meta property="og:url" content="{url[lang]}">
+<meta property="og:locale" content="{'en_US' if lang == 'en' else 'pt_BR'}">
+<meta property="og:locale:alternate" content="{'pt_BR' if lang == 'en' else 'en_US'}">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/boot.js"></script>
+<script src="/assets/app.js" defer></script>
+</head>
+<body class="guide">
+<a class="skip" href="#main">{html.escape(ui['skip'])}</a>
+<header class="top">
+  <a class="brand" href="{home_href}" aria-label="{html.escape(home['name'])}"><img src="/assets/krohnos-mark.svg" width="32" height="38" alt=""><span>{html.escape(home['name'])}</span></a>
+  <nav class="links" id="nav" aria-label="Main">{links}</nav>
+  <div class="tools">
+    <a class="pill small" href="{guide_url(data, other)}" hreflang="{'pt-BR' if lang == 'en' else 'en'}" lang="{'pt-BR' if lang == 'en' else 'en'}" aria-label="{html.escape(home['nav']['language_label'])}">{html.escape(home['nav']['language'])}</a>
+    <button class="pill small" id="theme" type="button" aria-label="{html.escape(home['nav']['theme'])}"><span class="th-dark">Dark</span><span class="th-light">Light</span></button>
+    <button class="pill small menu-btn" id="menu" type="button" aria-expanded="false" aria-controls="nav">{html.escape(home['nav']['menu'])}</button>
+  </div>
+</header>
+<main id="main">
+<section class="gh" aria-labelledby="h1">
+  <h1 id="h1">{html.escape(c['h1'])}</h1>
+  <p class="gh-lead">{html.escape(c['lead'])}</p>
+  <p class="gh-lead">{html.escape(c['lead2'])}</p>
+</section>
+<div class="rest">
+{sections}
+</div>
+</main>
+<footer class="foot">
+  <p class="footer-brand">Krohnos</p>
+  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/llms.txt">llms.txt</a> · <a href="{home_href}">{html.escape(nav['home'])}</a></p>
+</footer>
+<div class="sr" id="live" role="status" aria-live="polite"></div>
 </body>
 </html>
 """
@@ -302,6 +414,11 @@ Self-hosted install: clone the public repository and follow the five steps in th
 - [Comparison with Semrush, Ahrefs and Similarweb]({d}/#comparacao): official prices with link and date (2026-10-20), what they do that Krohnos does not, typical Krohnos cost
 - [What you need to have]({d}/#precisa): accounts, monthly cost of each one, what is optional
 
+## Guides
+
+- [X knowledge agent (English)]({guide_url(data, "en", True)}): turns your saved X posts into recipes; install, cookies, configuration and the 6 guardrails with the test that proves each one
+- [Agente de conhecimento do X (português)]({guide_url(data, "pt", True)}): transforma os seus salvos do X em receitas; instalação, cookies, configuração e os 6 guardrails com o teste que prova cada um
+
 ## Project
 
 - [GitHub repository]({s['repo']}): source code, README and roadmap
@@ -320,14 +437,17 @@ Self-hosted install: clone the public repository and follow the five steps in th
 
 def sitemap(data):
     d = data["site"]["domain"]
-    def u(loc):
+    def u(loc, en=None, pt=None):
+        en, pt = en or d + "/", pt or d + "/pt/"
         return (f'  <url><loc>{loc}</loc>'
-                f'<xhtml:link rel="alternate" hreflang="en" href="{d}/"/>'
-                f'<xhtml:link rel="alternate" hreflang="pt-BR" href="{d}/pt/"/></url>')
+                f'<xhtml:link rel="alternate" hreflang="en" href="{en}"/>'
+                f'<xhtml:link rel="alternate" hreflang="pt-BR" href="{pt}"/></url>')
+    g_en, g_pt = guide_url(data, "en", True), guide_url(data, "pt", True)
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
             'xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
-            + u(d + "/") + "\n" + u(d + "/pt/") + "\n</urlset>\n")
+            + u(d + "/") + "\n" + u(d + "/pt/") + "\n" + u(g_en, g_en, g_pt) + "\n" + u(g_pt, g_en, g_pt)
+            + "\n</urlset>\n")
 
 
 def main():
@@ -340,6 +460,10 @@ def main():
     (out / "pt").mkdir(parents=True)
     (out / "index.html").write_text(page_html(data, "en"), encoding="utf-8")
     (out / "pt" / "index.html").write_text(page_html(data, "pt"), encoding="utf-8")
+    for lang in LANGS:
+        gdir = out / ("" if lang == "en" else "pt") / data["guide_x"]["path"]
+        gdir.mkdir(parents=True)
+        (gdir / "index.html").write_text(guide_html(data, lang), encoding="utf-8")
     (out / "install.md").write_text(page_md(data, "en"), encoding="utf-8")
     (out / "install.pt.md").write_text(page_md(data, "pt"), encoding="utf-8")
     (out / "llms.txt").write_text(llms_txt(data), encoding="utf-8")

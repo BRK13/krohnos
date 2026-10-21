@@ -37,7 +37,8 @@ class Build(unittest.TestCase):
     def test_deterministic(self):
         other = Path(self.tmp.name) / "dist2"
         subprocess.run([sys.executable, str(SITE / "build.py"), "--out", str(other)], check=True, capture_output=True)
-        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt", "sitemap.xml"]:
+        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt", "sitemap.xml",
+                    "guias/x/index.html", "pt/guias/x/index.html"]:
             self.assertEqual(self.read(rel), (other / rel).read_text(encoding="utf-8"), rel)
 
     def test_lang_and_hreflang(self):
@@ -240,6 +241,114 @@ class Build(unittest.TestCase):
             for row in next(b for b in sec["blocks"] if b["t"] == "table")["rows"]:
                 self.assertRegex(row[0], r"\]\(https://")
             self.assertNotRegex(text, r"(?i)melhor que|better than|cheaper than|mais barato que")
+
+    # ---------- guide: X knowledge agent (guias/x) ----------
+    GUIDE = {"en": "guias/x/index.html", "pt": "pt/guias/x/index.html"}
+    GUIDE_INSTALL = ["pip install playwright",
+                     "python3 -m hub.x_salvos coletar --config x_salvos.toml",
+                     "python3 -m hub.x_salvos extrair --config x_salvos.toml",
+                     "python3 -m hub.x_salvos coletar --jitter --config x_salvos.toml"]
+    TOML_KEYS = ["cookies", "cookies_origem", "saida", "temas", "destino", "max_itens", "max_paginas",
+                 "limite_taxa_s", "jitter_max_s", "chrome"]
+
+    def guide_readme(self):
+        import os
+        for cand in (os.environ.get("X_SALVOS_README"), str(SITE.parent / "hub" / "x_salvos" / "README.md")):
+            if cand and Path(cand).is_file():
+                return Path(cand).read_text(encoding="utf-8")
+        return None
+
+    def test_guide_pages_exist_with_flowchart_and_alternative_text(self):
+        import html as h
+        for lang, rel in self.GUIDE.items():
+            t = self.read(rel)
+            self.assertIn('<html lang="%s">' % ("en" if lang == "en" else "pt-BR"), t)
+            self.assertEqual(t.count("<svg"), 1, rel)
+            self.assertIn('role="img"', t)
+            self.assertRegex(t, r"<title id=\"fc-[^\"]+-t\">[^<]+</title><desc id=\"fc-[^\"]+-d\">[^<]+</desc>")
+            self.assertIn('aria-labelledby="fc-', t)
+            self.assertEqual(t.count('class="fc-node"'), 5)  # salvos, coleta, extracao, receita, uso
+            self.assertEqual(len(re.findall(r'<line class="fc-arrow"', t)), 4)
+            self.assertRegex(t, r'<figcaption><p class="fc-cap">[^<]+</p><ol>(<li>.*?</li>){5}</ol></figcaption>')
+            self.assertNotRegex(t, r'\sstyle="')
+            self.assertNotIn("<style", t)
+            self.assertNotIn("hero-gl", t)
+            self.assertIn('hreflang="en" href="https://krohnos.com/guias/x/"', t)
+            self.assertIn('hreflang="pt-BR" href="https://krohnos.com/pt/guias/x/"', t)
+            for step in self.data["guide_x"][lang]["sections"][1]["blocks"][0]["steps"]:
+                self.assertIn(h.escape(step[0]), t)
+        css = self.read("assets/style.css")
+        for cls in (".fc-node", ".fc-arrow", ".fc-t"):
+            self.assertIn(cls, css)
+        self.assertIn("var(--surface)", css[css.index(".fc-node"):css.index(".fc-node") + 80])  # follows the light/dark variables
+
+    def test_guide_install_commands_equal_the_readme(self):
+        import html as h
+        readme = self.guide_readme()
+        for lang, rel in self.GUIDE.items():
+            t = h.unescape(self.read(rel))
+            for cmd in self.GUIDE_INSTALL:
+                self.assertIn(cmd, t, rel)
+                if readme is not None:
+                    self.assertIn(cmd, readme, cmd)
+            for key in self.TOML_KEYS:
+                self.assertRegex(t, r"(?m)^%s = " % key, key)
+                if readme is not None:
+                    self.assertRegex(readme, r"(?m)^%s = " % key, key)
+            for name in ("auth_token", "ct0", "twid", "chmod 600"):
+                self.assertIn(name, t)
+            self.assertIn("biblioteca", t)
+            self.assertIn("issue", t)
+            self.assertNotRegex(t, r"(?i)password:|senha:")
+
+    def test_guide_has_six_guardrails_each_with_a_real_test_name(self):
+        import html as h
+        sec = next(s for s in self.data["guide_x"]["en"]["sections"] if s["id"] == "guardrails")
+        rows = next(b for b in sec["blocks"] if b["t"] == "table")["rows"]
+        self.assertEqual(len(rows), 6)
+        names = re.compile(r"`([A-Za-z_.0-9]+)`")
+        for lang, rel in self.GUIDE.items():
+            t = h.unescape(self.read(rel))
+            table = re.search(r"<table><caption>(?:Guardrails and tests|Guardrails e testes)</caption>.*?</table>", t, re.S).group(0)
+            self.assertEqual(table.count("<tr>"), 7, rel)  # header + 6 guardrails
+            for i in range(1, 7):
+                self.assertIn(">%d. " % i, table)
+            for row in self.data["guide_x"][lang]["sections"][5]["blocks"][1]["rows"]:
+                self.assertRegex(row[2], r"tests/test_x_salvos_\w+\.py")
+                self.assertTrue(names.findall(row[2]), row[0])
+        # the test names the guide cites are, in the module's own README, the ones that prove the guardrails
+        readme = self.guide_readme()
+        if readme is not None:
+            for row in rows:
+                for name in names.findall(row[2]):
+                    if name.startswith("test_x_salvos"):
+                        continue
+                    self.assertIn(name.split(".")[-1], readme, name)
+
+    def test_guide_linked_from_home_nav_footer_sitemap_and_llms(self):
+        for lang, home in (("en", "index.html"), ("pt", "pt/index.html")):
+            t = self.read(home)
+            path = "/guias/x/" if lang == "en" else "/pt/guias/x/"
+            self.assertIn('<a class="pill" href="%s">' % path, t)
+            self.assertIn('<a href="%s">' % path, t)
+            self.assertIn('href="%s"' % ("/pt/guias/x/" if lang == "en" else "/guias/x/"), self.read(self.GUIDE[lang]))
+        sm = self.read("sitemap.xml")
+        self.assertIn("<loc>https://krohnos.com/guias/x/</loc>", sm)
+        self.assertIn("<loc>https://krohnos.com/pt/guias/x/</loc>", sm)
+        llms = self.read("llms.txt")
+        self.assertIn("https://krohnos.com/guias/x/", llms)
+        self.assertIn("https://krohnos.com/pt/guias/x/", llms)
+
+    def test_guide_external_assets_and_claims(self):
+        for rel in self.GUIDE.values():
+            t = self.read(rel)
+            for m in re.finditer(r'<(?:link|script|img|source|iframe)\b[^>]*?\b(?:src|href)="([^"]+)"', t):
+                tag = m.group(0)
+                if tag.startswith("<link") and ('rel="canonical"' in tag or 'rel="alternate"' in tag):
+                    continue
+                self.assertFalse(m.group(1).startswith(("http://", "https://", "//")), m.group(1))
+            self.assertNotRegex(t, r"(?i)palpite|guess")
+            self.assertNotRegex(t, r"(?i)\b(100%|garantid[oa]|guaranteed)\b")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,9 @@ class Build(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def sec_x(self, lang, sid):
+        return next(x for x in self.data["guide_x"][lang]["sections"] if x["id"] == sid)
+
     def read(self, rel):
         return (self.out / rel).read_text(encoding="utf-8")
 
@@ -325,7 +328,7 @@ class Build(unittest.TestCase):
             self.assertNotIn("hero-gl", t)
             self.assertIn('hreflang="en" href="https://krohnos.com/guias/x/"', t)
             self.assertIn('hreflang="pt-BR" href="https://krohnos.com/pt/guias/x/"', t)
-            for step in self.data["guide_x"][lang]["sections"][1]["blocks"][0]["steps"]:
+            for step in self.sec_x(lang, "fluxo")["blocks"][0]["steps"]:
                 self.assertIn(h.escape(step[0]), t)
         css = self.read("assets/style.css")
         for cls in (".fc-node", ".fc-arrow", ".fc-t"):
@@ -363,7 +366,7 @@ class Build(unittest.TestCase):
             self.assertEqual(table.count("<tr>"), 7, rel)  # header + 6 guardrails
             for i in range(1, 7):
                 self.assertIn(">%d. " % i, table)
-            for row in self.data["guide_x"][lang]["sections"][5]["blocks"][1]["rows"]:
+            for row in self.sec_x(lang, "guardrails")["blocks"][1]["rows"]:
                 self.assertRegex(row[2], r"tests/test_x_salvos_\w+\.py")
                 self.assertTrue(names.findall(row[2]), row[0])
         # the test names the guide cites are, in the module's own README, the ones that prove the guardrails

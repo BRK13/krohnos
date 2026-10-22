@@ -1,0 +1,19 @@
+/* Guide pages (guides/ and pt/guias/): reading layout on top of style.css. Same-origin file, no inline style (CSP). */
+body.guide .top{position:static}
+.gmain{max-width:880px;margin:0 auto;padding:48px 5% 72px;position:relative;z-index:1}
+.ghead h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,6vw,60px);line-height:1.06;letter-spacing:-.02em;margin:0 0 20px;color:var(--tx)}
+.glede{font-size:19px;line-height:1.6;color:var(--tx);margin:0 0 16px}
+.gmeta{font-size:13px;color:var(--muted);margin:0 0 28px}
+.gtoc{border:1px solid var(--line);background:var(--surface);padding:16px 22px;margin:0 0 40px}
+.gtoc p{margin:0 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.gtoc ol{margin:0;padding-left:20px;line-height:1.9}
+.gtoc a{color:var(--tx)}
+.gsec{border-top:1px solid var(--line);padding:32px 0 8px;scroll-margin-top:24px}
+.gsec h2{font-size:28px;font-weight:500;letter-spacing:-.02em;margin:0 0 16px;color:var(--tx)}
+.gsec p,.gsec li{font-size:17px;line-height:1.7;color:var(--tx);max-width:760px}
+.gsec ul{padding-left:22px}.gsec li{margin:0 0 10px}
+.gsec code{font-size:.92em}
+.gsec .cmd,.gsec .tbl,.gsec .warn{margin:20px 0;max-width:100%}
+.gsec .warn{border-left:3px solid var(--gold);padding:10px 16px;background:var(--surface)}
+.gsec a{color:var(--gold)}
+@media(max-width:760px){.gmain{padding:32px 6% 56px}.gsec p,.gsec li{font-size:16px}}

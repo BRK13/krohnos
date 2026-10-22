@@ -29,7 +29,9 @@ class Build(unittest.TestCase):
 
     def test_files_exist(self):
         for rel in ["index.html", "pt/index.html", "llms.txt", "install.md", "install.pt.md", "robots.txt",
-                    "sitemap.xml", "favicon.svg", "assets/style.css", "assets/app.js", "assets/boot.js", "assets/hero-gl.js",
+                    "sitemap.xml", "favicon.svg", "assets/style.css", "assets/guide.css",
+                    "guides/comparison-pages-ai-citation/index.html", "guides/comparison-pages-ai-citation.md",
+                    "pt/guias/paginas-de-comparacao-citacao-ia/index.html", "pt/guias/paginas-de-comparacao-citacao-ia.md", "assets/app.js", "assets/boot.js", "assets/hero-gl.js",
                     "assets/fonts/inter-latin-wght-normal.woff2",
                     "assets/fonts/instrument-serif-latin-400-italic.woff2"]:
             self.assertTrue((self.out / rel).is_file(), rel)
@@ -37,7 +39,9 @@ class Build(unittest.TestCase):
     def test_deterministic(self):
         other = Path(self.tmp.name) / "dist2"
         subprocess.run([sys.executable, str(SITE / "build.py"), "--out", str(other)], check=True, capture_output=True)
-        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt", "sitemap.xml"]:
+        for rel in ["index.html", "pt/index.html", "install.md", "install.pt.md", "llms.txt", "sitemap.xml",
+                    "guides/comparison-pages-ai-citation/index.html", "pt/guias/paginas-de-comparacao-citacao-ia/index.html",
+                    "guides/comparison-pages-ai-citation.md", "pt/guias/paginas-de-comparacao-citacao-ia.md"]:
             self.assertEqual(self.read(rel), (other / rel).read_text(encoding="utf-8"), rel)
 
     def test_lang_and_hreflang(self):
@@ -131,7 +135,7 @@ class Build(unittest.TestCase):
         regras, permitidos = neutro_lib.carregar()
         files = [p for p in self.out.rglob("*") if p.is_file() and p.suffix in
                  (".html", ".md", ".txt", ".xml", ".css", ".js", ".svg")]
-        files += [SITE / "content.json", SITE / "nginx.conf"]
+        files += [SITE / "content.json", SITE / "guide.json", SITE / "nginx.conf"]
         for p in files:
             hits = neutro_lib.achados(p.read_text(encoding="utf-8"), regras, permitidos)
             self.assertEqual(hits, [], "%s contains %s" % (p.name, hits))
@@ -161,6 +165,51 @@ class Build(unittest.TestCase):
         self.assertIn("100svh", css)
         self.assertNotIn("unsafe-eval", (SITE / "nginx.conf").read_text())
         self.assertNotIn("unsafe-inline", (SITE / "nginx.conf").read_text())
+
+    def test_guide_pages(self):
+        """The comparison-pages guide: both languages, hreflang pair, JSON-LD, sitemap, llms.txt, home link, no external asset."""
+        urls = {"en": "https://krohnos.com/guides/comparison-pages-ai-citation/",
+                "pt": "https://krohnos.com/pt/guias/paginas-de-comparacao-citacao-ia/"}
+        pages = {"en": self.read("guides/comparison-pages-ai-citation/index.html"),
+                 "pt": self.read("pt/guias/paginas-de-comparacao-citacao-ia/index.html")}
+        for lang, page in pages.items():
+            self.assertIn('<html lang="%s">' % ("en" if lang == "en" else "pt-BR"), page)
+            self.assertIn('<link rel="canonical" href="%s">' % urls[lang], page)
+            self.assertIn('hreflang="en" href="%s"' % urls["en"], page)
+            self.assertIn('hreflang="pt-BR" href="%s"' % urls["pt"], page)
+            self.assertEqual(len(re.findall(r"<h1[ >]", page)), 1)
+            self.assertIn('"@type": "TechArticle"', page)
+            self.assertNotIn("<style", page)
+            self.assertNotRegex(page, r'\sstyle="')
+            for m in re.finditer(r'<(?:link|script|img)\b[^>]*?\b(?:src|href)="([^"]+)"', page):
+                if 'rel="canonical"' in m.group(0) or 'rel="alternate"' in m.group(0):
+                    continue
+                self.assertFalse(m.group(1).startswith(("http://", "https://", "//")), m.group(1))
+            ids = [s["id"] for s in json.loads((SITE / "guide.json").read_text(encoding="utf-8"))[lang]["sections"]]
+            self.assertEqual(ids, ["what", "terms", "templates", "gate", "waves", "measure", "command"])
+            for sid in ids:
+                self.assertIn('id="g-%s"' % sid, page)
+        sm, llms = self.read("sitemap.xml"), self.read("llms.txt")
+        for u in urls.values():
+            self.assertIn("<loc>%s</loc>" % u, sm)
+            self.assertIn("(%s)" % u, llms)
+        for lang, home in (("en", "index.html"), ("pt", "pt/index.html")):
+            self.assertIn('href="/%s/"' % ("guides/comparison-pages-ai-citation" if lang == "en" else "pt/guias/paginas-de-comparacao-citacao-ia"), self.read(home))
+
+    def test_guide_gate_and_references(self):
+        """The guide names the gate rules and the Brazilian references, and keeps the command real."""
+        md = self.read("guides/comparison-pages-ai-citation.md")
+        for needle in ["CONAR", "article 32", "Consumer Defense Code", "9,279/1996", "not legal advice", "Jaccard",
+                       "python3 -m hub.paginas_comparacao termos", "python3 -m hub.paginas_comparacao rascunhos",
+                       "python3 -m hub.paginas_comparacao portao", "Wave 0"]:
+            self.assertIn(needle, md)
+        pt = self.read("pt/guias/paginas-de-comparacao-citacao-ia.md")
+        for needle in ["CONAR", "art. 32", "9.279/1996", "não é aconselhamento jurídico", "Jaccard", "Onda 0"]:
+            self.assertIn(needle, pt)
+        # the command the guide shows exists and has the three subcommands
+        src = (SITE.parent / "hub" / "paginas_comparacao.py").read_text(encoding="utf-8")
+        for sub in ('add_parser("termos")', 'add_parser("rascunhos")', 'add_parser("portao")'):
+            self.assertIn(sub, src)
 
     def test_robots_sitemap(self):
         self.assertIn("Sitemap: https://krohnos.com/sitemap.xml", self.read("robots.txt"))

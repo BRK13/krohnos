@@ -71,7 +71,8 @@
       "terminal_label": "The flow of one task",
       "code": "View the code",
       "flow": "Flow",
-      "photo_source": "Photo source"
+      "photo_source": "Photo source",
+      "guide_link": "Guide: comparison pages and AI citation"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",
@@ -796,7 +797,8 @@
       "terminal_label": "O fluxo de uma tarefa",
       "code": "Ver o código",
       "flow": "Fluxo",
-      "photo_source": "Fonte da foto"
+      "photo_source": "Fonte da foto",
+      "guide_link": "Guia: páginas de comparação e citação por IA"
     },
     "hero": {
       "badge": "MULTIAGENTE · SELF-HOSTED",

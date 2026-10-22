@@ -21,6 +21,19 @@ def load():
     return json.loads((HERE / "content.json").read_text(encoding="utf-8"))
 
 
+def load_guide():
+    """guide.json: the comparison-pages guide, en + pt. Each language carries its own slug (path from the site root)."""
+    return json.loads((HERE / "guide.json").read_text(encoding="utf-8"))
+
+
+def guide_url(data, guide, lang):
+    return "%s/%s/" % (data["site"]["domain"], guide[lang]["slug"])
+
+
+def guide_md_path(guide, lang):
+    return guide[lang]["slug"] + ".md"
+
+
 def photo(b):
     """Credit of a picture, read from assets/fotos/credits.json (written by assets.mjs --get)."""
     found = [c for c in json.loads((HERE / "assets" / "fotos" / "credits.json").read_text(encoding="utf-8"))
@@ -210,6 +223,7 @@ def terminal_html(c):
 
 
 def page_html(data, lang):
+    guide_slug = load_guide()[lang]["slug"]
     s = data["site"]
     c = data[lang]
     other = "pt" if lang == "en" else "en"
@@ -231,7 +245,7 @@ def page_html(data, lang):
         '<a class="pill" href="%s" rel="noopener">%s</a>'
         '<a class="pill" href="%s" rel="noopener">%s</a>'
     ) % (html.escape(nav["how"]), html.escape(nav["seo"]), html.escape(nav["compare"]), html.escape(nav["install"]),
-         guide_url(data, lang), html.escape(nav["guide_x"]), s["repo"], html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
+         guide_x_url(data, lang), html.escape(nav["guide_x"]), s["repo"], html.escape(nav["github"]), s["releases"], html.escape(nav["changelog"]))
     sections = "\n".join(section_html(sec, data, lang) for sec in c["sections"])
     other_href = "/pt/" if lang == "en" else "/"
     return f"""<!doctype html>
@@ -303,7 +317,9 @@ def page_html(data, lang):
 <footer class="foot">
   <p class="footer-brand">Krohnos</p>
   <p>contato: <a href="{s['repo']}/issues" rel="noopener">abra uma issue no GitHub</a></p>
-  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a> · <a href="{guide_url(data, lang)}">{html.escape(nav['guide_x'])}</a></p>
+  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/{md_name}">{md_name}</a> · <a href="/llms.txt">llms.txt</a></p>
+  <p><a href="/{guide_slug}/">{html.escape(ui['guide_link'])}</a></p>
+  <p><a href="{guide_x_url(data, lang)}">{html.escape(nav['guide_x'])}</a></p>
 </footer>
 <div class="sr" id="live" role="status" aria-live="polite"></div>
 <script type="text/plain" id="md-page">{md_full}</script>
@@ -312,20 +328,114 @@ def page_html(data, lang):
 """
 
 
-def guide_url(data, lang, absolute=False):
+# ---------- guide (comparison pages and AI citation) ----------
+def guide_md(data, guide, lang):
+    g = guide[lang]
+    parts = ["# %s\n\n> %s\n\n%s: %s\n" % (g["h1"], g["lede"], g["updated"], g["published"])]
+    for sec in g["sections"]:
+        parts.append("## %s\n\n%s\n" % (sec["title"], "\n\n".join(block_md(b, data, lang) for b in sec["blocks"])))
+    return "\n".join(parts)
+
+
+def guide_html(data, guide, lang):
+    s = data["site"]
+    g = guide[lang]
+    ui = data[lang]["ui"]
+    nav = data[lang]["nav"]
+    other = "pt" if lang == "en" else "en"
+    url = {l: guide_url(data, guide, l) for l in ("en", "pt")}
+    home = "/" if lang == "en" else "/pt/"
+    other_href = "/" + guide[other]["slug"] + "/"
+    md_href = "/" + guide_md_path(guide, lang)
+    toc = "".join('<li><a href="#g-%s">%s</a></li>' % (sec["id"], html.escape(sec["title"])) for sec in g["sections"])
+    body = "\n".join(
+        '<section class="gsec" id="g-%s" aria-labelledby="gh-%s"><h2 id="gh-%s">%s</h2>\n%s\n</section>' % (
+            sec["id"], sec["id"], sec["id"], html.escape(sec["title"]),
+            "\n".join(block_html(b, data, lang, "g-" + sec["id"], i) for i, b in enumerate(sec["blocks"])))
+        for sec in g["sections"])
+    ld = json.dumps({
+        "@context": "https://schema.org", "@type": "TechArticle", "headline": g["h1"],
+        "description": g["meta_description"], "inLanguage": "en" if lang == "en" else "pt-BR",
+        "datePublished": g["published"], "dateModified": g["published"], "url": url[lang],
+        "mainEntityOfPage": url[lang],
+        "author": {"@type": "Organization", "name": data[lang]["name"], "url": s["domain"] + "/"},
+        "publisher": {"@type": "Organization", "name": data[lang]["name"], "url": s["domain"] + "/"},
+    }, ensure_ascii=False).replace("</", "<\\/")
+    return f"""<!doctype html>
+<html lang="{data[lang]['lang']}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>{html.escape(g['meta_title'])}</title>
+<meta name="description" content="{html.escape(g['meta_description'])}">
+<link rel="canonical" href="{url[lang]}">
+<link rel="alternate" hreflang="en" href="{url['en']}">
+<link rel="alternate" hreflang="pt-BR" href="{url['pt']}">
+<link rel="alternate" hreflang="x-default" href="{url['en']}">
+<link rel="alternate" type="text/markdown" href="{s['domain']}{md_href}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="{html.escape(data[lang]['name'])}">
+<meta property="og:title" content="{html.escape(g['meta_title'])}">
+<meta property="og:description" content="{html.escape(g['meta_description'])}">
+<meta property="og:url" content="{url[lang]}">
+<meta property="og:locale" content="{'en_US' if lang == 'en' else 'pt_BR'}">
+<meta property="og:locale:alternate" content="{'pt_BR' if lang == 'en' else 'en_US'}">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/instrument-serif-latin-400-italic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/guide.css">
+<script src="/assets/boot.js"></script>
+<script src="/assets/app.js" defer></script>
+<script type="application/ld+json">{ld}</script>
+</head>
+<body class="guide">
+<a class="skip" href="#main">{html.escape(ui['skip'])}</a>
+<header class="top">
+  <a class="brand" href="{home}" aria-label="{html.escape(data[lang]['name'])}"><img src="/assets/krohnos-mark.svg" width="32" height="38" alt=""><span>{html.escape(data[lang]['name'])}</span></a>
+  <nav class="links" id="nav" aria-label="Main"><a class="pill" href="{home}">{html.escape(g['back'])}</a><a class="pill" href="{md_href}">Markdown</a></nav>
+  <div class="tools">
+    <a class="pill small" href="{other_href}" hreflang="{'pt-BR' if lang == 'en' else 'en'}" lang="{'pt-BR' if lang == 'en' else 'en'}" aria-label="{html.escape(nav['language_label'])}">{html.escape(nav['language'])}</a>
+    <button class="pill small" id="theme" type="button" aria-label="{html.escape(nav['theme'])}"><span class="th-dark">Dark</span><span class="th-light">Light</span></button>
+  </div>
+</header>
+<main id="main" class="gmain">
+<article>
+<header class="ghead">
+<h1>{html.escape(g['h1'])}</h1>
+<p class="glede">{html.escape(g['lede'])}</p>
+<p class="gmeta">{html.escape(g['updated'])} <time datetime="{g['published']}">{g['published']}</time></p>
+<nav class="gtoc" aria-label="{html.escape(g['on_page'])}"><p>{html.escape(g['on_page'])}</p><ol>{toc}</ol></nav>
+</header>
+{body}
+</article>
+</main>
+<footer class="foot">
+  <p class="footer-brand">Krohnos</p>
+  <p><a href="{s['repo']}" rel="noopener">github.com/BRK13/krohnos</a> · <a href="{s['license']}" rel="noopener">AGPL-3.0</a> · <a href="/llms.txt">llms.txt</a></p>
+</footer>
+<div class="sr" id="live" role="status" aria-live="polite"></div>
+</body>
+</html>
+"""
+
+
+def guide_x_url(data, lang, absolute=False):
     path = "/" + data["guide_x"]["path"] + "/"
     if lang == "pt":
         path = "/pt" + path
     return (data["site"]["domain"] + path) if absolute else path
 
 
-def guide_html(data, lang):
+def guide_x_html(data, lang):
     s = data["site"]
     c = data["guide_x"][lang]
     home = data[lang]
     ui, nav = home["ui"], c["nav"]
     other = "pt" if lang == "en" else "en"
-    url = {l: guide_url(data, l, True) for l in LANGS}
+    url = {l: guide_x_url(data, l, True) for l in LANGS}
     home_href = "/" if lang == "en" else "/pt/"
     links = (
         '<a class="pill" href="%s">%s</a><a class="pill" href="#instalar-x">%s</a><a class="pill" href="#cookies">%s</a>'
@@ -367,7 +477,7 @@ def guide_html(data, lang):
   <a class="brand" href="{home_href}" aria-label="{html.escape(home['name'])}"><img src="/assets/krohnos-mark.svg" width="32" height="38" alt=""><span>{html.escape(home['name'])}</span></a>
   <nav class="links" id="nav" aria-label="Main">{links}</nav>
   <div class="tools">
-    <a class="pill small" href="{guide_url(data, other)}" hreflang="{'pt-BR' if lang == 'en' else 'en'}" lang="{'pt-BR' if lang == 'en' else 'en'}" aria-label="{html.escape(home['nav']['language_label'])}">{html.escape(home['nav']['language'])}</a>
+    <a class="pill small" href="{guide_x_url(data, other)}" hreflang="{'pt-BR' if lang == 'en' else 'en'}" lang="{'pt-BR' if lang == 'en' else 'en'}" aria-label="{html.escape(home['nav']['language_label'])}">{html.escape(home['nav']['language'])}</a>
     <button class="pill small" id="theme" type="button" aria-label="{html.escape(home['nav']['theme'])}"><span class="th-dark">Dark</span><span class="th-light">Light</span></button>
     <button class="pill small menu-btn" id="menu" type="button" aria-expanded="false" aria-controls="nav">{html.escape(home['nav']['menu'])}</button>
   </div>
@@ -393,6 +503,8 @@ def guide_html(data, lang):
 
 
 def llms_txt(data):
+    guide = load_guide()
+    gen, gpt = guide_url(data, guide, "en"), guide_url(data, guide, "pt")
     s = data["site"]
     en = data["en"]
     d = s["domain"]
@@ -416,8 +528,10 @@ Self-hosted install: clone the public repository and follow the five steps in th
 
 ## Guides
 
-- [X knowledge agent (English)]({guide_url(data, "en", True)}): turns your saved X posts into recipes; install, cookies, configuration and the 6 guardrails with the test that proves each one
-- [Agente de conhecimento do X (português)]({guide_url(data, "pt", True)}): transforma os seus salvos do X em receitas; instalação, cookies, configuração e os 6 guardrails com o teste que prova cada um
+- [Comparison pages and AI citation, a protocol]({gen}): find the terms, templates by page type, quality gate, waves with a canary, honest measurement, and the `hub/paginas_comparacao.py` command
+- [Páginas de comparação e citação por IA, um protocolo]({gpt}): o mesmo guia em português
+- [X knowledge agent (English)]({guide_x_url(data, "en", True)}): turns your saved X posts into recipes; install, cookies, configuration and the 6 guardrails with the test that proves each one
+- [Agente de conhecimento do X (português)]({guide_x_url(data, "pt", True)}): transforma os seus salvos do X em receitas; instalação, cookies, configuração e os 6 guardrails com o teste que prova cada um
 
 ## Project
 
@@ -437,17 +551,22 @@ Self-hosted install: clone the public repository and follow the five steps in th
 
 def sitemap(data):
     d = data["site"]["domain"]
-    def u(loc, en=None, pt=None):
-        en, pt = en or d + "/", pt or d + "/pt/"
-        return (f'  <url><loc>{loc}</loc>'
+    guide = load_guide()
+    ge, gp = guide_url(data, guide, "en"), guide_url(data, guide, "pt")
+
+    def u(loc, en, pt, lastmod=None):
+        lm = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+        return (f'  <url><loc>{loc}</loc>{lm}'
                 f'<xhtml:link rel="alternate" hreflang="en" href="{en}"/>'
                 f'<xhtml:link rel="alternate" hreflang="pt-BR" href="{pt}"/></url>')
-    g_en, g_pt = guide_url(data, "en", True), guide_url(data, "pt", True)
+    gdate = guide["en"]["published"]
+    gx_en, gx_pt = guide_x_url(data, "en", True), guide_x_url(data, "pt", True)
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
             'xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
-            + u(d + "/") + "\n" + u(d + "/pt/") + "\n" + u(g_en, g_en, g_pt) + "\n" + u(g_pt, g_en, g_pt)
-            + "\n</urlset>\n")
+            + u(d + "/", d + "/", d + "/pt/") + "\n" + u(d + "/pt/", d + "/", d + "/pt/") + "\n"
+            + u(ge, ge, gp, gdate) + "\n" + u(gp, ge, gp, gdate) + "\n"
+            + u(gx_en, gx_en, gx_pt) + "\n" + u(gx_pt, gx_en, gx_pt) + "\n</urlset>\n")
 
 
 def main():
@@ -455,6 +574,7 @@ def main():
     ap.add_argument("--out", default=str(HERE / "dist"))
     out = Path(ap.parse_args().out)
     data = load()
+    guide = load_guide()
     if out.exists():
         shutil.rmtree(out)
     (out / "pt").mkdir(parents=True)
@@ -463,9 +583,14 @@ def main():
     for lang in LANGS:
         gdir = out / ("" if lang == "en" else "pt") / data["guide_x"]["path"]
         gdir.mkdir(parents=True)
-        (gdir / "index.html").write_text(guide_html(data, lang), encoding="utf-8")
+        (gdir / "index.html").write_text(guide_x_html(data, lang), encoding="utf-8")
     (out / "install.md").write_text(page_md(data, "en"), encoding="utf-8")
     (out / "install.pt.md").write_text(page_md(data, "pt"), encoding="utf-8")
+    for lang in ("en", "pt"):
+        folder = out / guide[lang]["slug"]
+        folder.mkdir(parents=True)
+        (folder / "index.html").write_text(guide_html(data, guide, lang), encoding="utf-8")
+        (out / guide_md_path(guide, lang)).write_text(guide_md(data, guide, lang), encoding="utf-8")
     (out / "llms.txt").write_text(llms_txt(data), encoding="utf-8")
     (out / "sitemap.xml").write_text(sitemap(data), encoding="utf-8")
     d = data["site"]["domain"]

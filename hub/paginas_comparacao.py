@@ -69,6 +69,7 @@ MSG = {
         "marcador": "marcador não preenchido: {x}",
         "fato_sem_fonte": "fato sem fonte (use [fonte: https://...]): {x}",
         "linha_sem_fonte": "linha da tabela sem URL na coluna de fonte: {x}",
+        "sem_fatos": "falta a seção Fatos com ao menos um item e [fonte: https://...]",
         "promessa": "promessa de resultado: '{x}'",
         "superlativo": "superlativo da própria marca ('{x}'): critério declarado, sem 'o melhor'",
         "primeiro": "a própria marca em 1º numa lista ('{x}'): ordem por critério declarado, marca fora do 1º lugar",
@@ -96,6 +97,7 @@ MSG = {
         "marcador": "placeholder left unfilled: {x}",
         "fato_sem_fonte": "fact without source (use [source: https://...]): {x}",
         "linha_sem_fonte": "table row without a URL in the source column: {x}",
+        "sem_fatos": "missing Facts section with at least one item and [source: https://...]",
         "promessa": "promise of results: '{x}'",
         "superlativo": "superlative about your own brand ('{x}'): declare the criterion, no 'the best'",
         "primeiro": "your own brand ranked 1st in a list ('{x}'): order by a declared criterion, brand not first",
@@ -388,6 +390,8 @@ def portao(texto, idioma="pt", hoje=None):
 
     # fato sem fonte
     fatos = _pega(secs, "fatos", "facts") or ""
+    if not re.search(r"^\s*[-*]\s*\S", fatos, re.M):
+        erros.append(t["sem_fatos"])
     for ln in fatos.splitlines():
         if ln.lstrip().startswith(("-", "*")) and not re.search(r"\[(?:fonte|source):\s*https?://\S+\]", ln, re.I):
             erros.append(t["fato_sem_fonte"].format(x=ln.strip()[:70]))
@@ -520,6 +524,7 @@ def main(argv=None):
     r.add_argument("--pasta", required=True)
     r.add_argument("--marca", required=True)
     r.add_argument("--idioma", choices=("pt", "en"), default="pt")
+    r.add_argument("--sobrescrever", action="store_true", help="recria rascunhos que já existem (padrão: pula)")
     r.add_argument("--so-criar", action="store_true", help="só os termos com ação 'criar' (padrão)")
     p = sub.add_parser("portao")
     p.add_argument("arquivos", nargs="+")
@@ -539,13 +544,19 @@ def main(argv=None):
         itens = json.loads(Path(a.termos).read_text(encoding="utf-8"))
         pasta = Path(a.pasta)
         pasta.mkdir(parents=True, exist_ok=True)
-        n = 0
+        n, pulados = 0, []
         for i in itens:
             if i.get("acao") != "criar":
                 continue
-            (pasta / f"{slug(i['termo'])}.md").write_text(esqueleto(i, a.marca, a.idioma), encoding="utf-8")
+            alvo = pasta / f"{slug(i['termo'])}.md"
+            if alvo.exists() and not a.sobrescrever:
+                pulados.append(alvo.name)
+                continue
+            alvo.write_text(esqueleto(i, a.marca, a.idioma), encoding="utf-8")
             n += 1
         print(f"{n} rascunhos em {pasta}")
+        if pulados:
+            print(f"{len(pulados)} já existiam e foram mantidos (--sobrescrever recria): {', '.join(pulados[:5])}")
         return 0
     falhou = False
     textos = {}

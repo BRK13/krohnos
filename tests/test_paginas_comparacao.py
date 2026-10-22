@@ -147,8 +147,27 @@ class RascunhosTest(unittest.TestCase):
                 self.assertEqual(pc.main(["rascunhos", str(termos), "--pasta", str(Path(d) / "r"), "--marca", "Marca Exemplo"]), 0)
             self.assertEqual([p.name for p in (Path(d) / "r").iterdir()], ["kinesio-tape-funciona.md"])
 
+    def test_cli_nao_apaga_rascunho_existente(self):
+        with tempfile.TemporaryDirectory() as d:
+            termos = Path(d) / "t.json"
+            termos.write_text(json.dumps([{"termo": "kinesio tape funciona", "molde": "funciona", "acao": "criar"}]), encoding="utf-8")
+            alvo = Path(d) / "r" / "kinesio-tape-funciona.md"
+            args = ["rascunhos", str(termos), "--pasta", str(Path(d) / "r"), "--marca", "Marca Exemplo"]
+            with contextlib.redirect_stdout(io.StringIO()):
+                pc.main(args)
+                alvo.write_text("revisado à mão", encoding="utf-8")
+                pc.main(args)
+                self.assertEqual(alvo.read_text(encoding="utf-8"), "revisado à mão")
+                pc.main(args + ["--sobrescrever"])
+            self.assertNotEqual(alvo.read_text(encoding="utf-8"), "revisado à mão")
+
 
 class PortaoTest(unittest.TestCase):
+    def test_sem_secao_de_fatos_reprova(self):
+        sem = BOM.replace("## Fatos", "## Notas").replace("## Tabela", "## Quadro")
+        self.assertTrue(any("Fatos" in e for e in erros_de(sem)))
+        self.assertTrue(any("Facts" in e for e in pc.portao(sem, "en", hoje=HOJE)[0]))
+
     def test_rascunho_bom_passa(self):
         self.assertEqual(pc.portao(BOM, hoje=HOJE), ([], []))
         self.assertEqual(pc.portao(BOM, "en", hoje=HOJE)[0], [])

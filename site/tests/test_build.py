@@ -24,6 +24,14 @@ class Build(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def test_assets_com_versao(self):
+        # /assets/* sai com cache imutável: todo link de CSS/JS das páginas leva ?v=<hash>, senão o navegador fica com o velho.
+        import re
+        for pagina in self.out.rglob("*.html"):
+            t = pagina.read_text(encoding="utf-8")
+            self.assertEqual(re.findall(r'(?:href|src)="/assets/[\w.-]+\.(?:css|js)"', t), [], pagina)
+            self.assertRegex(t, r'href="/assets/style\.css\?v=[0-9a-f]{10}"')
+
     def sec_x(self, lang, sid):
         return next(x for x in self.data["guide_x"][lang]["sections"] if x["id"] == sid)
 
@@ -389,7 +397,7 @@ class Build(unittest.TestCase):
         self.assertIn("<loc>https://krohnos.com/guias/x/</loc>", sm)
         for lang in ("en", "pt"):  # sem o guide.css o .rest da home some no desktop e o h1 cobre o cabeçalho (22/10)
             t = self.read(self.GUIDE[lang])
-            self.assertIn('href="/assets/guide.css"', t)
+            self.assertIn('href="/assets/guide.css?v=', t)
             self.assertIn('class="gmain gx"', t)
         self.assertIn("<loc>https://krohnos.com/pt/guias/x/</loc>", sm)
         llms = self.read("llms.txt")

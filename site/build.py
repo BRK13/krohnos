@@ -7,6 +7,7 @@ Single source of content: content.json (en + pt-BR). Output (default ./dist):
 Usage: python3 build.py [--out DIR]
 """
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -598,7 +599,20 @@ def main():
     (out / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {d}/sitemap.xml\n", encoding="utf-8")
     shutil.copytree(HERE / "assets", out / "assets")
     shutil.copy(HERE / "favicon.svg", out / "favicon.svg")
+    versionar_assets(out)
     print("built", out)
+
+
+def versionar_assets(out):
+    """O servidor manda /assets/* com cache imutável de 30 dias: o link leva ?v=<hash do arquivo> para o navegador
+    buscar o CSS/JS novo a cada mudança (sem isso, quem já visitou via o diagrama sem estilo, preto no preto)."""
+    versao = {f.name: hashlib.sha256(f.read_bytes()).hexdigest()[:10] for f in (out / "assets").glob("*.*") if f.suffix in (".css", ".js")}
+    padrao = re.compile(r'(href|src)="/assets/([\w.-]+\.(?:css|js))"')
+    for pagina in out.rglob("*.html"):
+        texto = pagina.read_text(encoding="utf-8")
+        novo = padrao.sub(lambda m: f'{m[1]}="/assets/{m[2]}?v={versao[m[2]]}"' if m[2] in versao else m[0], texto)
+        if novo != texto:
+            pagina.write_text(novo, encoding="utf-8")
 
 
 if __name__ == "__main__":

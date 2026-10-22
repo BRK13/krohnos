@@ -468,6 +468,7 @@ def guide_x_html(data, lang):
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/guide.css">
 <script src="/assets/boot.js"></script>
 <script src="/assets/app.js" defer></script>
 </head>
@@ -482,11 +483,11 @@ def guide_x_html(data, lang):
     <button class="pill small menu-btn" id="menu" type="button" aria-expanded="false" aria-controls="nav">{html.escape(home['nav']['menu'])}</button>
   </div>
 </header>
-<main id="main">
-<section class="gh" aria-labelledby="h1">
+<main id="main" class="gmain gx">
+<section class="ghead" aria-labelledby="h1">
   <h1 id="h1">{html.escape(c['h1'])}</h1>
-  <p class="gh-lead">{html.escape(c['lead'])}</p>
-  <p class="gh-lead">{html.escape(c['lead2'])}</p>
+  <p class="glede">{html.escape(c['lead'])}</p>
+  <p class="glede">{html.escape(c['lead2'])}</p>
 </section>
 <div class="rest">
 {sections}

@@ -17,3 +17,12 @@ body.guide .top{position:static}
 .gsec .warn{border-left:3px solid var(--gold);padding:10px 16px;background:var(--surface)}
 .gsec a{color:var(--gold)}
 @media(max-width:760px){.gmain{padding:32px 6% 56px}.gsec p,.gsec li{font-size:16px}}
+
+/* Guia do X (guias/x): reaproveita as seções da home (.rest/.sec), que na home ficam escondidas no desktop até um :target */
+.gx .rest{display:block;position:static;max-width:none;margin:0;padding:0;overflow:visible;background:none}
+.gx .sec{padding:32px 0 8px}
+.gx .sec-head{margin-bottom:16px}
+.gx .sec-body{display:block}
+.gx .sec-body p,.gx .sec-body li{font-size:17px;line-height:1.7;color:var(--tx);max-width:760px;margin:0 0 14px}
+.gx .sec-body a{color:var(--gold)}
+@media(max-width:760px){.gx .sec-body p,.gx .sec-body li{font-size:16px}}

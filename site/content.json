@@ -55,7 +55,8 @@
       "language_label": "Leia em português",
       "how": "How it works",
       "seo": "SEO",
-      "compare": "Comparison"
+      "compare": "Comparison",
+      "guide_x": "X guide"
     },
     "ui": {
       "copy": "Copy",
@@ -780,7 +781,8 @@
       "language_label": "Read in English",
       "how": "Como funciona",
       "seo": "SEO",
-      "compare": "Comparação"
+      "compare": "Comparação",
+      "guide_x": "Guia do X"
     },
     "ui": {
       "copy": "Copiar",
@@ -1485,5 +1487,626 @@
         ]
       }
     ]
+  },
+  "guide_x": {
+    "path": "guias/x",
+    "en": {
+      "lang": "en",
+      "meta_title": "X knowledge agent | Krohnos",
+      "meta_description": "Guide to the agent that turns your saved X posts into recipes: install, cookies, configuration and the 6 guardrails, each with the test that proves it.",
+      "h1": "X knowledge agent",
+      "lead": "It turns the posts you saved on X into short knowledge recipes.",
+      "lead2": "Personal use: it reads your own account, through your own session, in read-only mode.",
+      "nav": {
+        "home": "Home",
+        "install": "Install",
+        "cookies": "Cookies",
+        "config": "Configuration",
+        "guardrails": "Guardrails"
+      },
+      "flow_label": "Flow in text",
+      "sections": [
+        {
+          "id": "o-que-e",
+          "title": "What it is",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "It turns the posts you saved (bookmarks) on X into short knowledge recipes. Personal use: it reads your own account, through your own session, in read-only mode."
+            },
+            {
+              "t": "p",
+              "x": "No password and no paid API: the agent never logs in, it uses the session you already have open in the browser. Each step is idempotent: a post already seen is not collected again and a recipe already written does not call the LLM again."
+            }
+          ]
+        },
+        {
+          "id": "fluxo",
+          "title": "How it works",
+          "blocks": [
+            {
+              "t": "flowchart",
+              "title": "Flow of the X knowledge agent",
+              "desc": "Five steps in sequence: saved posts on X, collection, extraction, recipe and use.",
+              "steps": [
+                [
+                  "Saved posts on X",
+                  "your bookmarks, your account"
+                ],
+                [
+                  "Collection",
+                  "headless browser, read-only"
+                ],
+                [
+                  "Extraction",
+                  "the post is data, text-only LLM"
+                ],
+                [
+                  "Recipe",
+                  "validated, status curta"
+                ],
+                [
+                  "Use",
+                  "library or issue text"
+                ]
+              ],
+              "notes": [
+                "**Saved posts on X**: the bookmarks of your account.",
+                "**Collection** (`coletar`): headless browser, your session cookies, one collection per day, read-only. It writes `<saida>/AAAA-MM-DD.jsonl` and `vistos.json` (ids already collected); it writes `ERRO` if the session drops.",
+                "**Extraction** (`extrair`): the post becomes data inside a block with a random delimiter; the LLM (`claude -p`) runs with no tools, no MCP servers and no user settings.",
+                "**Recipe**: validated (frontmatter, size, no URL outside the post links, no dangerous command). With `destino = \"biblioteca\"` it goes to `<saida>/receitas/<tema>/<id>-<titulo>.md` (status `curta`); with `\"issue\"`, to `<saida>/issues/<id>-<titulo>.md`.",
+                "**Use**: the recipe enters the reference library, or becomes issue text, and is applied to real work."
+              ]
+            }
+          ]
+        },
+        {
+          "id": "instalar-x",
+          "title": "Install",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Get the package: it is the `hub/x_salvos/` module of the Krohnos repository (https://github.com/BRK13/krohnos). Clone it and run every command on this page from its root:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "git clone https://github.com/BRK13/krohnos.git\ncd krohnos"
+            },
+            {
+              "t": "ul",
+              "x": [
+                "Python 3.11 or newer and an installed Chrome or Chromium.",
+                "Only `playwright`; the browser is the system one, pointed to by the `chrome` key:",
+                "For `extrair`: the `claude` CLI installed and signed in (it runs as `claude -p --tools \"\" --strict-mcp-config --setting-sources \"\"`: text only, no tools, no MCP servers, no user or project settings or hooks), or your own `executar_llm(prompt)` function if you call the module from Python."
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "pip install playwright"
+            },
+            {
+              "t": "p",
+              "x": "Export the cookies (next section) and create the `x_salvos.toml` (Configuration section). Test by hand, first the collection and then the extraction:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m hub.x_salvos coletar --config x_salvos.toml\npython3 -m hub.x_salvos extrair --config x_salvos.toml"
+            },
+            {
+              "t": "p",
+              "x": "To run every day, schedule this in the system cron (`--jitter` waits 0 to `jitter_max_s` before starting; by hand, run without it):"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m hub.x_salvos coletar --jitter --config x_salvos.toml"
+            },
+            {
+              "t": "p",
+              "x": "The commands are the ones in the module README, `hub/x_salvos/README.md`."
+            }
+          ]
+        },
+        {
+          "id": "cookies",
+          "title": "How to export the cookies",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "The agent never logs in: it uses the session you already have open in the browser. The session is yours, the password never enters, and there is no paid API."
+            },
+            {
+              "t": "ul",
+              "x": [
+                "Sign in to X in the browser, with your own account.",
+                "With a cookie-export extension, or through DevTools (Application, Cookies, `https://x.com`), copy only the value of `auth_token`, `ct0` and `twid`.",
+                "Save a JSON with just those three keys:"
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "json",
+              "x": "{\"auth_token\": \"...\", \"ct0\": \"...\", \"twid\": \"...\"}"
+            },
+            {
+              "t": "ul",
+              "x": [
+                "`chmod 600` on the file. A more open file is fixed and reported, and the value never appears in the log.",
+                "A file with a password, username or any login credential is refused."
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "chmod 600 ~/.config/x-salvos/cookies.json"
+            },
+            {
+              "t": "p",
+              "x": "When the session expires, the collection writes `ERRO` in the output folder and stops (exit code 2): export new cookies."
+            }
+          ]
+        },
+        {
+          "id": "configuracao",
+          "title": "Configuration",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "File `x_salvos.toml`. Precedence: defaults, then file, then environment variables. An unknown key is an error. All the keys:"
+            },
+            {
+              "t": "code",
+              "lang": "toml",
+              "x": "cookies = \"~/.config/x-salvos/cookies.json\"   # JSON with auth_token, ct0, twid (chmod 600)\ncookies_origem = \"\"                           # optional: file or folder where the cookies arrive from another machine\nsaida = \"~/x-salvos\"                          # jsonl, vistos.json, ERRO and recipes\ntemas = [\"seo\", \"automacao\"]                  # optional: a recipe outside the themes is flagged, never discarded\ndestino = \"biblioteca\"                        # \"biblioteca\" or \"issue\"\nmax_itens = 150                               # items per run (maximum 500)\nmax_paginas = 40                              # scrolls per run\nlimite_taxa_s = 1.5                           # minimum interval between navigations, in seconds\njitter_max_s = 1200                           # with --jitter: waits 0 to this value before starting\nchrome = \"/usr/bin/google-chrome\"\ntrava = \"~/x-salvos/.trava\"                   # flock file against two collections; default <saida>/.trava"
+            },
+            {
+              "t": "table",
+              "cap": "Keys of x_salvos.toml",
+              "head": [
+                "Key",
+                "What it does"
+              ],
+              "rows": [
+                [
+                  "`cookies`",
+                  "JSON with `auth_token`, `ct0`, `twid` (`chmod 600`)"
+                ],
+                [
+                  "`cookies_origem`",
+                  "Optional: file or folder where the cookies arrive from another machine (in a folder: the same file name as `cookies`, or `x-cookies.json`)"
+                ],
+                [
+                  "`saida`",
+                  "Output folder: jsonl, `vistos.json`, `ERRO` and recipes"
+                ],
+                [
+                  "`temas`",
+                  "Optional: a recipe outside the themes is flagged, never discarded"
+                ],
+                [
+                  "`destino`",
+                  "`\"biblioteca\"` writes to `<saida>/receitas/<tema>/<id>-<titulo>.md` (status `curta`); `\"issue\"` writes to `<saida>/issues/<id>-<titulo>.md`"
+                ],
+                [
+                  "`max_itens`",
+                  "Limit: items per run, maximum 500"
+                ],
+                [
+                  "`max_paginas`",
+                  "Limit: scrolls per run"
+                ],
+                [
+                  "`limite_taxa_s`",
+                  "Limit: minimum interval between navigations, in seconds"
+                ],
+                [
+                  "`jitter_max_s`",
+                  "With `--jitter`: waits 0 to this value before starting"
+                ],
+                [
+                  "`chrome`",
+                  "Path of the system Chrome or Chromium"
+                ],
+                [
+                  "`trava`",
+                  "Lock file against two collections at once; default `<saida>/.trava`"
+                ]
+              ]
+            },
+            {
+              "t": "p",
+              "x": "Environment variables:"
+            },
+            {
+              "t": "code",
+              "lang": "text",
+              "x": "KROHNOS_X_SALVOS_CONFIG, KROHNOS_X_SALVOS_COOKIES, KROHNOS_X_SALVOS_COOKIES_ORIGEM, KROHNOS_X_SALVOS_SAIDA, KROHNOS_X_SALVOS_TEMAS, KROHNOS_X_SALVOS_DESTINO, X_MAX_ITENS, KROHNOS_X_SALVOS_MAX_PAGINAS, KROHNOS_X_SALVOS_LIMITE_TAXA_S, KROHNOS_X_SALVOS_JITTER_MAX_S, KROHNOS_X_SALVOS_CHROME, KROHNOS_X_SALVOS_TRAVA"
+            }
+          ]
+        },
+        {
+          "id": "guardrails",
+          "title": "The 6 guardrails and the test that proves each one",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "All of them are in code (`guardrails.py`) and each one fails if the code is removed. The tests live in `tests/test_x_salvos_guardrails.py`, `tests/test_x_salvos_extrair.py` and `tests/test_x_salvos_config.py`."
+            },
+            {
+              "t": "table",
+              "cap": "Guardrails and tests",
+              "head": [
+                "Guardrail",
+                "What it guarantees",
+                "Test that proves it"
+              ],
+              "rows": [
+                [
+                  "1. Read-only",
+                  "Write methods and write endpoints (even over GET) are aborted and logged without a body. The only click allowed is expanding replies; like, repost and follow are refused. An unreadable URL, encoding tricks or a subdomain open no gap: failure closes. The lock sits in the browser context, including in `--refazer-fio`. Service Workers are blocked, so nothing slips past the lock.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSomenteLeitura.test_metodos_de_escrita_bloqueados`, `test_endpoints_de_escrita_bloqueados_mesmo_em_get`, `test_instalar_aborta_escrita_e_registra_sem_corpo`, `test_clique_de_acao_recusado`, `test_url_ilegivel_aborta_fail_closed`, `test_brechas_de_codificacao_e_subdominio`, `test_abrir_instala_a_trava_no_contexto`, `test_refazer_fio_abre_pelo_abrir`"
+                ],
+                [
+                  "2. The session is yours",
+                  "Only `auth_token`, `ct0` and `twid`; a login credential is refused. There is no login flow and the collection never navigates to the login screen. Cookies arriving from another machine (`cookies_origem`) are copied only if newer, with `chmod 600`, with no value in the log.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSessaoDoUsuario.test_cookies_so_os_tres`, `test_rejeita_credencial_de_login`, `test_fonte_sem_fluxo_de_login`, `test_nao_navega_para_login`, `TestCookiesOrigem`"
+                ],
+                [
+                  "3. Rate limit, ceiling and stop if the session drops",
+                  "Minimum interval between navigations (`limite_taxa_s`) and a ceiling on scrolls and items per run. If the session drops, the collection detects it from the URL, writes `ERRO` in the output folder and stops without retrying (exit code 2).",
+                  "`tests/test_x_salvos_guardrails.py`: `TestLimiteETeto.test_intervalo_minimo_entre_navegacoes`, `test_ir_respeita_a_taxa`, `test_teto_de_rolagens`, `test_teto_de_itens`, `test_sessao_caiu_por_url`, `TestParada`"
+                ],
+                [
+                  "4. Post content is data, not instruction",
+                  "The post text sits inside a block with a random delimiter; a forged delimiter is neutralized. Extraction runs `claude -p` text-only: no tools, no MCP servers, no user or project settings, and without skipping permissions. The answer is validated: a dangerous command, a URL outside the post links, or an invalid format or size rejects that recipe and the rest goes on.",
+                  "`tests/test_x_salvos_extrair.py`: `TestPrompt`, `TestValidacao`, `TestDestino.test_resposta_perigosa_nao_grava_e_pipeline_segue`, `TestDestino.test_padrao_nao_usa_bypass`"
+                ],
+                [
+                  "5. Secrets",
+                  "A cookie value is masked in every log and in the `ERRO` file. Cookies are written with `chmod 600`, atomically; a more open permission is fixed and reported, without showing the value.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSegredos.test_mascarar`, `test_log_nunca_mostra_valor`, `test_erro_gravado_vai_mascarado`, `test_gravar_cookies_600_atomico`, `test_permissao_mais_aberta_e_corrigida_sem_valor`, `test_ler_cookies_corrige_permissao`"
+                ],
+                [
+                  "6. Terms of use: personal use",
+                  "Reads only your own saved posts; public search is outside this agent. No mass scraping and nothing written to X. At most 500 items per collection (also with `--forcar`, which is for the first load or a fix), one collection per day and one at a time. The notice is printed by `--help` and on the first run. Complying with the terms of use of X is the user's responsibility.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestTermos.test_aviso_tem_o_essencial`, `test_ajuda_e_primeira_rodada_imprimem_aviso`, `test_teto_500`, `test_uma_coleta_por_dia`, `TestColetorPuro.test_trava_impede_segunda_coleta`"
+                ]
+              ]
+            },
+            {
+              "t": "p",
+              "x": "An invalid destination or ceiling is refused before collecting (`tests/test_x_salvos_config.py`). Run the proof:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m unittest tests.test_x_salvos_config tests.test_x_salvos_guardrails tests.test_x_salvos_extrair"
+            }
+          ]
+        },
+        {
+          "id": "termos-x",
+          "title": "Terms notice",
+          "blocks": [
+            {
+              "t": "warn",
+              "x": "This tool reads only the saved posts of your own account, read-only; public search is outside this agent. No mass scraping: at most 500 items per collection and one collection per day (`--forcar` is for the first load or a fix and also respects the ceiling). Personal use. You are responsible for complying with the terms of use of X."
+            }
+          ]
+        }
+      ]
+    },
+    "pt": {
+      "lang": "pt-BR",
+      "meta_title": "Agente de conhecimento do X | Krohnos",
+      "meta_description": "Guia do agente que transforma os seus salvos do X em receitas: instalação, cookies, configuração e os 6 guardrails, cada um com o teste que o prova.",
+      "h1": "Agente de conhecimento do X",
+      "lead": "Transforma os posts que você salvou no X em receitas curtas de conhecimento.",
+      "lead2": "Uso pessoal: lê a sua própria conta, pela sua própria sessão, só em modo leitura.",
+      "nav": {
+        "home": "Início",
+        "install": "Instalar",
+        "cookies": "Cookies",
+        "config": "Configuração",
+        "guardrails": "Guardrails"
+      },
+      "flow_label": "Fluxo em texto",
+      "sections": [
+        {
+          "id": "o-que-e",
+          "title": "O que é",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Transforma os posts que você salvou (bookmarks) no X em receitas curtas de conhecimento. Uso pessoal: lê a sua própria conta, pela sua própria sessão, em modo somente leitura."
+            },
+            {
+              "t": "p",
+              "x": "Sem senha e sem API paga: o agente nunca faz login, usa a sessão que você já tem aberta no navegador. Cada passo é idempotente: salvo já visto não é coletado de novo e receita já gravada não chama o LLM outra vez."
+            }
+          ]
+        },
+        {
+          "id": "fluxo",
+          "title": "Como funciona",
+          "blocks": [
+            {
+              "t": "flowchart",
+              "title": "Fluxo do agente de conhecimento do X",
+              "desc": "Cinco etapas em sequência: salvos do X, coleta, extração, receita e uso.",
+              "steps": [
+                [
+                  "Salvos do X",
+                  "seus bookmarks, sua conta"
+                ],
+                [
+                  "Coleta",
+                  "navegador sem tela, somente leitura"
+                ],
+                [
+                  "Extração",
+                  "o post é dado, LLM só de texto"
+                ],
+                [
+                  "Receita",
+                  "validada, status curta"
+                ],
+                [
+                  "Uso",
+                  "biblioteca ou texto de issue"
+                ]
+              ],
+              "notes": [
+                "**Salvos do X**: os bookmarks da sua conta.",
+                "**Coleta** (`coletar`): navegador sem tela, cookies da sua sessão, uma coleta por dia, somente leitura. Grava `<saida>/AAAA-MM-DD.jsonl` e `vistos.json` (ids já coletados); grava `ERRO` se a sessão cair.",
+                "**Extração** (`extrair`): o post vira dado dentro de um bloco com delimitador aleatório; o LLM (`claude -p`) roda sem ferramentas, sem servidores MCP e sem configurações de usuário.",
+                "**Receita**: validada (frontmatter, tamanho, sem URL fora dos links do post, sem comando perigoso). Com `destino = \"biblioteca\"` vai para `<saida>/receitas/<tema>/<id>-<titulo>.md` (status `curta`); com `\"issue\"`, para `<saida>/issues/<id>-<titulo>.md`.",
+                "**Uso**: a receita entra na biblioteca de referências, ou vira texto de issue, e é aplicada em trabalho real."
+              ]
+            }
+          ]
+        },
+        {
+          "id": "instalar-x",
+          "title": "Instalar",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Pegue o pacote: ele é o módulo `hub/x_salvos/` do repositório do Krohnos (https://github.com/BRK13/krohnos). Clone e rode todos os comandos desta página na raiz do clone:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "git clone https://github.com/BRK13/krohnos.git\ncd krohnos"
+            },
+            {
+              "t": "ul",
+              "x": [
+                "Python 3.11 ou mais novo e um Chrome ou Chromium instalado.",
+                "Só o `playwright`; o navegador é o do sistema, apontado pela chave `chrome`:",
+                "Para `extrair`: o CLI `claude` instalado e autenticado (ele roda como `claude -p --tools \"\" --strict-mcp-config --setting-sources \"\"`: só texto, sem ferramentas, sem servidores MCP e sem configurações nem hooks de usuário e projeto), ou a sua própria função `executar_llm(prompt)` se você chama o módulo pelo Python."
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "pip install playwright"
+            },
+            {
+              "t": "p",
+              "x": "Exporte os cookies (próxima seção) e crie o `x_salvos.toml` (seção Configuração). Teste à mão, primeiro a coleta e depois a extração:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m hub.x_salvos coletar --config x_salvos.toml\npython3 -m hub.x_salvos extrair --config x_salvos.toml"
+            },
+            {
+              "t": "p",
+              "x": "Para rodar todo dia, agende isto no cron do sistema (`--jitter` espera de 0 a `jitter_max_s` antes de começar; à mão, rode sem ele):"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m hub.x_salvos coletar --jitter --config x_salvos.toml"
+            },
+            {
+              "t": "p",
+              "x": "Os comandos são os do README do módulo, `hub/x_salvos/README.md`."
+            }
+          ]
+        },
+        {
+          "id": "cookies",
+          "title": "Como exportar os cookies",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "O agente nunca faz login: usa a sessão que você já tem aberta no navegador. A sessão é sua, a senha não entra, e não há API paga."
+            },
+            {
+              "t": "ul",
+              "x": [
+                "Entre no X no navegador, com a sua conta.",
+                "Com uma extensão que exporta cookies, ou pelo DevTools (Application, Cookies, `https://x.com`), copie só o valor de `auth_token`, `ct0` e `twid`.",
+                "Grave um JSON com apenas essas três chaves:"
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "json",
+              "x": "{\"auth_token\": \"...\", \"ct0\": \"...\", \"twid\": \"...\"}"
+            },
+            {
+              "t": "ul",
+              "x": [
+                "`chmod 600` no arquivo. Um arquivo mais aberto é corrigido e avisado, e o valor nunca aparece no log.",
+                "Arquivo com senha, usuário ou qualquer credencial de login é recusado."
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "chmod 600 ~/.config/x-salvos/cookies.json"
+            },
+            {
+              "t": "p",
+              "x": "Quando a sessão expira, a coleta grava `ERRO` na pasta de saída e para (código 2): exporte cookies novos."
+            }
+          ]
+        },
+        {
+          "id": "configuracao",
+          "title": "Configuração",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Arquivo `x_salvos.toml`. Precedência: padrões, depois arquivo, depois variáveis de ambiente. Chave desconhecida é erro. Todas as chaves:"
+            },
+            {
+              "t": "code",
+              "lang": "toml",
+              "x": "cookies = \"~/.config/x-salvos/cookies.json\"   # JSON com auth_token, ct0, twid (chmod 600)\ncookies_origem = \"\"                           # opcional: arquivo ou pasta onde os cookies chegam de outra máquina\nsaida = \"~/x-salvos\"                          # jsonl, vistos.json, ERRO e receitas\ntemas = [\"seo\", \"automacao\"]                  # opcional: receita fora dos temas vai marcada, nunca é descartada\ndestino = \"biblioteca\"                        # \"biblioteca\" ou \"issue\"\nmax_itens = 150                               # itens por rodada (máximo 500)\nmax_paginas = 40                              # rolagens por rodada\nlimite_taxa_s = 1.5                           # intervalo mínimo entre navegações, em segundos\njitter_max_s = 1200                           # com --jitter: espera de 0 a este valor antes de começar\nchrome = \"/usr/bin/google-chrome\"\ntrava = \"~/x-salvos/.trava\"                   # arquivo do flock contra duas coletas; padrão <saida>/.trava"
+            },
+            {
+              "t": "table",
+              "cap": "Chaves do x_salvos.toml",
+              "head": [
+                "Chave",
+                "O que faz"
+              ],
+              "rows": [
+                [
+                  "`cookies`",
+                  "JSON com `auth_token`, `ct0`, `twid` (`chmod 600`)"
+                ],
+                [
+                  "`cookies_origem`",
+                  "Opcional: arquivo ou pasta onde os cookies chegam de outra máquina (em pasta: o mesmo nome do arquivo de `cookies` ou `x-cookies.json`)"
+                ],
+                [
+                  "`saida`",
+                  "Pasta de saída: jsonl, `vistos.json`, `ERRO` e receitas"
+                ],
+                [
+                  "`temas`",
+                  "Opcional: receita fora dos temas vai marcada, nunca é descartada"
+                ],
+                [
+                  "`destino`",
+                  "`\"biblioteca\"` grava em `<saida>/receitas/<tema>/<id>-<titulo>.md` (status `curta`); `\"issue\"` grava em `<saida>/issues/<id>-<titulo>.md`"
+                ],
+                [
+                  "`max_itens`",
+                  "Limite: itens por rodada, máximo 500"
+                ],
+                [
+                  "`max_paginas`",
+                  "Limite: rolagens por rodada"
+                ],
+                [
+                  "`limite_taxa_s`",
+                  "Limite: intervalo mínimo entre navegações, em segundos"
+                ],
+                [
+                  "`jitter_max_s`",
+                  "Com `--jitter`: espera de 0 a este valor antes de começar"
+                ],
+                [
+                  "`chrome`",
+                  "Caminho do Chrome ou Chromium do sistema"
+                ],
+                [
+                  "`trava`",
+                  "Arquivo do flock contra duas coletas ao mesmo tempo; padrão `<saida>/.trava`"
+                ]
+              ]
+            },
+            {
+              "t": "p",
+              "x": "Variáveis de ambiente:"
+            },
+            {
+              "t": "code",
+              "lang": "text",
+              "x": "KROHNOS_X_SALVOS_CONFIG, KROHNOS_X_SALVOS_COOKIES, KROHNOS_X_SALVOS_COOKIES_ORIGEM, KROHNOS_X_SALVOS_SAIDA, KROHNOS_X_SALVOS_TEMAS, KROHNOS_X_SALVOS_DESTINO, X_MAX_ITENS, KROHNOS_X_SALVOS_MAX_PAGINAS, KROHNOS_X_SALVOS_LIMITE_TAXA_S, KROHNOS_X_SALVOS_JITTER_MAX_S, KROHNOS_X_SALVOS_CHROME, KROHNOS_X_SALVOS_TRAVA"
+            }
+          ]
+        },
+        {
+          "id": "guardrails",
+          "title": "Os 6 guardrails e o teste que prova cada um",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Todos estão em código (`guardrails.py`) e cada um falha se o código for removido. Os testes ficam em `tests/test_x_salvos_guardrails.py`, `tests/test_x_salvos_extrair.py` e `tests/test_x_salvos_config.py`."
+            },
+            {
+              "t": "table",
+              "cap": "Guardrails e testes",
+              "head": [
+                "Guardrail",
+                "O que garante",
+                "Teste que prova"
+              ],
+              "rows": [
+                [
+                  "1. Somente leitura",
+                  "Método de escrita e endpoint de escrita (inclusive em GET) são abortados e registrados sem corpo. O único clique permitido é expandir respostas; curtir, repostar e seguir são recusados. URL ilegível, codificação ou subdomínio não abrem brecha: a falha fecha. A trava fica no contexto do navegador, inclusive em `--refazer-fio`. Service Workers são bloqueados, então nada escapa da trava.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSomenteLeitura.test_metodos_de_escrita_bloqueados`, `test_endpoints_de_escrita_bloqueados_mesmo_em_get`, `test_instalar_aborta_escrita_e_registra_sem_corpo`, `test_clique_de_acao_recusado`, `test_url_ilegivel_aborta_fail_closed`, `test_brechas_de_codificacao_e_subdominio`, `test_abrir_instala_a_trava_no_contexto`, `test_refazer_fio_abre_pelo_abrir`"
+                ],
+                [
+                  "2. A sessão é sua",
+                  "Só `auth_token`, `ct0` e `twid`; credencial de login é recusada. Não existe fluxo de login e a coleta não navega para a tela de login. Cookies vindos de outra máquina (`cookies_origem`) são copiados só se mais novos, com `chmod 600`, sem valor no log.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSessaoDoUsuario.test_cookies_so_os_tres`, `test_rejeita_credencial_de_login`, `test_fonte_sem_fluxo_de_login`, `test_nao_navega_para_login`, `TestCookiesOrigem`"
+                ],
+                [
+                  "3. Limite de taxa, teto e parada se a sessão cair",
+                  "Intervalo mínimo entre navegações (`limite_taxa_s`) e teto de rolagens e de itens por rodada. Se a sessão cair, a coleta detecta pela URL, grava `ERRO` na pasta de saída e para sem insistir (código 2).",
+                  "`tests/test_x_salvos_guardrails.py`: `TestLimiteETeto.test_intervalo_minimo_entre_navegacoes`, `test_ir_respeita_a_taxa`, `test_teto_de_rolagens`, `test_teto_de_itens`, `test_sessao_caiu_por_url`, `TestParada`"
+                ],
+                [
+                  "4. O conteúdo do post é dado, não instrução",
+                  "O texto do post fica dentro de um bloco com delimitador aleatório; delimitador forjado é neutralizado. A extração roda `claude -p` só de texto: sem ferramentas, sem servidores MCP, sem configurações de usuário e projeto, e sem pular permissões. A resposta é validada: comando perigoso, URL fora dos links do post, formato ou tamanho inválido rejeitam a receita e o resto segue.",
+                  "`tests/test_x_salvos_extrair.py`: `TestPrompt`, `TestValidacao`, `TestDestino.test_resposta_perigosa_nao_grava_e_pipeline_segue`, `TestDestino.test_padrao_nao_usa_bypass`"
+                ],
+                [
+                  "5. Segredos",
+                  "Valor de cookie é mascarado em qualquer log e no arquivo `ERRO`. Os cookies são gravados com `chmod 600`, de forma atômica; permissão mais aberta é corrigida e avisada, sem mostrar o valor.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestSegredos.test_mascarar`, `test_log_nunca_mostra_valor`, `test_erro_gravado_vai_mascarado`, `test_gravar_cookies_600_atomico`, `test_permissao_mais_aberta_e_corrigida_sem_valor`, `test_ler_cookies_corrige_permissao`"
+                ],
+                [
+                  "6. Termos de uso: uso pessoal",
+                  "Lê só os seus próprios salvos; a busca pública fica fora deste agente. Sem scraping em massa e sem escrever nada no X. No máximo 500 itens por coleta (também com `--forcar`, que serve para a carga inicial ou uma correção), uma coleta por dia e uma por vez. O aviso sai em `--help` e na primeira rodada. Cumprir os termos de uso do X é responsabilidade de quem usa.",
+                  "`tests/test_x_salvos_guardrails.py`: `TestTermos.test_aviso_tem_o_essencial`, `test_ajuda_e_primeira_rodada_imprimem_aviso`, `test_teto_500`, `test_uma_coleta_por_dia`, `TestColetorPuro.test_trava_impede_segunda_coleta`"
+                ]
+              ]
+            },
+            {
+              "t": "p",
+              "x": "Destino e teto inválidos são recusados antes de coletar (`tests/test_x_salvos_config.py`). Rodar a prova:"
+            },
+            {
+              "t": "code",
+              "lang": "bash",
+              "x": "python3 -m unittest tests.test_x_salvos_config tests.test_x_salvos_guardrails tests.test_x_salvos_extrair"
+            }
+          ]
+        },
+        {
+          "id": "termos-x",
+          "title": "Aviso de termos",
+          "blocks": [
+            {
+              "t": "warn",
+              "x": "Esta ferramenta lê só os salvos da sua própria conta, em modo somente leitura; a busca pública fica fora deste agente. Sem scraping em massa: no máximo 500 itens por coleta e uma coleta por dia (`--forcar` serve para a carga inicial ou uma correção e também respeita o teto). Uso pessoal. Você é responsável por cumprir os termos de uso do X."
+            }
+          ]
+        }
+      ]
+    }
   }
 }

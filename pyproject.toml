@@ -23,10 +23,11 @@ Repository = "https://github.com/BRK13/krohnos"
 krohnos = "hub.cli:main"
 
 [tool.setuptools]
-packages = ["hub", "hub.comum", "hub.mcp_grupos"]
+packages = ["hub", "hub.comum", "hub.mcp_grupos", "hub.x_salvos"]
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }
 
 [tool.setuptools.package-data]
 hub = ["cerebro.html", "marca/*", "assets/grafo/*"]
+"hub.x_salvos" = ["prompt.md"]

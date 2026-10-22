@@ -1493,10 +1493,10 @@
     "en": {
       "lang": "en",
       "meta_title": "X knowledge agent | Krohnos",
-      "meta_description": "Guide to the agent that turns your saved X posts into recipes: install, cookies, configuration and the 6 guardrails, each with the test that proves it.",
+      "meta_description": "You save X posts for later and never read them. This agent reads your saved posts every day and turns each one into a short recipe you can apply.",
       "h1": "X knowledge agent",
-      "lead": "It turns the posts you saved on X into short knowledge recipes.",
-      "lead2": "Personal use: it reads your own account, through your own session, in read-only mode.",
+      "lead": "X is full of gold: the thread that explains the trick, the screenshot of the result, the link to the right tool. You save it for later, and later never comes.",
+      "lead2": "This agent reads your saved posts every day and turns each one into a short recipe: what it is, why it matters and how to apply it in your work. You just keep saving.",
       "nav": {
         "home": "Home",
         "install": "Install",
@@ -1506,6 +1506,24 @@
       },
       "flow_label": "Flow in text",
       "sections": [
+        {
+          "id": "por-que",
+          "title": "Why it exists",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Saving is easy; coming back to read is what never happens. In a few months your bookmarks hold hundreds of good posts nobody opened again, and the gold gets lost in the pile."
+            },
+            {
+              "t": "p",
+              "x": "The agent does the boring part for you: once a day it reads the new saved posts of your account, keeps what is real learning and writes a short recipe for each one, with the link to the original post. Recipes go to your library (or become a task), where you can search and use them when you build."
+            },
+            {
+              "t": "p",
+              "x": "Nothing changes in how you use X: keep saving on your phone, and the next day the knowledge is already organized."
+            }
+          ]
+        },
         {
           "id": "o-que-e",
           "title": "What it is",
@@ -1802,10 +1820,10 @@
     "pt": {
       "lang": "pt-BR",
       "meta_title": "Agente de conhecimento do X | Krohnos",
-      "meta_description": "Guia do agente que transforma os seus salvos do X em receitas: instalação, cookies, configuração e os 6 guardrails, cada um com o teste que o prova.",
+      "meta_description": "Você salva post no X para ver depois e nunca vê. Este agente lê os seus salvos todo dia e transforma cada um numa receita curta, pronta para aplicar.",
       "h1": "Agente de conhecimento do X",
-      "lead": "Transforma os posts que você salvou no X em receitas curtas de conhecimento.",
-      "lead2": "Uso pessoal: lê a sua própria conta, pela sua própria sessão, só em modo leitura.",
+      "lead": "O X é cheio de aprendizado de ouro: a thread que explica o truque, o print do resultado, o link da ferramenta certa. Você salva para ver depois, e o depois nunca chega.",
+      "lead2": "Este agente lê os seus salvos todo dia e transforma cada um numa receita curta: o que é, por que importa e como aplicar no seu trabalho. Você só continua salvando.",
       "nav": {
         "home": "Início",
         "install": "Instalar",
@@ -1815,6 +1833,24 @@
       },
       "flow_label": "Fluxo em texto",
       "sections": [
+        {
+          "id": "por-que",
+          "title": "Por que existe",
+          "blocks": [
+            {
+              "t": "p",
+              "x": "Salvar é fácil; voltar para ler é que não acontece. Em poucos meses a lista de salvos tem centenas de posts bons que ninguém abriu de novo, e o que valia ouro fica perdido no meio."
+            },
+            {
+              "t": "p",
+              "x": "O agente faz o trabalho chato no seu lugar: uma vez por dia ele lê os salvos novos da sua conta, separa o que é aprendizado de verdade e escreve uma receita curta para cada um, com o link do post original. As receitas vão para a sua biblioteca (ou viram tarefa), onde dá para buscar e usar na hora de construir."
+            },
+            {
+              "t": "p",
+              "x": "Você não muda nada no seu jeito de usar o X: continua salvando no celular, e no dia seguinte o conhecimento já está organizado."
+            }
+          ]
+        },
         {
           "id": "o-que-e",
           "title": "O que é",

@@ -136,7 +136,7 @@ def main():
             inspect = os.environ.get('INSPECT_SCRIPT')
             if inspect:
                 # Two rules are waived by brand and policy, not by measurement (see VALIDATION.md):
-                # few-pictures (dev-tool identity, no photographs) and no-footage (no generated video, BRU-825).
+                # few-pictures (dev-tool identity, no photographs) and no-footage (no generated video, project policy).
                 allow = 'few-pictures,no-footage'
                 for lang, path in [('en', '/'), ('pt', '/pt/')]:
                     subprocess.run(['node', inspect, url + path, '--out', str(SHOTS / ('inspect-' + lang)), '--widths', '1440,768,390', '--allow', allow], check=True)

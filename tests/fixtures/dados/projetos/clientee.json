@@ -5,19 +5,19 @@
   ],
   "ativo": true,
   "nome": "ClienteE & Moraes Advogados",
-  "dominio": "clienteeemoraesadv-com.example",
+  "dominio": "site-f.exemplo.com",
   "hosts_alternativos": [
-    "www.clienteeemoraesadv-com.example"
+    "www.site-f.exemplo.com"
   ],
   "hosts_citacao": [],
   "repo": {
-    "github": "jpexemplo/clientee-moraes-site",
+    "github": "terceiro/clientee-moraes-site",
     "base": "master",
     "pacotes": "npm",
     "deploy": null
   },
   "ids": {
-    "gsc": "sc-domain:clienteeemoraesadv-com.example",
+    "gsc": "sc-domain:site-f.exemplo.com",
     "ga4": "100000007",
     "ga4_medicao": "G-TESTE00007",
     "clarity": "clarity0007",
@@ -32,7 +32,7 @@
     "nome_generico": false
   },
   "conselho": "OAB",
-  "contexto": "ClienteE & Moraes Advogados (clienteeemoraesadv-com.example): cadastro de teste, texto fictício. O repositório é de terceiro: PR sim, na base `master`; merge só quando a issue tiver a label `merge`. Recomende páginas em clienteeemoraesadv-com.example.",
+  "contexto": "ClienteE & Moraes Advogados (site-f.exemplo.com): cadastro de teste, texto fictício. O repositório é de terceiro: PR sim, na base `master`; merge só quando a issue tiver a label `merge`. Recomende páginas em site-f.exemplo.com.",
   "frase_canonica": "serviço de exemplo do site clientee",
   "meta": null,
   "concorrentes": [
@@ -108,7 +108,7 @@
     "indexnow": {
       "chave": "0123456789abcdef0123456789abcdef",
       "aviso": "publicacao",
-      "onde": "example-org/exemplo scripts/blog.mts"
+      "onde": "acme/exemplo scripts/blog.mts"
     }
   },
   "ranking": {

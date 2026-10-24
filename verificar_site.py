@@ -1,11 +1,11 @@
 """Verificador do padrão de SEO (PADRAO-SEO.md): confere no site no ar os 10 itens e devolve ok/falta com a prova.
 
-    python verificar_site.py fsite05                    # um site
+    python verificar_site.py fsite06                    # um site
     python verificar_site.py --todos                  # todos os sites ativos
     python verificar_site.py --todos --avisar   # como roda no cron da VPS
 
 Saída: $HUB_DATA/verificador/<site>/<AAAA-MM-DD>.json, latest.json e latest.md. Com --avisar, WhatsApp (deploy/avisar.sh) só com o que piorou (item que estava ok e agora falta).
-Site com `padrao.fora_do_google` (ex.: fsite06) não é verificado: o noindex dele é intencional.
+Site com `padrao.fora_do_google` (ex.: fsite07) não é verificado: o noindex dele é intencional.
 
 Cada item volta com `ok` true (cumpre), false (falta) ou null (não deu para verificar daqui, ex.: sem credencial),
 e as provas: URL, status, trecho.

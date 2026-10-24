@@ -35,7 +35,7 @@ IGNORA = {"node_modules", ".git", ".next", "dist", "build", ".cache", "__pycache
           ".turbo"}
 MAX_ARQUIVOS = 20000
 Q_EM_ANDAMENTO = ("query($d: DateTimeOrDuration!) { issues(first: 50, filter: {state: {name: {eq: \"In Progress\"}}, "
-                  "updatedAt: {lt: $d}}) { nodes { id identifier updatedAt comments(last: 5) { nodes { createdAt body "
+                  "updatedAt: {lt: $d}}) { nodes { id identifier updatedAt comments(first: 5) { nodes { createdAt body "
                   "user { app } } } team { id states { nodes { id name } } } } } }")
 Q_TIME = "query($i: String!) { issue(id: $i) { team { id states { nodes { id name } } } } }"
 MUDOU = ("nada roda depois que a sessão termina: termine o trabalho em primeiro plano nesta sessão, e para esperar CI "
@@ -113,8 +113,34 @@ def classificar_rodando(reg, agora, trabalho=None):
             return None
     sinal = ultimo_sinal(reg, trabalho)
     if sinal and agora - sinal >= SILENCIO and agora - conta.de_iso(reg["inicio"]) >= SILENCIO:
+        from hub import agenda
+        if _espera_na_worktree(Path(trabalho or agenda.TRABALHO) / reg["nome"]):
+            return None  # esperando a vez do pesado ou um Monitor; o teto de tempo (linear.TIMEOUT) ainda corta
         return ("travou", f"sem sinal desde {sinal:%H:%M} UTC (último comando: {(cmds or ['?'])[-1][:120]})")
     return None
+
+
+def _espera_na_worktree(raiz):
+    """Há processo de ESPERA vivo com o cwd dentro da worktree da sessão? Só conta o `pesado` (fila de 1 por vez; o
+    build que ele segura também é calado) e o `tail -f /dev/null` do Monitor: shell ocioso, servidor ou script travado
+    na worktree não seguram o alarme (revisão do #601)."""
+    if not os.path.isdir("/proc"):
+        return False
+    raiz = os.path.realpath(raiz)
+    for pid in os.listdir("/proc"):
+        if pid.isdigit():
+            with contextlib.suppress(OSError):  # processo que morreu no meio, ou de outro usuário sem permissão
+                cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
+                if (cwd == raiz or cwd.startswith(raiz + os.sep)) and _e_espera(Path(f"/proc/{pid}/cmdline").read_bytes()):
+                    return True
+    return False
+
+
+def _e_espera(cmdline):
+    argv = [a.decode(errors="replace") for a in cmdline.split(b"\0") if a]
+    if "hub.pesado" in argv or any(os.path.basename(a) == "pesado" for a in argv[:2]):
+        return True
+    return any(os.path.basename(a) == "tail" and argv[i + 1:i + 3] == ["-f", "/dev/null"] for i, a in enumerate(argv))
 
 
 def promessa_sem_gancho(texto):
@@ -181,6 +207,16 @@ def _gravar(arq, e):
     arq.write_text(json.dumps(e, ensure_ascii=False), encoding="utf-8")
 
 
+def reenfileirada(ident, base_dados=None):
+    """a trava deixou rastro de que reenfileirou `ident` (morta ou parada pelo alarme) e não escalou. Lê o arquivo
+    de estado como está, sem a janela de 24 h do `_estado`: serve de prova para o laço de lições."""
+    try:
+        e = json.loads((_pasta(base_dados) / f"{ident}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return bool(e.get("mortas") or e.get("tentativas")) and not (e.get("morta_escalada_em") or e.get("escalada_em"))
+
+
 def tratar_morta(ident, motivo, base_dados=None, agora=None, log=print):
     """(lição 4): execução que morreu sem o alarme (sinal 143/137, timeout, interrompida): a 1ª em 24 h devolve
     "reenfileirar" (quem chama põe na fila com o resumo da última rodada); a 2ª devolve "escalar" e chama o orquestrador
@@ -200,6 +236,29 @@ def tratar_morta(ident, motivo, base_dados=None, agora=None, log=print):
         travadas.chamar_sem_falhar(ident, f"morreu {est['mortas']}× em 24 h ({motivo})", "execução morta", base_dados, log)
         _incidente(ident, f"{ident} morreu de novo ({motivo}); orquestrador chamado", "hub/parada.py (tratar_morta)",
                    f"morta2:{ident}:{agora:%Y%m%d}", base_dados, agora, log)
+    else:
+        _gravar(arq, est)
+    return "escalar"
+
+
+LOGIN_REPETICOES = 3
+
+
+def tratar_login(ident, base_dados=None, agora=None, log=print):
+    """execução que morreu porque o login da conta não renovou (a própria execução já repetiu uma vez). Até
+    LOGIN_REPETICOES voltas em 24 h devolve "reenfileirar", calada; a seguinte devolve "escalar" e chama o orquestrador
+    uma vez (nunca o dono, nunca Backlog)."""
+    agora = agora or conta.agora()
+    arq, est = _estado(ident, base_dados, agora)
+    est["logins"] = est.get("logins", 0) + 1
+    if est["logins"] <= LOGIN_REPETICOES:
+        _gravar(arq, est)
+        return "reenfileirar"
+    if not est.get("login_escalado_em"):
+        est["login_escalado_em"] = conta.iso(agora)
+        _gravar(arq, est)
+        from hub import travadas
+        travadas.chamar_sem_falhar(ident, f"login da conta sem renovar {est['logins']}× em 24 h", "login expirado", base_dados, log)
     else:
         _gravar(arq, est)
     return "escalar"
@@ -230,7 +289,7 @@ def _incidente(ident, falha, peca, chave, base_dados, agora, log):
 
 
 def vigiar(base_dados=None, agora=None, consulta=None, systemctl=None, trabalho=None, log=print):
-    from hub import agenda, recibo
+    from hub import agenda, recibo, in_review
     agora, consulta = agora or conta.agora(), consulta or linear.gql
     voltar = []
     rodando = list(agenda.rodando_todas(base_dados).values())
@@ -298,6 +357,9 @@ def vigiar(base_dados=None, agora=None, consulta=None, systemctl=None, trabalho=
         do_claude = recibo._do_claude(i)
         if not do_claude:
             continue  # issue que o hub não tocou: não é dele
+        data = in_review.data_declarada(i)
+        if data and data > agora.date():
+            continue  # INC-343: espera por data também vale em In Progress, sem gastar tentativa
         arq, est = _estado(ident, base_dados, agora)
         if est["escalada_em"]:
             continue
@@ -337,6 +399,28 @@ def vigiar(base_dados=None, agora=None, consulta=None, systemctl=None, trabalho=
                 continue
             est["tentativas"] = 1
         else:
+            if est.get("recusa_em") and agora - conta.de_iso(est["recusa_em"]) < agenda.FREIO_ORQ_ESPERA:
+                continue  # já recusada e avisada: sem nova consulta ao Linear nem novo chamado
+            try:
+                item = linear.item_por_ident(ident)
+            except Exception as e:
+                log(f"{ident}: não leu o contexto do orçamento ({type(e).__name__}); tento no próximo tick")
+                continue
+            recusa = agenda.em_loop(f"linear-{ident.lower()}", base_dados,
+                                    ultima_fala=item.get("ultima_fala"), estado_desde=item.get("estado_desde"))
+            if recusa:  # orçamento vale aqui também; recusa não gasta a tentativa
+                agenda._chamar_orq_uma_vez(ident, recusa, "parada", base_dados)
+                est["recusa_em"] = conta.iso(agora)
+                _gravar(arq, est)
+                log(f"{ident}: parada, mas a issue {recusa}; não volta")
+                continue
+            try:  # INC-254: a segunda parada também pode estar só aguardando o PR
+                if retomada.gancho_mecanico(ident, ultimo, base_dados=base_dados, agora=agora):
+                    esperas.registrar_sem_ia(ident, "parada", "", base_dados, agora)
+                    log(f"{ident}: segunda parada com PR citado; espera por código, sem escalada")
+                    continue
+            except Exception as e:  # sem resposta do PR: não presume uma espera
+                log(f"{ident}: gancho mecânico falhou ({type(e).__name__}: {str(e)[:100]}); segue alarme")
             if _escalar(i, ident, "ficou parada de novo depois de voltar para a fila", consulta, log):
                 est["escalada_em"] = conta.iso(agora)
         _gravar(arq, est)

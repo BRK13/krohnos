@@ -31,7 +31,7 @@ class Test(unittest.TestCase):
         self.tmp.cleanup()
 
     def chamar(self, nome, **args):
-        return mcp_proxy.executar(nome, {"site": "psite13", **args})
+        return mcp_proxy.executar(nome, {"site": "psite15", **args})
 
     def salvar(self, titulo="Auditoria", **kw):
         return self.chamar("save_report", title=titulo, summary="resumo", html=HTML, **kw)
@@ -50,8 +50,8 @@ class Test(unittest.TestCase):
         s = self.salvar(skill="seo-audit")
         self.assertTrue(s["created"])
         self.assertEqual(s["htmlBytes"], len(HTML.encode()))
-        self.assertEqual(s["url"], "https://nimbus.clientec-com.example/")
-        arq = mcp_grupos.pasta("relatorios", "psite13") / f"{s['reportId']}.json"
+        self.assertEqual(s["url"], "https://painel.exemplo.com.br/")
+        arq = mcp_grupos.pasta("relatorios", "psite15") / f"{s['reportId']}.json"
         self.assertIn("ção", arq.read_text(encoding="utf-8"))  # ensure_ascii=False
         self.assertIsNone(json.loads(arq.read_text(encoding="utf-8"))["shareToken"])
         lista = self.chamar("list_reports")
@@ -90,7 +90,7 @@ class Test(unittest.TestCase):
                  ("list_reports", {"limit": "muito"})]
         for nome, args in erros:
             with self.subTest(nome=nome, args=args), self.assertRaises(ErroUso):
-                mcp_proxy.executar(nome, {"site": "psite13", **args} if args.get("site", 1) else {k: v for k, v in args.items() if k != "site"})
+                mcp_proxy.executar(nome, {"site": "psite15", **args} if args.get("site", 1) else {k: v for k, v in args.items() if k != "site"})
         self.assertEqual(self.chamar("get_report", reportId=s["reportId"])["report"]["id"], s["reportId"])
 
     def test_paginacao(self):
@@ -116,18 +116,18 @@ class Test(unittest.TestCase):
 
     def test_compartilhar_liga_mantem_desliga_e_religa(self):
         rid = self.salvar()["reportId"]
-        arq = mcp_grupos.pasta("relatorios", "psite13") / f"{rid}.json"
+        arq = mcp_grupos.pasta("relatorios", "psite15") / f"{rid}.json"
         on = self.compartilhar(rid, True)
         tok = json.loads(arq.read_text(encoding="utf-8"))["shareToken"]
         self.assertGreaterEqual(len(tok), 30)
-        self.assertEqual(on, {"reportId": rid, "public": True, "url": f"https://nimbus.clientec-com.example/r/{tok}",
-                              "shareUrl": f"https://nimbus.clientec-com.example/r/{tok}"})
+        self.assertEqual(on, {"reportId": rid, "public": True, "url": f"https://painel.exemplo.com.br/r/{tok}",
+                              "shareUrl": f"https://painel.exemplo.com.br/r/{tok}"})
         self.assertTrue(json.loads(arq.read_text(encoding="utf-8"))["sharedAt"])
         self.assertEqual(self.compartilhar(rid, True)["shareUrl"], on["shareUrl"])
         self.assertEqual(self.chamar("get_report", reportId=rid)["report"]["shareUrl"], on["shareUrl"])
         self.assertNotIn("shareToken", self.chamar("list_reports")["reports"][0])
         off = self.compartilhar(rid, False)
-        self.assertEqual(off, {"reportId": rid, "public": False, "url": "https://nimbus.clientec-com.example/", "shareUrl": None})
+        self.assertEqual(off, {"reportId": rid, "public": False, "url": "https://painel.exemplo.com.br/", "shareUrl": None})
         d = json.loads(arq.read_text(encoding="utf-8"))
         self.assertEqual((d["shareToken"], d["sharedAt"]), (None, None))
         self.assertIsNone(self.chamar("get_report", reportId=rid)["report"]["shareUrl"])
@@ -150,7 +150,7 @@ class Test(unittest.TestCase):
 
     def test_ciclo_do_modelo_e_globalidade(self):
         m = mcp_proxy.executar("save_report_template", {"name": "Resumo", "description": "d", "instructions": "i"})
-        self.assertEqual((m["created"], m["url"]), (True, "https://nimbus.clientec-com.example/"))
+        self.assertEqual((m["created"], m["url"]), (True, "https://painel.exemplo.com.br/"))
         arq = mcp_grupos.pasta("relatorios") / "modelos" / f"{m['templateId']}.json"
         self.assertTrue(arq.exists())
         lista = mcp_proxy.executar("list_report_templates", {"site": "asite01"})["templates"]

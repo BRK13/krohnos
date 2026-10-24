@@ -11,7 +11,7 @@ from unittest import mock
 
 from hub import bi_historico, google
 
-CLIENTEI, CLIENTEE = "sc-domain:clientef-com.example", "sc-domain:clienteeemoraesadv-com.example"
+CLIENTEI, CLIENTEE = "sc-domain:site-c.exemplo.com", "sc-domain:site-f.exemplo.com"
 OAUTH = {"client_id": "cid.apps.googleusercontent.com", "client_secret": "segredo-x", "refresh_token": "1//refresh-y"}
 LINHAS = {CLIENTEI: [{"keys": ["2026-10-01"], "clicks": 40, "impressions": 900, "ctr": 0.044, "position": 9.1}],
           CLIENTEE: [{"keys": ["2026-10-01"], "clicks": 3, "impressions": 120, "ctr": 0.025, "position": 14.2}]}
@@ -60,7 +60,7 @@ class Base(unittest.TestCase):
         for p in (mock.patch.dict(os.environ, {"CREDENTIALS_DIRECTORY": self.d.name, "NIMBUS_HOME": vazio.name}),
                   mock.patch.object(google, "_tokens", {}), mock.patch.object(google, "_via_oauth", set()),
                   mock.patch.object(google, "token", return_value="tk-sa"),
-                  mock.patch.object(google, "conta_servico", return_value={"client_email": "user7@example.com"})):
+                  mock.patch.object(google, "conta_servico", return_value={"client_email": "user11@example.com"})):
             p.start()
             self.addCleanup(p.stop)
 
@@ -103,7 +103,7 @@ class FallbackTest(Base):
                 g = GoogleFalso()
                 with self.assertRaises(google.SemAcesso) as c:
                     self.consultar(g, CLIENTEE)
-                self.assertEqual(c.exception.email, "user7@example.com")
+                self.assertEqual(c.exception.email, "user11@example.com")
                 self.assertEqual(g.chamadas, [("sa", CLIENTEE)])
 
     def test_fulano_tambem_sem_acesso_fica_sem_acesso(self):
@@ -207,7 +207,7 @@ class GravarOauthTest(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.d))
-        self.env, self.destino = self.d / "agente-fsite05.env", self.d / "credenciais" / google.OAUTH_ARQUIVO
+        self.env, self.destino = self.d / "agente-fsite06.env", self.d / "credenciais" / google.OAUTH_ARQUIVO
 
     def test_copia_do_env_em_arquivo_600_e_so_regrava_se_mudou(self):
         self.env.write_text("# agente\nOUTRA=1\nexport GOOGLE_AGENDA_CLIENT_ID=cid.apps.googleusercontent.com\n"

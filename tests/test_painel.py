@@ -127,7 +127,7 @@ class PainelTest(unittest.TestCase):
             status, corpo = painel.rota(c)
             self.assertEqual(status, 404, c)
             self.assertNotIn("SEGREDO", corpo)
-        for c in ("/operacao", "/relatorio", "/propostas", "/uso?aba=execucoes", "/monitor?aba=sistema", "/monitor?aba=deploys", "/site/clientei", "/uso", "/site/fsite05",
+        for c in ("/operacao", "/relatorio", "/propostas", "/uso?aba=execucoes", "/monitor?aba=sistema", "/monitor?aba=deploys", "/site/clientei", "/uso", "/site/fsite06",
                   "/propostas?estado=<script>"):
             self.assertEqual(painel.rota(c)[0], 200, c)
             self.assertNotIn("SEGREDO", painel.rota(c)[1])
@@ -163,45 +163,45 @@ class PainelTest(unittest.TestCase):
             rows = [{"keys": [x.isoformat()], "clicks": 10 * (k + 1), "impressions": 100, "ctr": .1,
                      "position": 8.0 - k} for x in dias]
             rows.append({"keys": ["lixo"], "clicks": 5, "impressions": 1, "position": 1})  # data inválida: ignorada
-            (snap / "fsite05-gsc.json").write_text(json.dumps({"rows": rows}), encoding="utf-8")
-            (snap / "fsite05-ga4.json").write_text(json.dumps({"rows": [
+            (snap / "fsite06-gsc.json").write_text(json.dumps({"rows": rows}), encoding="utf-8")
+            (snap / "fsite06-ga4.json").write_text(json.dumps({"rows": [
                 {"dimensionValues": [{"value": "google"}], "metricValues": [{"value": "50"}, {"value": "30"}, {"value": "5"}]}]}),
                 encoding="utf-8")
-        (d / "gsc" / "fsite05").mkdir(parents=True)
-        (d / "gsc" / "fsite05" / "latest.json").write_text(json.dumps({"oportunidades": [
-            {"tipo": "vazamento", "busca": "quiropraxia <b>", "pagina": "https://clientea-com.example/", "impressoes": 2705,
+        (d / "gsc" / "fsite06").mkdir(parents=True)
+        (d / "gsc" / "fsite06" / "latest.json").write_text(json.dumps({"oportunidades": [
+            {"tipo": "vazamento", "busca": "quiropraxia <b>", "pagina": "https://site-b.exemplo.com/", "impressoes": 2705,
              "cliques": 44, "posicao": 5.4, "ctr": .0163, "ctr_esperado": .0505, "cliques_perdidos": 93, "janela": None},
-            {"tipo": "reforcar", "busca": "massagem", "pagina": "https://clientea-com.example/a", "paginas_que_aparecem": [],
+            {"tipo": "reforcar", "busca": "massagem", "pagina": "https://site-b.exemplo.com/a", "paginas_que_aparecem": [],
              "impressoes": 402, "cliques": 0, "posicao": 10.5, "janela": None},
-            {"tipo": "buraco", "busca": "fsite05 sul", "pagina": None, "paginas_que_aparecem": ["https://clientea-com.example/b"],
+            {"tipo": "buraco", "busca": "fsite06 sul", "pagina": None, "paginas_que_aparecem": ["https://site-b.exemplo.com/b"],
              "impressoes": 90, "cliques": 0, "posicao": 15.0, "janela": None}]}), encoding="utf-8")
 
     def test_serie_sem_somar_duas_vezes_e_ponderada(self):
         self._fixture_site()
-        pts = dict(painel.serie("fsite05", "cliques"))
+        pts = dict(painel.serie("fsite06", "cliques"))
         self.assertEqual(pts["2026-10-05"], 30)  # está nos 3 snapshots: vale o mais novo
         self.assertEqual(pts["2026-10-07"], 30)
         self.assertEqual(pts["2026-09-29"], 10)  # só no primeiro
         self.assertEqual(len(pts), 16)  # 22/9 a 7/10; 1/9 fica fora dos 28 dias
-        self.assertAlmostEqual(painel.total("fsite05", "ctr"), painel.total("fsite05", "cliques") / painel.total("fsite05", "impressoes"))
-        self.assertAlmostEqual(dict(painel.serie("fsite05", "posicao"))["2026-10-07"], 6.0)
-        self.assertEqual(len(painel.serie("fsite05", "sessoes")), 3)  # sem GA4 por data: um ponto por snapshot
-        self.assertIsNone(painel.delta("fsite05", "sessoes"))
-        self.assertIsNone(painel.total("fsite05", "sessoes"))  # totais de 7 dias sobrepostos não somam
+        self.assertAlmostEqual(painel.total("fsite06", "ctr"), painel.total("fsite06", "cliques") / painel.total("fsite06", "impressoes"))
+        self.assertAlmostEqual(dict(painel.serie("fsite06", "posicao"))["2026-10-07"], 6.0)
+        self.assertEqual(len(painel.serie("fsite06", "sessoes")), 3)  # sem GA4 por data: um ponto por snapshot
+        self.assertIsNone(painel.delta("fsite06", "sessoes"))
+        self.assertIsNone(painel.total("fsite06", "sessoes"))  # totais de 7 dias sobrepostos não somam
 
     def test_delta_7_contra_7(self):
         self._fixture_site()
-        pts = dict(painel.serie("fsite05", "cliques"))
+        pts = dict(painel.serie("fsite06", "cliques"))
         ult = sum(pts[f"2026-10-0{x}"] for x in range(1, 8))
         ant = sum(pts[f"2026-09-{x}"] for x in range(24, 31))
         self.assertGreater(ult, 0)
-        self.assertAlmostEqual(painel.delta("fsite05", "cliques"), (ult - ant) / ant * 100)
+        self.assertAlmostEqual(painel.delta("fsite06", "cliques"), (ult - ant) / ant * 100)
         self.assertIsNone(painel.delta("nao-existe", "cliques"))
-        self.assertLess(painel.delta("fsite05", "posicao"), 0)  # posição caiu (melhorou)
+        self.assertLess(painel.delta("fsite06", "posicao"), 0)  # posição caiu (melhorou)
 
     def test_pagina_do_site_e_visao_geral(self):
         self._fixture_site()
-        status, h = painel.rota("/site/fsite05")
+        status, h = painel.rota("/site/fsite06")
         self.assertEqual(status, 200)
         for x in ("O que fazer agora", "selo alerta", "selo ok", "selo ruim", "<svg", 'aria-label="Site"',
                   "reescrever título/descrição", "subir a página", "criar página", 'table class="ord"',
@@ -213,25 +213,25 @@ class PainelTest(unittest.TestCase):
         sc = h[h.index("O que fazer agora"):h.index("Respostas de IA")]
         self.assertNotIn("md-src", sc)
         self.assertIn("ainda sem janela", h)
-        self.assertEqual(h.count('<a href="/site/fsite05"'), 1)
+        self.assertEqual(h.count('<a href="/site/fsite06"'), 1)
         status, h = painel.rota("/operacao")
         self.assertEqual(status, 200)
         from hub import sites
         for s in sites.carregar():
             self.assertIn(f'href="/site/{s["id"]}"', h)
         d = Path(self.tmp.name) / "propostas"
-        for pid, est in (("20261008-061126-fsite05-conteudo-192d", "pendente"), ("20261008-061127-fsite05-seo-1111", "enviada"),
-                         ("20261008-061128-fsite05-seo-2222", "aplicada"), ("20261008-061129-fisiofoo-seo-3333", "pendente")):
+        for pid, est in (("20261008-061126-fsite06-conteudo-192d", "pendente"), ("20261008-061127-fsite06-seo-1111", "enviada"),
+                         ("20261008-061128-fsite06-seo-2222", "aplicada"), ("20261008-061129-fisiofoo-seo-3333", "pendente")):
             (d / f"{pid}.json").write_text(json.dumps({"id": pid, "estado": est, "resumo": "r"}), encoding="utf-8")
         h = painel.rota("/operacao")[1]
-        linha = re.search(r'<tr><td[^>]*><a href="/site/fsite05">.*?</tr>', h, re.S).group(0)
+        linha = re.search(r'<tr><td[^>]*><a href="/site/fsite06">.*?</tr>', h, re.S).group(0)
         self.assertRegex(linha, r'<td class="n" data-v="2" data-rotulo="[^"]+">2</td>')  # só pendente/enviada com token exato
         self.assertEqual(painel.rota("/site/asite01")[0], 200)  # sem snapshot nem JSON: não quebra
 
     def test_relatorio_tabela_com_selo_por_fonte(self):
         (Path(self.tmp.name) / "latest-report.md").write_text(
             "# Nimbus — coleta 2026-10-14\n\nPeríodos móveis.\n\n| Projeto | Google | Bing |\n|---|---|---|\n"
-            "| asite01 | OK | OK |\n| clientee | sem acesso/dado | OK <b> |\n| fsite06 | sem acesso/dado | falta token |\n"
+            "| asite01 | OK | OK |\n| clientee | sem acesso/dado | OK <b> |\n| fsite07 | sem acesso/dado | falta token |\n"
             "\nasite01: IA (4 sessões)\n", encoding="utf-8")
         status, h = painel.rota("/relatorio")
         self.assertEqual(status, 200)
@@ -242,7 +242,7 @@ class PainelTest(unittest.TestCase):
         self.assertIn("OK &lt;b&gt;", h)
         self.assertNotIn("OK <b>", h)
         self.assertIn("asite01: IA (4 sessões)", h)
-        self.assertNotIn("fsite06", h)  # ativo:false no cadastro: fora da tabela e dos KPIs
+        self.assertNotIn("fsite07", h)  # ativo:false no cadastro: fora da tabela e dos KPIs
         (Path(self.tmp.name) / "latest-report.md").write_text("# só texto\n\nsem tabela\n", encoding="utf-8")
         self.assertIn("md-src", painel.rota("/relatorio")[1])
         (Path(self.tmp.name) / "latest-report.md").unlink()
@@ -251,19 +251,19 @@ class PainelTest(unittest.TestCase):
     def test_visao_geral_sem_janelas_abertas_mas_site_tem(self):
         self._fixture_site()
         self.assertNotIn("Janelas abertas", painel.rota("/operacao")[1])
-        self.assertIn("Mudanças e janelas", painel.rota("/site/fsite05")[1])
+        self.assertIn("Mudanças e janelas", painel.rota("/site/fsite06")[1])
 
     def test_o_que_fazer_agora_nao_esconde_vazamento(self):
         self._fixture_site()
-        arq = Path(self.tmp.name) / "gsc" / "fsite05" / "latest.json"
+        arq = Path(self.tmp.name) / "gsc" / "fsite06" / "latest.json"
         o = json.loads(arq.read_text())
-        o["oportunidades"] += [{"tipo": "reforcar", "busca": f"ref{i}", "pagina": "https://clientea-com.example/r",
+        o["oportunidades"] += [{"tipo": "reforcar", "busca": f"ref{i}", "pagina": "https://site-b.exemplo.com/r",
                                 "impressoes": 150 + 50 * i, "cliques": 0, "posicao": 11.0} for i in range(6)]
         arq.write_text(json.dumps(o), encoding="utf-8")
-        h = painel.rota("/site/fsite05")[1]
+        h = painel.rota("/site/fsite06")[1]
         sc = h[h.index("O que fazer agora"):h.index("Vazamentos:")]
         self.assertEqual(sc.count('<article class="item"'), 5)
-        for x in ("quiropraxia", "fsite05 sul", "posição 5,4"):  # um de cada tipo; o vazamento tem mais impressões
+        for x in ("quiropraxia", "fsite06 sul", "posição 5,4"):  # um de cada tipo; o vazamento tem mais impressões
             self.assertIn(x, sc)
         self.assertLess(sc.index("quiropraxia"), sc.index("massagem"))
 
@@ -344,7 +344,7 @@ class PainelTest(unittest.TestCase):
 
     def test_propostas_filtro_por_estado(self):
         d = Path(self.tmp.name) / "propostas"
-        (d / "20261008-061127-fsite05-seo-1111.json").write_text(json.dumps({"id": "x", "estado": "feita", "resumo": "ja feita"}),
+        (d / "20261008-061127-fsite06-seo-1111.json").write_text(json.dumps({"id": "x", "estado": "feita", "resumo": "ja feita"}),
                                                                  encoding="utf-8")
         h = painel.rota("/propostas?estado=pendente")[1]
         self.assertIn("&lt;script&gt;x", h)
@@ -445,7 +445,7 @@ class CockpitTelasTest(unittest.TestCase):
                        "resumo": "- **Resolvido:** fechei o pedido <b>103</b>"}},
             "codex": {"login_ok": True, "modelo": "gpt-6.1-sol", "raciocinio": "high",
                       "hoje": {"revisados": 5, "com_achado": 2, "sem_achados": 3},
-                      "ultimo": {"repo": "clienteh", "pr": 483, "url": "https://github.com/example-org/clienteh/pull/483",
+                      "ultimo": {"repo": "clienteh", "pr": 483, "url": "https://github.com/acme/clienteh/pull/483",
                                  "em": "2026-10-10T15:21:00+00:00", "achados": True}}}), encoding="utf-8")
         with mock.patch("hub.agenda._semana_executor", return_value=None):  # não lê as sessões reais do Codex
             status, h = self.rota("/agentes")
@@ -453,7 +453,7 @@ class CockpitTelasTest(unittest.TestCase):
         for x in ("Orquestrador", "Em espera", "pedidos aguardando/erro: 103", "Resolvido: fechei o pedido &lt;b&gt;103",
                   "37%", "Revisor Codex", "gpt-6.1-sol · raciocínio high", "Login ok",
                   "<b>5</b> PRs revisados hoje · 2 com achado · 3 sem achados",
-                  'href="https://github.com/example-org/clienteh/pull/483"', "clienteh#483", "com achado"):
+                  'href="https://github.com/acme/clienteh/pull/483"', "clienteh#483", "com achado"):
             self.assertIn(x, h)
         self.assertNotIn("<b>103", h)
         self.assertNotIn("Semana", h)  # Claude não tem limite semanal na tela (10/10)
@@ -550,7 +550,7 @@ class CockpitTelasTest(unittest.TestCase):
     def test_metas_tela_escapa_grafico_e_ancora(self):
         from hub import metas
         with mock.patch("hub.metas.abrir_issue", return_value="KRN-1 https://linear.app/x"):
-            m = metas.criar("LCP <script>x</script>", site="fsite05", alvo=2000, unidade="ms",
+            m = metas.criar("LCP <script>x</script>", site="fsite06", alvo=2000, unidade="ms",
                             medir={"tipo": "manual", "como": "a mão"})
         for v in (3000, 2800):
             metas.registrar(m["id"], v, "m")
@@ -562,6 +562,17 @@ class CockpitTelasTest(unittest.TestCase):
         self.assertIn(f'id={m["id"]}>', h)
         self.assertIn("rodada 2/50", h)
         self.assertIn('href="/metas#', self.rota("/pendencias")[1])  # faixa Nave
+
+    def test_moedor_responde_com_o_contador(self):  # (F5 do moedor)
+        from hub import moedor
+        if not hasattr(painel, "moedor_tela") or painel.moedor_tela is None:
+            self.skipTest("a tela do moedor não vai no snapshot público")
+        moedor.contar("krohnos", "aceitas", 2)
+        status, h = self.rota("/moedor")
+        self.assertEqual(status, 200)
+        self.assertIn('href="/moedor"', h)
+        self.assertIn("krohnos", h)
+        self.assertIn("Gasto", h)
 
     def test_confiabilidade_responde_com_os_cinco_numeros(self):  # (F2)
         status, h = self.rota("/confiabilidade")

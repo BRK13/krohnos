@@ -6,7 +6,7 @@ gravar na caixa, então vale para o recibo, as contas e a CLI `hub.avisar`):
 2. dedupe entre remetentes: registro único por (issue, hash do conteúdo do arquivo); arquivo já mandado não repete;
 3. só a versão final: arquivo novo de issue já enviada nas últimas 24 h vai como "versão nova de X"; uma vez por dia por
    issue, salvo pedido do dono (`pedido=True`); o resto fica na fila e a versão mais nova substitui a da fila;
-4. madrugada (22h-7h): nada sai; às 8h vai UM resumo "N entregas prontas" (até 4 arquivos direto e o resto em link; zip nunca);
+4. madrugada (21h-7h): nada sai; às 8h vai UM resumo "N entregas prontas" (até 4 arquivos direto e o resto em link; zip nunca);
 5. teto de 10 por hora e 40 por dia: passou, o que sobra junta no mesmo resumo (a fila é uma só);
 6. relatório: mensagens por dia e por origem (`python3 -m hub.comum.porteiro relatorio`), meta menos de 20 por dia.
 Mensagem para outro número (`para` diferente do dono) não passa por aqui.
@@ -26,7 +26,7 @@ from hub.comum import datas
 
 TETO_HORA = 10
 TETO_DIA = 40
-MADRUGADA_DE, MADRUGADA_ATE, RESUMO_AS = 22, 7, 8  # horas BRT: nada sai de 22h a 7h; a fila sai a partir das 8h
+MADRUGADA_DE, MADRUGADA_ATE, RESUMO_AS = 21, 7, 8  # horas BRT: nada sai de 21h a 7h; a fila sai a partir das 8h
 JANELA_VERSAO = dt.timedelta(hours=24)
 RESUMO_SOLTOS = 4  # arquivos diretos no resumo; o resto fica no link da issue (zip nunca: o dono não abre no celular)
 META_DIA = 20
@@ -36,8 +36,19 @@ RE_TECNICO = re.compile(
     r"teto di[áa]rio|teto (?:total )?da (?:api|reserva)|Reserva API|tarefas?(?:\(s\))? com falha|Linear: \d* ?tarefa|FALHOU|\bFAIL\b|\bWARN\b|"
     r"local-ci|\bCI\b|deploy|auditoria|cliente esperando|agenda parada|login do orch|Orquestrador:|traceback|"
     r"serviço (?:est[áa] )?parado|Pedido vps|disjuntor|\bHTTP [45]\d\d\b", re.I)
+# (18/10, "tá de brincadeira né"): também é técnico OAuth, "Claude VPS", erro, parado e caminho de arquivo.
+# OAuth, FALHOU e Claude VPS são bloqueados sempre (mesmo com tipo ou anexo). Erro, parado e caminho só fora do cabeçalho de
+# entrega: são palavras comuns e ficam de fora do cabeçalho de entrega ("pronta: corrige o erro de login"), que o hub já filtrou.
+RE_TECNICO_SEMPRE = re.compile(r"\bOAuth\b|\bClaude VPS\b|\bFALHOU\b|\bsession expired\b", re.I)
+RE_TECNICO_FORA_ENTREGA = re.compile(
+    r"\berros?\b|\bparado\b|(?:^|[\s(\"'`])/(?:opt|var|home|etc|root|usr|tmp|srv)/[\w./-]+|\b[\w-]+\.(?:py|mjs|jsonl?|sh|log|ya?ml)\b", re.I)
+RE_RESUMO_VAZIO = re.compile(r"^\W*resumo\b[^\n]{0,40}:\s*nada pendente", re.I)
+# Só o resumo automático (rotina resumo-diario, ou o "Resumo HH:MM" do bot) é de uma por janela; "Resumo do contrato" não.
+ORIGENS_RESUMO = ("resumo-diario",)
+RE_RESUMO_HORA = re.compile(r"^\W*resumo\s+\d{1,2}:\d{2}", re.I)
+RE_HORA_CABECALHO = re.compile(r"^(\W*resumo\b[^\d:]{0,30}?)\d{1,2}:\d{2}", re.I)  # só a hora do título; a do conteúdo conta
 # (lição 14): nota técnica (PR, commit/SHA, teste, traceback, merge) é do orquestrador, não do dono: com 2 marcas ou mais,
-# sem arquivo anexo, desvia como o aviso técnico (INC-56: a nota do grupo da fsite05 chegava no zap do Fulano).
+# sem arquivo anexo, desvia como o aviso técnico (INC-56: a nota do grupo da fsite06 chegava no zap do Fulano).
 MARCAS_NOTA = (r"\bPRs?\s*#?\d+|/pull/\d+", r"\bcommit\b|`[0-9a-f]{7,40}`|\b[0-9a-f]{40}\b",
                r"\b(?:testes?|tsc|vitest|unittest|eslint|lint|local-ci)\b[^.\n]{0,40}(?:passa|verde|limp|falh|vermelh)",
                r"traceback|\bError:|stack trace", r"\bmerge(?:i|ei|ado|ar)?\b")
@@ -67,8 +78,9 @@ def _ler(base_dados=None):
     with contextlib.suppress(OSError, ValueError):
         est = json.loads(_arq(base_dados).read_text(encoding="utf-8"))
         if isinstance(est, dict):
-            return {"registro": est.get("registro") or {}, "fila": est.get("fila") or [], "envios": est.get("envios") or []}
-    return {"registro": {}, "fila": [], "envios": []}
+            return {"registro": est.get("registro") or {}, "fila": est.get("fila") or [], "envios": est.get("envios") or [],
+                    "resumos": est.get("resumos") or {}}
+    return {"registro": {}, "fila": [], "envios": [], "resumos": {}}
 
 
 def _gravar(est, base_dados=None, agora=None):
@@ -138,10 +150,15 @@ def eh_dono(para):
 
 
 def tecnico(texto, tipo=None, tem_arquivo=False):
-    """Erro de sistema, não decisão nem entrega. `tipo` explícito manda; entrega com arquivo nunca é técnica."""
+    """Erro de sistema, não decisão nem entrega. Falha (OAuth, FALHOU, Claude VPS) é técnica mesmo com tipo ou anexo;
+    `tipo` explícito manda no resto; entrega com arquivo nunca é técnica."""
+    if RE_TECNICO_SEMPRE.search(texto or ""):  # falha de tarefa nunca vai ao dono, nem com arquivo anexo
+        return True
     if tipo:
         return tipo == "tecnico"
-    return not tem_arquivo and bool(RE_TECNICO.search(texto or "") or nota_tecnica(texto))
+    entrega = bool(issues_prontas(texto))
+    return not tem_arquivo and bool(RE_TECNICO.search(texto or "") or nota_tecnica(texto)
+                                    or (not entrega and RE_TECNICO_FORA_ENTREGA.search(texto or "")))
 
 
 def nota_tecnica(texto):
@@ -238,6 +255,12 @@ def passar(texto, agora=False, caixa=None, arquivos=None, para=None, origem=None
     if zips:  # o dono não abre zip no celular: sai o texto, sem o zip
         arquivos = [a for a in arquivos if a not in zips]
         texto += "\n(Há um zip que não vai ao WhatsApp; está na issue.)"
+    if RE_RESUMO_VAZIO.search(texto) and not arquivos:  # "nada pendente" = nenhuma mensagem
+        with _trava(base_dados):
+            est = _ler(base_dados)
+            est["envios"].append({"em": _iso(quando), "origem": origem, "issue": issue, "tipo": "vazio"})
+            _gravar(est, base_dados, quando)
+        return None
     if tecnico(texto, tipo, bool(arquivos)):
         with _trava(base_dados):
             est = _ler(base_dados)
@@ -250,6 +273,16 @@ def passar(texto, agora=False, caixa=None, arquivos=None, para=None, origem=None
     with _trava(base_dados):
         est = _ler(base_dados)
         shas = _shas(arquivos, base)
+        resumo = None
+        if not arquivos and (origem in ORIGENS_RESUMO or RE_RESUMO_HORA.search(texto)):  # um resumo por janela (dia BRT)
+            dia_brt = quando.astimezone(datas.BRT).date().isoformat()
+            imp = hashlib.sha256(RE_HORA_CABECALHO.sub(r"\1", " ".join(texto.split()), count=1).encode()).hexdigest()
+            vistos = est.get("resumos") or {}
+            if vistos.get("dia") == dia_brt or imp in vistos.get("hashes", []):
+                est["envios"].append({"em": _iso(quando), "origem": origem, "issue": issue, "tipo": "repetido"})
+                _gravar(est, base_dados, quando)
+                return None
+            resumo = (dia_brt, imp)  # a marca do dia só vale quando o resumo sai (não quando cai na fila)
         if arquivos:
             ja = {r["sha"] for r in est["registro"].get(issue or "_", [])}
             novos = [(rel, sha) for rel, sha in shas if not sha or sha not in ja]
@@ -280,6 +313,9 @@ def passar(texto, agora=False, caixa=None, arquivos=None, para=None, origem=None
             _gravar(est, base_dados, quando)
             return None
         caminho = gravar(texto, arquivos)
+        if resumo:
+            vistos = est.get("resumos") or {}
+            est["resumos"] = {"dia": resumo[0], "hashes": (vistos.get("hashes", []) + [resumo[1]])[-20:]}
         est["fila"] = [f for f in est["fila"] if not (issue and f.get("issue") == issue)]  # o que saiu agora vale mais que a fila
         _registrar(est, issue, shas, quando)
         est["envios"].append({"em": _iso(quando), "origem": origem, "issue": issue, "tipo": "enviado",

@@ -31,8 +31,13 @@ echo "$(date -u +%FT%TZ) $nome: início ($*)"
 codigo=${PIPESTATUS[0]}
 echo "$(date -u +%FT%TZ) $nome: fim, código $codigo"
 if [ "$codigo" -ne 0 ]; then
-  # Sem WhatsApp (regra do Fulano: sem spam): a falha entra no resumo das 8h (hub/resumo.py rotinas_falhas).
+  # Sem WhatsApp (regra do Fulano: sem spam): a falha entra no resumo das 8h (hub/resumo.py rotinas_falhas). 12 seguidas com o
+  # mesmo erro viram incidente hub_quebrado_em_producao (hub/rotina_falhas.py, KRN-1810).
   mkdir -p "$HUB_DATA/rotinas"
-  python3 -c 'import json,sys,datetime as d; print(json.dumps({"em": d.datetime.now(d.timezone.utc).isoformat(), "nome": sys.argv[1], "codigo": int(sys.argv[2]), "fim": open(sys.argv[3], encoding="utf-8", errors="replace").read()[-600:]}, ensure_ascii=False))'     "$nome" "$codigo" "$saida" >> "$HUB_DATA/rotinas/falhas.jsonl" || true
+  python3 -m hub.rotina_falhas gravar "$nome" "$codigo" "$saida" \
+    || python3 -c 'import json,sys,datetime as d; print(json.dumps({"em": d.datetime.now(d.timezone.utc).isoformat(), "nome": sys.argv[1], "codigo": int(sys.argv[2]), "fim": open(sys.argv[3], encoding="utf-8", errors="replace").read()[-600:]}, ensure_ascii=False))' "$nome" "$codigo" "$saida" >> "$HUB_DATA/rotinas/falhas.jsonl" || true
+else
+  # sucesso zera a contagem de falhas seguidas (sem python: roda a cada execução de toda rotina)
+  rm -f "$HUB_DATA/rotinas/seguidas/$(printf '%s' "$nome" | LC_ALL=C sed 's/[^A-Za-z0-9._-]/__/g').json" 2>/dev/null || true
 fi
 exit "$codigo"

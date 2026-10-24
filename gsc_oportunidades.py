@@ -2,7 +2,7 @@
 
 - Buraco: a busca já tem demanda e o Google já mostra o site, mas sem página feita para ela.
   Impressões ≥ 50, posição média > 10, zero clique e nenhuma página do site com a busca no título ou na URL
-  (tolera plural, erro de digitação e prefixo: "miofacial" casa "miofascial", "fsite05" casa "fisioterapia").
+  (tolera plural, erro de digitação e prefixo: "miofacial" casa "miofascial", "fsite06" casa "fisioterapia").
 - Reforçar: mesmo filtro, mas o Google já mostra uma página que cobre ao menos metade dos termos. Não falta página;
   falta a página subir (título, conteúdo, links internos).
 Busca com nome de concorrente (sites/<id>.json "concorrentes") não entra: não é demanda para página nova.
@@ -11,7 +11,7 @@ Busca com nome de concorrente (sites/<id>.json "concorrentes") não entra: não 
 Ordem: vazamentos primeiro (mexer no título/descrição de página que já ranqueia é o ganho mais rápido),
 depois buracos; dentro de cada grupo, por impressões.
 
-    python gsc_oportunidades.py [--site fsite05] [--dias 90]
+    python gsc_oportunidades.py [--site fsite06] [--dias 90]
 
 Saída: $HUB_DATA/gsc/<site>/<AAAA-MM-DD>.json e .md, e latest.json/latest.md (lidos pela tarefa seo-semanal).
 Limitação: o relatório de desempenho em IA do Search Console (AI Overviews/AI Mode, jun/2026) não sai pela API
@@ -69,7 +69,7 @@ def _casa(termo, conjunto):
         return False
     raiz = termo[:-2]  # tolera plural e flexão curta: fisioterapia/fisioterapias, lombar/lombares
     return any(len(w) >= 5 and (w.startswith(raiz) and abs(len(w) - len(termo)) <= 2  # flexão
-                                or w.startswith(termo)  # prefixo: fsite05 → fisioterapia
+                                or w.startswith(termo)  # prefixo: fsite06 → fisioterapia
                                 or len(termo) >= 6 and difflib.SequenceMatcher(None, termo, w).ratio() >= 0.85)  # digitação
                for w in conjunto)
 

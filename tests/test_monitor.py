@@ -234,7 +234,7 @@ class ProcessosTest(unittest.TestCase):
 
 DOCKER_STATS = "\n".join(json.dumps(x) for x in [
     {"Name": "clientei-psi-site-mmtiik.1.xtik74r5bsxt2o5v7v40zm7v3", "CPUPerc": "2.25%", "MemUsage": "132.8MiB / 31.34GiB", "MemPerc": "0.41%"},
-    {"Name": "fsite05-db", "CPUPerc": "10.50%", "MemUsage": "1GiB / 31.34GiB", "MemPerc": "3.19%"},
+    {"Name": "fsite06-db", "CPUPerc": "10.50%", "MemUsage": "1GiB / 31.34GiB", "MemPerc": "3.19%"},
     {"Name": "pequeno", "CPUPerc": "0.00%", "MemUsage": "512kB / 31.34GiB", "MemPerc": "0.00%"},
 ]) + "\nlixo que não é json"
 
@@ -255,8 +255,8 @@ class DockerTest(unittest.TestCase):
 
     def test_parse_stats(self):
         r = monitor.parse_docker_stats(DOCKER_STATS)
-        self.assertEqual([x["nome"] for x in r], ["fsite05-db", "clientei-psi-site-mmtiik", "pequeno"])
-        self.assertEqual(r[0], {"nome": "fsite05-db", "cpu": 10.5, "mem_mb": 1024.0, "mem_pct": 3.19})
+        self.assertEqual([x["nome"] for x in r], ["fsite06-db", "clientei-psi-site-mmtiik", "pequeno"])
+        self.assertEqual(r[0], {"nome": "fsite06-db", "cpu": 10.5, "mem_mb": 1024.0, "mem_pct": 3.19})
         self.assertEqual(r[1]["mem_mb"], 132.8)
         self.assertEqual(r[2]["mem_mb"], 0.5)
 
@@ -448,15 +448,40 @@ class RemotosTest(unittest.TestCase):
     def test_sem_resposta_guarda_a_ultima_e_marca_erro(self):
         with tempfile.TemporaryDirectory() as d:
             r = monitor.coletar_remotos(d, rodar=lambda *a, **k: (255, "", "recusado"))
-        self.assertEqual(r["servidor_a"]["erro"], "sem resposta")
+        self.assertEqual(r.get("vps8238", {}).get("erro"), "sem resposta (recusado)")
+        self.assertEqual(set(r), {"dedicado", "vps8238", "gemea", "pc"})
 
 
     def test_deploys_do_clientej_vem_do_log(self):
         saidas = iter([(0, "cpu 1 0 1 8 0 0 0 0\n@@@\nMemTotal: 10 kB\nMemAvailable: 5 kB\n@@@\n0.1 0.1 0.1 1/1 1\n", ""),
-                       (0, "2026-10-16T00:14:46+00:00 no ar: 274a83c\n", ""), (255, "", ""), (255, "", "")])
+                       (0, "2026-10-16T00:14:46+00:00 no ar: 274a83c\n", ""), (255, "", ""), (255, "", ""), (255, "", "")])
         with tempfile.TemporaryDirectory() as d:
             r = monitor.coletar_remotos(d, rodar=lambda *a, **k: next(saidas))
-        self.assertEqual(r["servidor_a"]["deploys"], [{"em": "2026-10-16T00:14:46+00:00", "sha": "274a83c"}])
+        self.assertEqual(r.get("dedicado", {}).get("deploys"), [{"em": "2026-10-16T00:14:46+00:00", "sha": "274a83c"}])
+
+    def test_sites_que_o_servidor_atende_de_verdade(self):
+        traefik = ("http:\n  routers:\n    fsite06-site-ab12-router-7:\n      rule: Host(`clientea-com.example`)\n"
+                   "    fsite06-site-ab12-router-websecure-8:\n      rule: Host(`www.clientea-com.example`)\n"
+                   "    fsite06-site-ab12-router-1:\n      rule: Host(`fsite06-site-ab12-1-2-3-4.sslip" + ".io`)\n"
+                   "    asite01-web-cd34-router-2:\n      rule: Host(`clientec-com.example`)\n"
+                   "    velho-app-ef56-router-3:\n      rule: Host(`velho-com.example`)\n")
+        nomes = "fsite06-site-ab12.1.xyz\nasite01-web-cd34.1.abc\n"  # velho-app sem contêiner de pé
+        self.assertTrue(hasattr(monitor, "publicados"), "o monitor não lê o que cada servidor publica")
+        self.assertEqual(monitor.publicados(traefik, nomes), sorted(["clientec-com.example", "clientea-com.example", "www.clientea-com.example"]))
+        log = 'traefik=true\n     12 "RequestHost":"clientea-com.example"\n      3 "RequestHost":"192.0.2.6"\n'
+        self.assertEqual(monitor.atendidos(log), {"clientea-com.example": 12, "192.0.2.6": 3})
+        self.assertIsNone(monitor.atendidos(""))
+        self.assertEqual(monitor.atendidos("traefik=true\n"), {})
+        base = "cpu 1 0 1 8 0 0 0 0\n@@@\nMemTotal: 10 kB\nMemAvailable: 5 kB\n@@@\n0.1 0.1 0.1 1/1 1\n@@@\n/dev/x 1 1 1 9% /\n@@@\n"
+        saidas = iter([(0, base + traefik + "@@@\n" + nomes + "@@@\n" + log, ""), (1, "", ""),  # dedicado e o log de deploy
+                       (0, base + traefik + "@@@\n" + nomes + "@@@\n", ""),  # 82.38: log do Traefik fora, vale o publicado
+                       (0, base + traefik + "@@@\n" + nomes + "@@@\ntraefik=true\n", ""),  # gêmea: Traefik de pé sem pedido
+                       (255, "", "")])
+        with tempfile.TemporaryDirectory() as d:
+            r = monitor.coletar_remotos(d, rodar=lambda *a, **k: next(saidas))
+        self.assertEqual(r["dedicado"]["sites"], ["clientea-com.example"])  # o Cloudflare manda o pedido para cá
+        self.assertEqual(r["vps8238"]["sites"], sorted(["clientec-com.example", "clientea-com.example", "www.clientea-com.example"]))
+        self.assertEqual(r["gemea"]["sites"], [])  # publicado, mas o Cloudflare manda para outro: sem aresta
 
 
     def test_pc_windows(self):
@@ -473,10 +498,23 @@ class RemotosCacheTest(unittest.TestCase):
             arq=monitor.pasta(d)/'remotos.json'
             arq.parent.mkdir(parents=True,exist_ok=True)
             antigo={'cpu':41,'mem_pct':62,'disco_pct':73,'t':'2026-10-16T01:00:00Z','stat':[800,1000]}
-            arq.write_text(json.dumps({'servidor_a':antigo,'servidor_b':antigo}))
+            arq.write_text(json.dumps({'vps8238':antigo,'gemea':antigo}))
             r=monitor.coletar_remotos(d,rodar=lambda *a,**k:(255,'','falhou'))
-            for s in ['servidor_a','servidor_b']:
-                self.assertEqual({k:r[s][k] for k in antigo},antigo)
+            for s in ['vps8238','gemea']:
+                self.assertEqual({k:r.get(s,{}).get(k) for k in antigo},antigo)
+
+class RemotosSitesVelhosTest(unittest.TestCase):
+    def test_servidor_sem_resposta_zera_sites_e_guarda_metricas(self):
+        antigo = {"cpu": 41, "mem_pct": 62, "t": "2026-10-16T01:00:00Z", "stat": [800, 1000], "sites": ["asite01-com.example"]}
+        with tempfile.TemporaryDirectory() as d:
+            arq = monitor.pasta(d) / "remotos.json"
+            arq.parent.mkdir(parents=True, exist_ok=True)
+            arq.write_text(json.dumps({"vps8238": antigo}))
+            r = monitor.coletar_remotos(d, rodar=lambda *a, **k: (255, "", "falhou"))
+        self.assertEqual(r["vps8238"]["sites"], [])
+        self.assertEqual((r["vps8238"]["cpu"], r["vps8238"]["t"]), (41, "2026-10-16T01:00:00Z"))
+        self.assertEqual(r["vps8238"]["erro"], "sem resposta (falhou)")
+
 
 class TestRodarBytesInvalidos(unittest.TestCase):
     def test_saida_nao_utf8_nao_quebra(self):
@@ -484,3 +522,13 @@ class TestRodarBytesInvalidos(unittest.TestCase):
         cod, out, _ = monitor._rodar(["printf", "ok\\242"])
         self.assertEqual(cod, 0)
         self.assertTrue(out.startswith("ok"))
+
+
+class ChaveRemotaTest(unittest.TestCase):
+    def test_usa_a_chave_que_existe_no_dedicado(self):
+        # a cópia em /root/.ssh sumiu na virada; o 82.38 só lê com a de /home/usuario
+        so_orq = lambda p: p == "/home/usuario/.ssh/clientek"  # noqa: E731
+        self.assertEqual(monitor._chave_remota(so_orq), "/home/usuario/.ssh/clientek")
+
+    def test_sem_nenhuma_chave_mantem_a_padrao(self):
+        self.assertEqual(monitor._chave_remota(lambda p: False), "/root/.ssh/clientek")

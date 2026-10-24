@@ -15,6 +15,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import ssl
@@ -23,12 +24,14 @@ import sys
 from pathlib import Path
 
 from hub import data
+from hub.comum import maquinas
 
 UTC = dt.timezone.utc
-# Backups conferidos: nome, padrão de arquivo, idade máxima em horas.
+# Backups conferidos: nome, padrão de arquivo, idade máxima em horas e, se o job roda em outra máquina, o nome dela em
+# hub.comum.maquinas (o cron do dump da fsite06 está na 82.38, não no dedicado onde o saude roda).
 BACKUPS = [
     ("relatórios do hub", "/var/backups/nimbus/reports-*.tar.gz", 48),
-    ("banco do CRM da fsite05", "/var/backups/banco-fsite05/fsite05-*.dump", 36),
+    ("banco do CRM da fsite06", "/var/backups/banco-fsite06/fsite06-*.dump", 36, "vps8238"),
 ]
 VIVOS = {"asite01-wpp": "/opt/asite01-wpp/data/vivo.json", "bot_whatsapp": "/opt/bot_whatsapp/data/vivo.json"}
 TRAEFIK = "/etc/dokploy/traefik/dynamic/*.yml"
@@ -139,16 +142,43 @@ def vigia(agora=None, vivos=None):
     return saida
 
 
-def backups(agora=None, lista=None):
+def _arquivos_remotos(maquina, padrao, rodar=None):
+    """[(mtime, caminho)] do `padrao` na `maquina` (ssh do root, a mesma chave do monitor). None se a máquina não responde."""
+    from hub import monitor
+    pasta_, _, nome = padrao.rpartition("/")
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new",
+           "-i", monitor._chave_remota(), f"root@{maquinas.ip(maquina)}",
+           f"find {shlex.quote(pasta_)} -maxdepth 1 -name {shlex.quote(nome)} -printf '%T@ %p\\n'"]
+    cod, out, _ = (rodar or _rodar)(cmd, 20)
+    if cod != 0:
+        return None
+    achados = []
+    for linha in out.splitlines():
+        t, _, caminho = linha.partition(" ")
+        try:
+            achados.append((float(t), caminho))
+        except ValueError:
+            continue
+    return achados
+
+
+def backups(agora=None, lista=None, rodar=None):
     agora = agora or dt.datetime.now(UTC).timestamp()
     saida = []
-    for nome, padrao, max_h in lista or BACKUPS:
-        arqs = glob.glob(padrao)
+    for nome, padrao, max_h, *resto in lista or BACKUPS:
+        if resto:
+            arqs = _arquivos_remotos(resto[0], padrao, rodar)
+            if arqs is None:  # máquina fora do ar não é "nunca rodou": diz que não deu para conferir
+                saida.append({"nome": nome, "ok": False, "idade_h": None, "padrao": padrao, "maquina": resto[0],
+                              "erro": "sem resposta"})
+                continue
+        else:
+            arqs = [(os.path.getmtime(a), a) for a in glob.glob(padrao)]
         if not arqs:
             saida.append({"nome": nome, "ok": False, "idade_h": None, "padrao": padrao})
             continue
-        ultimo = max(arqs, key=os.path.getmtime)
-        idade = (agora - os.path.getmtime(ultimo)) / 3600
+        mtime, ultimo = max(arqs)
+        idade = (agora - mtime) / 3600
         saida.append({"nome": nome, "ok": idade <= max_h, "idade_h": round(idade), "arquivo": ultimo})
     return saida
 
@@ -169,6 +199,12 @@ def certificado(host, timeout=6):
         with socket.create_connection((host, 443), timeout=timeout) as s, ctx.wrap_socket(s, server_hostname=host) as t:
             fim = dt.datetime.strptime(t.getpeercert()["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
             return {"host": host, "dias": (fim - dt.datetime.now(UTC)).days}
+    except socket.gaierror as e:
+        # domínio que sobrou num app do Dokploy sem registro no DNS: ninguém chega nele. Só o "não existe";
+        # falha do resolvedor (EAI_AGAIN etc.) segue como erro e vira problema.
+        if e.errno in (socket.EAI_NONAME, getattr(socket, "EAI_NODATA", socket.EAI_NONAME)):
+            return {"host": host, "dias": None, "erro": str(e)[:120], "sem_dns": True}
+        return {"host": host, "dias": None, "erro": str(e)[:120]}
     except (OSError, ssl.SSLError, KeyError, ValueError) as e:
         return {"host": host, "dias": None, "erro": str(e)[:120]}
 
@@ -216,12 +252,17 @@ def problemas(f):
             p.append(f"bot {bot} sem sinal" + (f" há {v['min_sem_sinal']} min" if v["min_sem_sinal"] is not None else ""))
     for b in f["backups"]:
         if not b["ok"]:
-            p.append(f"backup {b['nome']}: " + ("nunca rodou" if b["idade_h"] is None else f"último há {b['idade_h']} h"))
+            if b.get("erro"):
+                p.append(f"backup {b['nome']}: não deu para conferir ({b['maquina']} {b['erro']})")
+            else:
+                p.append(f"backup {b['nome']}: " + ("nunca rodou" if b["idade_h"] is None else f"último há {b['idade_h']} h"))
     for d in f.get("deploys") or []:
         if d.get("status") == "error":
             p.append(f"deploy do {d['app']} ({d['projeto']}) falhou em {str(d.get('em'))[:16]}")
     p.extend(f.get("linear_git") or [])
     for c in f["certificados"]:
+        if c.get("sem_dns"):
+            continue  # não é certificado ruim: o domínio não existe mais; a lista fica em saude.json para a faxina do Dokploy
         if c["dias"] is None:
             p.append(f"certificado de {c['host']} não confere")
         elif c["dias"] < LIMITES["cert_dias"]:

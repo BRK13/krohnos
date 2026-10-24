@@ -6,7 +6,7 @@ from unittest import mock
 from hub import metas as M
 
 T = dt.datetime(2026, 10, 15, 12, tzinfo=dt.timezone.utc)
-SITES = [{"id": "fsite05", "repo": {"github": "example-org/cliente-a-v2", "base": "master"}}, {"id": "sem", "repo": None}]
+SITES = [{"id": "fsite06", "repo": {"github": "acme/cliente-a-v2", "base": "master"}}, {"id": "sem", "repo": None}]
 PS = {"tipo": "pagespeed", "url": "https://f-com.example/", "metrica": "lcp_ms"}
 
 
@@ -19,17 +19,17 @@ class MetasTest(unittest.TestCase):
 
     def nova(self, **kw):
         kw.setdefault("abrir", lambda m: "KRN-800 https://l/x")
-        return M.criar("home da fsite05 com LCP < 2 s", base_dados=self.d, agora=T, **kw)
+        return M.criar("home da fsite06 com LCP < 2 s", base_dados=self.d, agora=T, **kw)
 
     def regs(self, id, seq):
         return [M.registrar(id, v, "x", self.d)[0] for v in seq]
 
     def test_criar_grava_e_abre(self):
-        m = self.nova(site="fsite05", medir=PS, alvo=2000, unidade="ms")
+        m = self.nova(site="fsite06", medir=PS, alvo=2000, unidade="ms")
         self.assertEqual((m["issue"], m["url_issue"], m["estado"]), ("KRN-800", "https://l/x", "ativa"))
         self.assertEqual(M.ler(m["id"], self.d)["issue"], "KRN-800")
-        self.assertEqual(m["id"], "m-20261015-fsite05-home-da-fsite05")
-        self.assertTrue(self.nova(site="fsite05")["id"].endswith("-2"))
+        self.assertEqual(m["id"], "m-20261015-fsite06-home-da-fsite06")
+        self.assertTrue(self.nova(site="fsite06")["id"].endswith("-2"))
 
     def test_linear_falha_deixa_issue_nula(self):
         def cai(m):
@@ -85,12 +85,12 @@ class MetasTest(unittest.TestCase):
 
     def test_abrir_issue_labels(self):
         with mock.patch("hub.metas.linear") as L:
-            L.projeto_do_repo.return_value = "fsite05"
-            M.abrir_issue({**self.nova(site="fsite05", esforco="alto")})
+            L.projeto_do_repo.return_value = "fsite06"
+            M.abrir_issue({**self.nova(site="fsite06", esforco="alto")})
             self.assertEqual(L.criar_issue.call_args.args[4], ["meta", "opus"])
-            L.projeto_do_repo.assert_called_with("example-org/cliente-a-v2")
+            L.projeto_do_repo.assert_called_with("acme/cliente-a-v2")
             M.abrir_issue({**self.nova(site="sem")})
-            L.projeto_do_repo.assert_called_with("example-org/repo-privado")
+            L.projeto_do_repo.assert_called_with("acme/repo-privado")
 
     def test_fechada_nao_registra(self):
         m = self.nova(medir=PS, alvo=2000)
@@ -142,10 +142,10 @@ class MetasTest(unittest.TestCase):
         self.assertEqual(M.listar(self.d)[0]["issue"], "KRN-9")
 
     def test_coletor_bi_melhor_do_dia(self):
-        m = self.nova(site="fsite05", medir=PS, alvo=2000)
+        m = self.nova(site="fsite06", medir=PS, alvo=2000)
         with mock.patch("hub.metas.conta.agora", return_value=T):
             self.regs(m["id"], [2800, 2700, 2600])  # 2700 não melhora 5 %: revertida, fica fora
-        self.assertEqual(M.coletor_bi(T.date(), self.d), [{"dia": "2026-10-15", "negocio": "fsite05", "fonte": "meta",
+        self.assertEqual(M.coletor_bi(T.date(), self.d), [{"dia": "2026-10-15", "negocio": "fsite06", "fonte": "meta",
                                                            "metrica": m["id"], "dim": "", "valor": 2600.0}])
 
     def test_coletor_dia_em_brt(self):

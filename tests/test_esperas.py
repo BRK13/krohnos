@@ -15,13 +15,14 @@ UTC = dt.timezone.utc
 ENCERRAR = linear.encerrar_sem_ia  # o de verdade, antes do mock do SemIaTest
 EM_LOOP = agenda.em_loop  # o de verdade, antes do mock do setUp
 T0 = dt.datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
-PR = "https://github.com/example-org/clienteh/pull/524"
+PR = "https://github.com/acme/clienteh/pull/524"
 SHA = "392907284aeecef990cf13655d6441a2a2f719a8"
 REVISAO = {"body": f"**Revisão do Codex** (commit `{SHA[:8]}`)\n\nSem achados sérios.", "created_at": "2026-10-12T12:30:00Z",
-           "html_url": "https://github.com/example-org/clienteh/pull/524#issuecomment-1"}
+           "html_url": "https://github.com/acme/clienteh/pull/524#issuecomment-1"}
 
 
 _ENV = None
+_GH = None
 
 
 def setUpModule():
@@ -32,10 +33,14 @@ def setUpModule():
     _ENV = mock.patch.dict("os.environ", {"GH_TOKEN": "token-de-teste"})
     _ENV.start()
     github_api._AUTH.clear()
+    global _GH
+    _GH = mock.patch("hub.gh.executar", lambda *a, **k: subprocess.CompletedProcess(a[0], 1, "", ""))  # sem `gh pr diff` de verdade
+    _GH.start()
 
 
 def tearDownModule():
     from hub import github_api
+    _GH.stop()
     _ENV.stop()
     github_api._AUTH.clear()
 
@@ -98,7 +103,7 @@ class EsperasTest(unittest.TestCase):
 
     def test_gravar_guarda_pr_e_sha(self):
         e = self.gravar()
-        self.assertEqual((e["ident"], e["repo"], e["numero"], e["sha"]), ("KRN-164", "example-org/clienteh", 524, SHA))
+        self.assertEqual((e["ident"], e["repo"], e["numero"], e["sha"]), ("KRN-164", "acme/clienteh", 524, SHA))
         arq = Path(self.dados, "claude", "esperas", "KRN-164.json")
         self.assertEqual(json.loads(arq.read_text(encoding="utf-8"))["pr"], PR)
         with self.assertRaises(ValueError):
@@ -130,17 +135,17 @@ class EsperasTest(unittest.TestCase):
 
     def test_volta_do_ci_com_8_rodadas_no_dia_enfileira(self):  # (ficou sem merge)
         self.gravar()
-        for m in range(8):
-            conta.registrar({"inicio": conta.iso(T0 - dt.timedelta(hours=3, minutes=-m)), "nome": "linear-krn-164"},
-                            self.dados)
+        for m in range(8):  # rodadas de fala: o freio de voltas automáticas não conta pessoa, nem o "outro" do registrar
+            conta.registrar({"inicio": conta.iso(T0 - dt.timedelta(hours=3, minutes=-m)), "nome": "linear-krn-164",
+                             "tipo": "fala"}, self.dados)
         quando = T0 + dt.timedelta(minutes=35)
         with mock.patch("hub.agenda.em_loop", EM_LOOP), mock.patch("hub.conta.agora", lambda: quando):
             self.assertEqual(self.voltar(GitHubFalso(ci("success"), [REVISAO]), quando), ["linear-krn-164"])
 
     def test_volta_do_ci_com_4_rodadas_sem_fala_ainda_volta(self):  # review 2ª checagem só olha o teto por estado
         self.gravar()
-        for m in range(5):
-            conta.registrar({"inicio": conta.iso(T0 - dt.timedelta(hours=3, minutes=-m)), "nome": "linear-krn-164"}, self.dados)
+        for m in range(4):  # a fala é a da issue; voltas de espera legítimas não somam como inúteis
+            conta.registrar({"inicio": conta.iso(T0 - dt.timedelta(hours=3, minutes=-m)), "nome": "linear-krn-164", "tipo": "espera_ci"}, self.dados)
         quando = T0 + dt.timedelta(minutes=35)
         item = {"tipo": "issue", "id": "u", "identifier": "KRN-164", "ultima_fala": "2026-10-12T05:00:00Z",
                 "estado_desde": None, "merge": False, "estados": {}}
@@ -330,12 +335,12 @@ class EsperasTest(unittest.TestCase):
         self.assertTrue(e["com_ci"])
         gh = GitHubFalso(recentes={"a1": [], "c3": ["local-ci"]}, sem_merge={"a1"})
         self.gravar(gh)
-        self.assertNotIn("repos/example-org/clienteh/commits/a1/status", gh.chamadas)
+        self.assertNotIn("repos/acme/clienteh/commits/a1/status", gh.chamadas)
 
     def test_gh_api_usa_o_gh_sem_rede_no_teste(self):
         with mock.patch("hub.github_api.get", return_value={"ok": 1}) as get:
-            self.assertEqual(esperas.gh_api("repos/example-org/x/pulls/1"), {"ok": 1})
-        get.assert_called_once_with("repos/example-org/x/pulls/1")
+            self.assertEqual(esperas.gh_api("repos/acme/x/pulls/1"), {"ok": 1})
+        get.assert_called_once_with("repos/acme/x/pulls/1")
 
 
 
@@ -467,7 +472,7 @@ class NoArTest(unittest.TestCase):
         self.assertIsNone(self.situacao(self.gh("behind"), url="https://x.com/api/versao"))
 
     def test_repo_sem_deploy_conhecido_volta_na_hora(self):
-        e = dict(self.espera(self.gh()), repo="example-org/sem-deploy")
+        e = dict(self.espera(self.gh()), repo="acme/sem-deploy")
         gh = lambda c: {"merged": True, "merge_commit_sha": MERGE, "base": {"ref": "main"}}  # noqa: E731
         with mock.patch("hub.recibo._site", return_value=None):
             self.assertIn("não sabe conferir", esperas.situacao(e, gh, T0))
@@ -540,7 +545,7 @@ class SemIaTest(unittest.TestCase):
     def test_com_label_merge_funde_e_grava_espera_no_ar(self):
         self.item["merge"] = True
         self.assertEqual(self.voltar(GitHubFalso(ci("success"), [REVISAO])), [])
-        self.assertEqual(self.merge["args"], [["pr", "merge", "524", "--repo", "example-org/clienteh", "--squash",
+        self.assertEqual(self.merge["args"], [["pr", "merge", "524", "--repo", "acme/clienteh", "--squash",
                                                 "--match-head-commit", SHA]])
         e = esperas.ler("KRN-164", self.dados)
         self.assertEqual(e["no_ar"], "")
@@ -551,7 +556,7 @@ class SemIaTest(unittest.TestCase):
 
     def test_merge_no_repo_do_hub_pede_atualizar(self):
         self.item["merge"] = True
-        for repo, acao in (("example-org/nimbus-hub", "atualizar-hub"), ("example-org/bot_whatsapp", "atualizar-runner")):
+        for repo, acao in (("acme/nimbus-hub", "atualizar-hub"), ("acme/bot_whatsapp", "atualizar-runner")):
             self.eventos.clear()
             e = {"ident": "KRN-164", "pr": f"https://github.com/{repo}/pull/524", "repo": repo, "numero": 524, "max_horas": 6}
             gh = lambda c: {"head": {"sha": SHA}}  # noqa: E731
@@ -604,7 +609,7 @@ class SemIaTest(unittest.TestCase):
             ENCERRAR(dict(self.item, estados={"Done": "d"}), "Done", "No ar: x. Fechado pelo hub, sem IA.")
             ENCERRAR(self.item, "Nada", "PR pronto. Fechado pelo hub, sem IA.")  # sem a coluna: comentar direto
         self.item["merge"] = True
-        e = {"ident": "KRN-164", "pr": PR, "repo": "example-org/clienteh", "numero": 524, "max_horas": 6}
+        e = {"ident": "KRN-164", "pr": PR, "repo": "acme/clienteh", "numero": 524, "max_horas": 6}
         agenda._sem_ia(e, "fala", {"tipo": "pronto", "sha": SHA, "texto": "x"}, self.dados, GitHubFalso(), T0)
         textos += [t for ev, t in self.eventos if ev == "comentario"]
         self.assertEqual(len(textos), 3)
@@ -639,7 +644,7 @@ class SemIaTest(unittest.TestCase):
     def test_timeout_no_merge_mas_pr_fundido_vale_como_sucesso(self):
         def estoura(args):
             raise subprocess.TimeoutExpired("gh", 120)
-        e = {"repo": "example-org/clienteh", "numero": 524}
+        e = {"repo": "acme/clienteh", "numero": 524}
         fundido = lambda c: {"merged": True, "merge_commit_sha": MERGE}  # noqa: E731
         with mock.patch.object(esperas, "_gh_rodar", estoura):
             self.assertEqual(esperas.merge_pr(e, SHA, get=fundido), (True, ""))

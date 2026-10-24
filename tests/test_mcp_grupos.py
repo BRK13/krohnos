@@ -40,17 +40,17 @@ class GruposTest(unittest.TestCase):
         g = _grupo("g", "ferramenta_de_teste")
         with mock.patch.dict(mcp_proxy.GRUPOS, {"ferramenta_de_teste": g}), \
              mock.patch.dict(mcp_proxy.FERRAMENTAS, {"ferramenta_de_teste": g.FERRAMENTAS["ferramenta_de_teste"]}):
-            r = mcp_proxy.executar("ferramenta_de_teste", {"site": "psite13"})
+            r = mcp_proxy.executar("ferramenta_de_teste", {"site": "psite15"})
             sem_site = mcp_proxy.executar("ferramenta_de_teste", {})
-        self.assertEqual(r, {"ok": True, "nome": "ferramenta_de_teste", "site": "psite13"})
+        self.assertEqual(r, {"ok": True, "nome": "ferramenta_de_teste", "site": "psite15"})
         self.assertEqual(sem_site["site"], None)
 
     def test_pasta_fica_em_hub_data_mcp(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"HUB_DATA": d}):
-            p = mcp_grupos.pasta("relatorios", "psite13")
+            p = mcp_grupos.pasta("relatorios", "psite15")
             self.assertTrue(p.is_dir())
-            self.assertEqual(p.relative_to(d).as_posix(), "mcp/relatorios/psite13")
+            self.assertEqual(p.relative_to(d).as_posix(), "mcp/relatorios/psite15")
 
     def test_inteiro_e_palavras(self):
         self.assertEqual(mcp_grupos.inteiro({"n": "500"}, "n", 10, 100), 100)

@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 from hub import data
+from hub.comum import maquinas
 
 UTC = dt.timezone.utc
 RETENCAO_DIAS = 14
@@ -494,16 +495,55 @@ def serie(janela, base_dados=None, agora=None):
     return reduzir(pontos)
 
 
-# ---------- VPS do ClienteJ (por SSH do root da HUB) ----------
+# ---------- servidores: o dedicado é a própria máquina; a 82.38 e a gêmea por SSH do root ----------
 
-REMOTOS = {"servidor_a": "192.0.2.1", "servidor_b": "192.0.2.2"}
+# None = roda aqui mesmo (o cron do monitor está no dedicado desde a virada de 22/10). Mudou de máquina: maquinas.json.
+REMOTOS = {"dedicado": None, "vps8238": maquinas.ip("vps8238"), "gemea": maquinas.ip("servidor_b")}
 _SEP = "@@@"
+# a mesma do Pedido vps com host (deploy/atualizar.sh). Desde a virada (22/10) o dedicado não tem a cópia em /root/.ssh: usa a
+# de /home/usuario/.ssh, a mesma que o PC já usa aqui em cima; sem nenhuma delas, o ssh tenta a padrão
+_CHAVES = ("/root/.ssh/clientek", "/home/usuario/.ssh/clientek")
+
+
+def _chave_remota(existe=os.path.exists):
+    return next((k for k in _CHAVES if existe(k)), _CHAVES[0])
+# o que cada servidor serve de verdade: os roteadores do Traefik do Dokploy dele, os contêineres de pé e os domínios que o
+# Traefik atendeu em 10 min (o Cloudflare esconde a origem no DNS; o Cérebro bate em cada site a cada minuto, então o
+# servidor para onde o Cloudflare manda tem pedido no log e o que só sobrou publicado não tem)
+_LER = (f"cat /proc/stat; echo {_SEP}; cat /proc/meminfo; echo {_SEP}; cat /proc/loadavg; echo {_SEP}; df -P /; echo {_SEP}; "
+        f"cat /etc/dokploy/traefik/dynamic/*.yml 2>/dev/null; echo {_SEP}; docker ps --format '{{{{.Names}}}}' 2>/dev/null; "
+        f"echo {_SEP}; docker inspect -f 'traefik={{{{.State.Running}}}}' dokploy-traefik 2>/dev/null; "
+        f"docker logs --since 10m dokploy-traefik 2>&1 | grep -o '\"RequestHost\":\"[^\"]*\"' | sort | uniq -c; true")
+RE_ROTEADOR = re.compile(r"^\s+(\S+?)-router-(?:websecure-)?\d+:\s*$")
+
+
+def publicados(traefik, conteineres):
+    """Domínios que o Dokploy do servidor publica para um app com contêiner de pé (sem o sslip-io.example/traefik.me do Dokploy)."""
+    nomes = [n.strip() for n in conteineres.splitlines() if n.strip()]
+    vivo = lambda app: any(n == app or n.startswith(app + ".") or n.startswith(app + "_") for n in nomes)  # noqa: E731
+    app, saida = None, set()
+    for linha in traefik.splitlines():
+        m = RE_ROTEADOR.match(linha)
+        if m:
+            app = m.group(1)
+        elif app and "Host(`" in linha and vivo(app):
+            saida.update(h for h in re.findall(r"Host\(`([^`]+)`\)", linha)
+                         if "." in h and not h.endswith((".sslip.io", ".traefik.me", ".localhost")))
+    return sorted(saida)
+
+
+def atendidos(texto):
+    """`uniq -c` dos RequestHost do log do Traefik -> {domínio: pedidos}. Traefik de pé sem pedido em 10 min: {} (o
+    servidor não atende site nenhum, mesmo com o roteador publicado); sem Traefik ou sem leitura do log: None."""
+    if not re.search(r"^traefik=true$", texto, flags=re.M):
+        return None
+    return {h: int(n) for n, h in re.findall(r'^\s*(\d+)\s+"RequestHost":"([^"]+)"', texto, flags=re.M)}
 
 
 def ponto_remoto(texto, anterior=None):
     """Saída de `cat /proc/stat; echo @@@; cat /proc/meminfo; echo @@@; cat /proc/loadavg` -> (ponto, stat cru).
     CPU pela diferença com a leitura anterior (sem anterior: None)."""
-    stat_txt, mem_txt, load_txt, df_txt = (texto.split(_SEP) + ["", "", ""])[:4]
+    stat_txt, mem_txt, load_txt, df_txt = (texto.split(_SEP) + ["", "", ""])[:4]  # o resto (sites) é do publicados()
     stat = parse_stat(stat_txt).get("cpu")
     mem = parse_meminfo(mem_txt)
     cpu = _pct_cpu(tuple(anterior), stat) if anterior and stat else None
@@ -515,7 +555,7 @@ def ponto_remoto(texto, anterior=None):
 
 
 # PC do dono pelo Tailscale (Windows, OpenSSH): o root usa a chave do orch, a que o PC já aceita.
-PC = {"host": "fulano@192.0.2.3", "chave": "/home/usuario/.ssh/clientek"}
+PC = {"host": "fulano@192.0.2.4", "chave": "/home/usuario/.ssh/clientek"}
 _PS_PC = ('"cpu:" + (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average; '
           '$o = Get-CimInstance Win32_OperatingSystem; "mem:" + [math]::Round(100 * (1 - $o.FreePhysicalMemory / $o.TotalVisibleMemorySize), 1); '
           '"gpu:" + (nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits)')
@@ -531,29 +571,35 @@ def ponto_pc(texto):
 
 
 def coletar_remotos(base_dados=None, agora=None, rodar=None):
-    """Um giro: lê CPU, memória e carga das VPS do ClienteJ e grava monitor/remotos.json para o Cérebro."""
+    """Um giro: CPU, memória, disco e sites publicados de cada servidor (REMOTOS) e o PC; grava monitor/remotos.json para o
+    Cérebro. Servidor que não responde guarda a última leitura boa (com o "t" dela) e o erro."""
     rodar, agora = rodar or _rodar, agora or dt.datetime.now(dt.timezone.utc)
     arq = pasta(base_dados) / "remotos.json"
     velho = _ler_json(arq) or {}
     novo = {}
     for nome, ip in REMOTOS.items():
-        cod, out, _ = rodar(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", f"root@{ip}",
-                             f"cat /proc/stat; echo {_SEP}; cat /proc/meminfo; echo {_SEP}; cat /proc/loadavg; echo {_SEP}; df -P /"], timeout=20)
-        if cod != 0 or not out:
-            novo[nome] = {**(velho.get(nome) or {}), "erro": "sem resposta"}
-            continue
-        p, stat = ponto_remoto(out, (velho.get(nome) or {}).get("stat"))
+        cmd = (["bash", "-c", _LER] if ip is None else
+               ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new",
+                "-i", _chave_remota(), f"root@{ip}", _LER])
+        cod, out, err = rodar(cmd, timeout=20)
         anterior = velho.get(nome) or {}
-        if p["cpu"] is None and anterior.get("cpu") is not None:
-            # Reinício do contador: guarda o último ponto completo e inicia novo delta.
-            novo[nome] = {**anterior, "stat": stat}
+        if cod != 0 or not out:
+            novo[nome] = {**anterior, "sites": [], "erro": "sem resposta" + (f" ({err.strip().splitlines()[-1][:80]})" if err.strip() else "")}
             continue
-        novo[nome] = {**p, "t": agora.isoformat(timespec="seconds"), "stat": stat}
-        if nome == "servidor_a":  # o site sobe pelo coleta/vps-deploy-local.sh, não pelo Dokploy que o hub lê
-            cod, log, _ = rodar(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", f"root@{ip}",
-                                 "grep 'no ar: ' /opt/clienteh/deploy-local.log | tail -40"], timeout=20)
+        p, stat = ponto_remoto(out, anterior.get("stat"))
+        partes = out.split(_SEP) + [""] * 7
+        pub, trafego = publicados(partes[4], partes[5]), atendidos(partes[6])
+        sites = pub if trafego is None else [h for h in pub if trafego.get(h)]
+        if p["cpu"] is None and anterior.get("cpu") is not None:
+            # Reinício do contador: guarda o último ponto completo e inicia novo delta. Os sites vêm da leitura de agora.
+            novo[nome] = {**anterior, "stat": stat, "sites": sites}
+            novo[nome].pop("erro", None)
+            continue
+        novo[nome] = {**p, "t": agora.isoformat(timespec="seconds"), "stat": stat, "sites": sites}
+        if nome == "dedicado":  # o ClienteJ sobe pelo coleta/vps-deploy-local.sh, não pelo Dokploy que o hub lê
+            cod, log, _ = rodar(["bash", "-c", "grep 'no ar: ' /opt/clienteh/deploy-local.log | tail -40"], timeout=20)
             deploys = [{"em": l.split()[0], "sha": l.split()[-1]} for l in log.splitlines() if cod == 0 and "no ar: " in l]
-            novo[nome]["deploys"] = deploys or (velho.get(nome) or {}).get("deploys") or []
+            novo[nome]["deploys"] = deploys or anterior.get("deploys") or []
     import base64
     enc = base64.b64encode(_PS_PC.encode("utf-16-le")).decode()
     cod, out, _ = rodar(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new",

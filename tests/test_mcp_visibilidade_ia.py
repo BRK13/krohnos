@@ -43,7 +43,7 @@ class VisibilidadeIATest(unittest.TestCase):
         self.rede.stop(); self.env.stop(); self.tmp.cleanup()
 
     def x(self, nome, **args):
-        return mcp_proxy.executar(nome, {"site": "psite13", **args})
+        return mcp_proxy.executar(nome, {"site": "psite15", **args})
 
     def salvar(self, *textos, **extra):
         return self.x("save_ai_visibility_tracker", prompts=[{"text": t} for t in textos], **extra)
@@ -63,7 +63,7 @@ class VisibilidadeIATest(unittest.TestCase):
         r = self.x("get_ai_visibility_tracker")
         self.assertEqual((r["ok"], r["configured"], r["tracker"], r["recentRuns"]), (True, False, None, []))
         self.assertTrue(r["providerConfigured"])
-        self.assertEqual(r["brands"][0], {"name": "Cliente G", "domain": "psite13-com.example", "own": True})
+        self.assertEqual(r["brands"][0], {"name": "Cliente G", "domain": "site-e.exemplo.com", "own": True})
         self.assertEqual(len(r["capabilities"]), 5)
 
     def test_salvar_e_ler_do_disco(self):
@@ -72,10 +72,10 @@ class VisibilidadeIATest(unittest.TestCase):
         self.assertEqual((r["created"], r["updated"], r["skipped"]), (3, 0, 1))
         t = r["state"]["tracker"]
         self.assertEqual((t["enabled"], t["scheduleInterval"], t["projectId"], t["locationCode"], t["languageCode"]),
-                         (True, "weekly", "psite13", 2076, "pt"))
+                         (True, "weekly", "psite15", 2076, "pt"))
         self.assertGreaterEqual(data_iso(t["nextCheckAt"]), agora() + dt.timedelta(days=7) - dt.timedelta(seconds=5))
         self.assertLess(data_iso(t["nextCheckAt"]), agora() + dt.timedelta(days=9))
-        arq = pasta("visibilidade_ia", "psite13") / "tracker.json"
+        arq = pasta("visibilidade_ia", "psite15") / "tracker.json"
         salvo = json.loads(arq.read_text(encoding="utf-8"))
         self.assertEqual(salvo["tracker"]["engines"], ["chatgpt", "gemini"])
         g = self.x("get_ai_visibility_tracker")
@@ -112,7 +112,7 @@ class VisibilidadeIATest(unittest.TestCase):
         t = r["state"]["tracker"]
         self.assertEqual((t["enabled"], t["scheduleInterval"], r["run"], t["baselinePending"]), (True, "daily", None, True))
         self.assertGreater(data_iso(t["nextCheckAt"]), agora())
-        rodadas = pasta("visibilidade_ia", "psite13") / "rodadas"
+        rodadas = pasta("visibilidade_ia", "psite15") / "rodadas"
         rodadas.mkdir()
         (rodadas / "r1.json").write_text(json.dumps({
             "id": "r1", "status": "completed", "trigger": "baseline", "createdAt": "2026-10-09T05:00:00.000Z",
@@ -140,7 +140,7 @@ class VisibilidadeIATest(unittest.TestCase):
         t = r["state"]["tracker"]
         n = data_iso(t["nextCheckAt"])
         self.assertEqual((n.weekday(), n.hour, n.minute, t["baselinePending"], r["run"]), (0, 9, 30, True, None))
-        self.assertTrue(json.loads((pasta("visibilidade_ia", "psite13") / "tracker.json").read_text())["tracker"]["baselinePending"])
+        self.assertTrue(json.loads((pasta("visibilidade_ia", "psite15") / "tracker.json").read_text())["tracker"]["baselinePending"])
 
     def test_proxima_mensal_com_fuso(self):
         a = dt.datetime(2026, 10, 9, 12, tzinfo=dt.timezone.utc)
@@ -157,7 +157,7 @@ class VisibilidadeIATest(unittest.TestCase):
         self.assertEqual((r["providerCostUsd"], r["runNowCostUsd"], r["costCredits"], r["runNowCostCredits"]), (r["costUsd"], r["costUsd"], 0, 0))
         self.assertEqual((r["scheduleInterval"], r["checksPerMonth"], r["currency"]), ("weekly", 4, "USD"))
         self.assertAlmostEqual(r["monthlyCostUsd"], 2.736)
-        self.assertFalse((pasta("visibilidade_ia", "psite13") / "tracker.json").exists())  # estimar não grava
+        self.assertFalse((pasta("visibilidade_ia", "psite15") / "tracker.json").exists())  # estimar não grava
         ps = self.salvar("a", "b", "c")["state"]["prompts"]
         r = self.x("estimate_ai_visibility_cost", scheduleInterval="daily", promptIds=[ps[0]["id"]])
         self.assertEqual((r["observations"], r["checksPerMonth"]), (2, 30))
@@ -204,10 +204,10 @@ PESQUISA = {"research_ai_visibility_prompts": {"projectId", "keyword"},
 MENCOES = [
     {"question": "ups tracking issue", "answer": "x", "ai_search_volume": 900, "sources": [{"domain": "ups-com.example", "url": "https://ups-com.example/a"}]},
     {"question": "best online therapists for expats", "answer": "Cliente G lists them.", "ai_search_volume": 100,
-     "sources": [{"domain": "www.psite13-com.example", "url": "https://www.psite13-com.example/x", "title": "X"}]},
+     "sources": [{"domain": "www.site-e.exemplo.com", "url": "https://www.site-e.exemplo.com/x", "title": "X"}]},
     {"question": "the best online therapist for expats in 2025", "answer": "y", "ai_search_volume": 50,
      "sources": [{"domain": "blog.betterhelp-com.example", "url": "https://blog.betterhelp-com.example/b", "title": None},
-                 {"domain": "www.psite13-com.example", "url": "https://www.psite13-com.example/x", "title": "X"}]},
+                 {"domain": "www.site-e.exemplo.com", "url": "https://www.site-e.exemplo.com/x", "title": "X"}]},
     {"question": "is an online therapist worth it", "answer": "z", "ai_search_volume": 10, "sources": [],
      "search_results": [{"domain": "nytimes.com"}]},
     {"question": "online cooking class", "answer": "w", "ai_search_volume": 5, "sources": [{"domain": "reddit.com", "url": "https://reddit.com/r"}]},
@@ -275,7 +275,7 @@ class PesquisaTest(unittest.TestCase):
             self.assertEqual([q["text"] for q in r["prompts"]], ["Best online therapists for expats", "Is an online therapist worth it"])
             a, b = r["prompts"]
             self.assertEqual(a["variants"], ["The best online therapist for expats in 2025"])
-            self.assertEqual(a["sources"], [{"domain": "www.psite13-com.example", "url": "https://www.psite13-com.example/x", "title": "X", "own": True},
+            self.assertEqual(a["sources"], [{"domain": "www.site-e.exemplo.com", "url": "https://www.site-e.exemplo.com/x", "title": "X", "own": True},
                                             {"domain": "blog.betterhelp-com.example", "url": "https://blog.betterhelp-com.example/b", "title": None, "own": False}])
             self.assertEqual((a["ownDomainCited"], a["brandMentioned"], a["tracked"]), (True, True, False))
             self.assertEqual((b["ownDomainCited"], b["brandMentioned"], b["tracked"], b["sources"]), (False, False, True, []))
@@ -283,7 +283,7 @@ class PesquisaTest(unittest.TestCase):
             r2 = self.x("research_ai_visibility_prompts", keyword="online therapist")
             self.assertEqual(p.call_count, 2)
             self.assertEqual((r2["custo"], r2["prompts"]), (0, r["prompts"]))
-        self.assertTrue(list((pasta("visibilidade_ia", "psite13") / "cache").glob("*.json")))
+        self.assertTrue(list((pasta("visibilidade_ia", "psite15") / "cache").glob("*.json")))
 
     def test_pesquisa_erro_do_dataforseo(self):
         with mock.patch.object(dataforseo, "post", side_effect=RuntimeError("DataForSEO respondeu HTTP 500")):
@@ -292,7 +292,7 @@ class PesquisaTest(unittest.TestCase):
 
     def test_gerar(self):
         self.salvar("Melhor psicólogo online")
-        antes = (pasta("visibilidade_ia", "psite13") / "tracker.json").read_text()
+        antes = (pasta("visibilidade_ia", "psite15") / "tracker.json").read_text()
         ia = '```json\n{"name": "Psicólogo no exterior", "prompts": ["melhor  psicólogo ONLINE", "Terapia online barata", ' \
              '"psicólogo brasileiro em Lisboa", "Psicólogo brasileiro em lisboa", "como achar psicólogo em português"]}\n```'
         with self.ia(return_value=ia) as p:
@@ -303,7 +303,7 @@ class PesquisaTest(unittest.TestCase):
         self.assertIn("Melhor psicólogo online", p.call_args[0][0])
         self.assertIn("Zenklub", p.call_args[0][0])
         self.assertNotIn("Regras profissionais", p.call_args[0][0])  # regras do conselho saíram do contexto (#88)
-        self.assertEqual((pasta("visibilidade_ia", "psite13") / "tracker.json").read_text(), antes)  # não grava
+        self.assertEqual((pasta("visibilidade_ia", "psite15") / "tracker.json").read_text(), antes)  # não grava
         # tópico salvo com outra caixa: usa o nome salvo
         with self.ia(return_value='{"name": "x", "prompts": ["novo"]}'):
             self.assertEqual(self.x("generate_ai_visibility_prompts", topic=" general ")["topic"], "General")
@@ -345,7 +345,7 @@ class PesquisaTest(unittest.TestCase):
         self.assertEqual(r["status"], "ready")
         g = self.x("get_ai_visibility_tracker")
         self.assertEqual([p["text"] for p in g["prompts"]], ["a"])
-        self.assertEqual(json.loads((pasta("visibilidade_ia", "psite13") / "tracker.json").read_text())["researchKeywords"], r["keywords"])
+        self.assertEqual(json.loads((pasta("visibilidade_ia", "psite15") / "tracker.json").read_text())["researchKeywords"], r["keywords"])
 
     def test_setup_falha_da_ia(self):
         for ruim in ["{}", "[", RuntimeError("caiu"), json.dumps({"suggestedTopics": [{"name": "a", "prompts": ["p", "p"]}]})]:
@@ -354,7 +354,7 @@ class PesquisaTest(unittest.TestCase):
                 r = self.x("complete_ai_research_setup")
                 self.assertEqual((r["ok"], r["status"], r["keywords"], r["review"]), (False, "failed", [], None))
                 self.assertTrue(r["message"])
-        self.assertFalse((pasta("visibilidade_ia", "psite13") / "tracker.json").exists())
+        self.assertFalse((pasta("visibilidade_ia", "psite15") / "tracker.json").exists())
 
     def test_cinco_prompts_por_topico(self):
         with self.ia(return_value=json.dumps({"name": "a", "prompts": [f"p{i}" for i in range(7)]})):
@@ -382,12 +382,12 @@ class PesquisaTest(unittest.TestCase):
             self.assertEqual(r, {"ok": False, "reason": "ia_em_andamento", "message": pesquisa.EM_ANDAMENTO})
             [pedido] = self.fila()[0].glob("*.json")
             self.assertIn("Responda só com um objeto JSON", json.loads(pedido.read_text(encoding="utf-8"))["prompt"])
-            (pasta("visibilidade_ia", "psite13") / "tracker.json").unlink()
+            (pasta("visibilidade_ia", "psite15") / "tracker.json").unlink()
             r = self.x("complete_ai_research_setup")
         self.assertEqual((r["ok"], r["status"], r["keywords"], r["review"]), (True, "running", [], None))
         self.assertIn("20 segundos", r["message"])
         self.assertEqual(len(list(self.fila()[0].glob("*.json"))), 2)
-        self.assertFalse((pasta("visibilidade_ia", "psite13") / "tracker.json").exists())
+        self.assertFalse((pasta("visibilidade_ia", "psite15") / "tracker.json").exists())
 
     def test_worker_da_fila(self):
         pedidos, respostas = self.fila()
@@ -481,11 +481,11 @@ class RodadaTest(unittest.TestCase):
         def post(caminho, tarefas, timeout=None):
             corpo = tarefas[0]
             if caminho == CHATGPT and corpo["keyword"] == "melhor psicólogo online":
-                return raspagem("**Cliente G** lista psicólogos. [psite13-com.example](https://psite13-com.example/x?utm_source=chatgpt.com) "
+                return raspagem("**Cliente G** lista psicólogos. [site-e.exemplo.com](https://site-e.exemplo.com/x?utm_source=chatgpt.com) "
                                 "Veja também o Zenklub.",
-                                [{"url": "https://psite13-com.example/x?utm_source=chatgpt.com", "title": "X"}, {"url": "javascript:alert(1)"}])
+                                [{"url": "https://site-e.exemplo.com/x?utm_source=chatgpt.com", "title": "X"}, {"url": "javascript:alert(1)"}])
             if caminho == CHATGPT:  # cita o site sem citar o nome: citação sem menção
-                return raspagem("Procure um diretório confiável.", [{"url": "https://www.psite13-com.example/p", "title": None}])
+                return raspagem("Procure um diretório confiável.", [{"url": "https://www.site-e.exemplo.com/p", "title": None}])
             if falha_claude:
                 raise RuntimeError("DataForSEO HTTP 500")
             if "melhor" in corpo["user_prompt"]:  # menciona a marca sem citar o site
@@ -523,14 +523,14 @@ class RodadaTest(unittest.TestCase):
                          (True, "completed", "manual", 4, 4, 0, 0, 0))
         self.assertEqual(r["custo"], 0.348)
         self.assertTrue(r["completedAt"])
-        salvo = json.loads((pasta("visibilidade_ia", "psite13") / "rodadas" / f"{r['id']}.json").read_text(encoding="utf-8"))
+        salvo = json.loads((pasta("visibilidade_ia", "psite15") / "rodadas" / f"{r['id']}.json").read_text(encoding="utf-8"))
         self.assertEqual((salvo["status"], salvo["custo"], salvo["locationCode"], salvo["languageCode"]), ("completed", 0.348, 2076, "pt"))
         self.assertGreaterEqual(salvo["updatedAt"], salvo["createdAt"])  # cada gravação marca a hora: é dela que conta a rodada parada
         obs = {(o["prompt"], o["engine"]): o for o in salvo["observations"]}
         self.assertEqual({o["runId"] for o in obs.values()}, {r["id"]})
         a = obs[("melhor psicólogo online", "chatgpt")]
         self.assertEqual(g["tag"], a["id"])
-        self.assertEqual(a["sources"], [{"url": "https://psite13-com.example/x", "domain": "psite13-com.example", "title": "X", "position": 1}])
+        self.assertEqual(a["sources"], [{"url": "https://site-e.exemplo.com/x", "domain": "site-e.exemplo.com", "title": "X", "position": 1}])
         self.assertEqual(a["collectedAt"], "2026-09-30T18:41:09.000Z")
         marca = {b["name"]: b for b in a["brands"]}
         self.assertEqual((marca["Cliente G"]["mentioned"], marca["Cliente G"]["cited"], marca["Cliente G"]["firstMention"]), (True, True, 0))
@@ -583,7 +583,7 @@ class RodadaTest(unittest.TestCase):
         self.assertEqual((ans["requestedLocationCode"], ans["requestedLanguageCode"], ans["truncated"]), (2076, "pt", False))
         self.assertEqual(ans["observation"]["id"], oid)
         spans = {m["name"]: (m["domain"], m["spans"]) for m in ans["mentions"]}
-        self.assertEqual(spans["Cliente G"], ("psite13-com.example", [{"start": 0, "end": len("Cliente G")}]))  # o fim é o tamanho do nome
+        self.assertEqual(spans["Cliente G"], ("site-e.exemplo.com", [{"start": 0, "end": len("Cliente G")}]))  # o fim é o tamanho do nome
         self.assertEqual(spans["Zenklub"][0], "")
 
     def test_gap_e_resultado_agendado(self):
@@ -635,7 +635,7 @@ class RodadaTest(unittest.TestCase):
         self.assertEqual(falha[0]["error"], "teto de custo atingido")
 
     def test_rodada_corrompida(self):
-        p = pasta("visibilidade_ia", "psite13") / "rodadas"
+        p = pasta("visibilidade_ia", "psite15") / "rodadas"
         p.mkdir()
         rid = "0b6c1f53-3b1d-4b8e-9d55-2a3a52f1f0a1"
         for conteudo in ("nem json", "[1, 2]"):
@@ -647,7 +647,7 @@ class RodadaTest(unittest.TestCase):
 
     def test_rodada_em_andamento_recusa(self):
         self.preparar()
-        d = pasta("visibilidade_ia", "psite13") / "rodadas"
+        d = pasta("visibilidade_ia", "psite15") / "rodadas"
         d.mkdir()
         rid = "11111111-1111-4111-8111-111111111111"
         base = {"id": rid, "status": "running", "trigger": "scheduled", "completedAt": None,
@@ -742,14 +742,14 @@ class AnaliseTest(unittest.TestCase):
         self.assertEqual(f["coverage"], {"expected": 4, "completed": 3, "noAnswer": 1, "failed": 0, "pending": 0})
         self.assertEqual(f["appliedFilters"], {"competitorGap": False, "branded": "neutral", "ownership": "all"})
         linhas = {w["key"]: w for w in f["rows"]}
-        self.assertEqual(set(linhas), {"https://psite13-com.example/x", "https://www.psite13-com.example/p", "https://vittude-com.example/a"})
-        x = linhas["https://psite13-com.example/x"]
+        self.assertEqual(set(linhas), {"https://site-e.exemplo.com/x", "https://www.site-e.exemplo.com/p", "https://vittude-com.example/a"})
+        x = linhas["https://site-e.exemplo.com/x"]
         self.assertEqual((x["url"], x["domain"], x["title"], x["ownership"], x["answerCount"], x["promptCount"], x["engines"], x["truncated"]),
-                         ("https://psite13-com.example/x", "psite13-com.example", "X", "own", 1, 1, [{"engine": "chatgpt", "answerCount": 1}], False))
+                         ("https://site-e.exemplo.com/x", "site-e.exemplo.com", "X", "own", 1, 1, [{"engine": "chatgpt", "answerCount": 1}], False))
         self.assertEqual(len(x["observationIds"]), 1)
         self.assertEqual(linhas["https://vittude-com.example/a"]["ownership"], "other")
         own = self.x("get_ai_visibility_sources", runId=r["id"], ownership="own", groupBy="domain")
-        self.assertEqual([(w["key"], w["url"], w["title"]) for w in own["rows"]], [("psite13-com.example", None, None), ("www.psite13-com.example", None, None)])
+        self.assertEqual([(w["key"], w["url"], w["title"]) for w in own["rows"]], [("site-e.exemplo.com", None, None), ("www.site-e.exemplo.com", None, None)])
         self.assertEqual(self.x("get_ai_visibility_sources", runId=r["id"], ownership="competitor")["totalCount"], 0)
         pag = self.x("get_ai_visibility_sources", runId=r["id"], limit=2)
         self.assertEqual((len(pag["rows"]), pag["nextCursor"]), (2, "2"))
@@ -763,7 +763,7 @@ class AnaliseTest(unittest.TestCase):
         with self.assertRaisesRegex(ErroUso, "runId"):
             self.x("export_ai_visibility_data")  # sem rodada base ou agendada
         c = self.x("export_ai_visibility_data", runId=r["id"], format="csv")
-        arq = pasta("visibilidade_ia", "psite13") / "exportacoes"
+        arq = pasta("visibilidade_ia", "psite15") / "exportacoes"
         self.assertEqual((c["ok"], c["format"], os.path.dirname(c["url"])), (True, "csv", str(arq)))
         self.assertTrue(c["url"].endswith(".csv"))
         self.assertGreater(c["expiresAt"], visibilidade_ia._iso(agora()))
@@ -777,13 +777,13 @@ class AnaliseTest(unittest.TestCase):
         rows = list(csv.DictReader(texto.splitlines()))
         primeira = next(w for w in rows if w["prompt"] == "melhor psicólogo online" and w["engine"] == "chatgpt")
         self.assertEqual((primeira["run_id"], primeira["brand_mentions"], primeira["citation_urls"], primeira["collected_at"]),
-                         (r["id"], "Cliente G; Zenklub", "https://psite13-com.example/x", "2026-09-30T18:41:09.000Z"))
+                         (r["id"], "Cliente G; Zenklub", "https://site-e.exemplo.com/x", "2026-09-30T18:41:09.000Z"))
         self.assertEqual(primeira["answer"], "Cliente G lista psicólogos.  Veja também o Zenklub.")
         j = self.x("export_ai_visibility_data", runId=r["id"])
         self.assertTrue(j["url"].endswith(".json"))
         dados = json.loads(j["conteudo"])
         self.assertEqual(set(dados), {"exportedAt", "projectId", "run", "coverage", "answers"})
-        self.assertEqual((dados["projectId"], dados["run"]["id"], len(dados["answers"])), ("psite13", r["id"], 4))
+        self.assertEqual((dados["projectId"], dados["run"]["id"], len(dados["answers"])), ("psite15", r["id"], 4))
         self.assertEqual(json.loads(open(j["url"], encoding="utf-8").read()), dados)
         gap = json.loads(self.x("export_ai_visibility_data", runId=r["id"], competitorGap=True)["conteudo"])
         self.assertEqual(gap["answers"], [])
@@ -807,7 +807,7 @@ class AnaliseTest(unittest.TestCase):
     def gravar_rodada(self, dias_atras, obs, status="completed", trigger="scheduled", loc=2076):
         rid = str(visibilidade_ia.uuid.uuid4())
         quando = visibilidade_ia._iso(agora() - dt.timedelta(days=dias_atras))
-        d = pasta("visibilidade_ia", "psite13") / "rodadas"
+        d = pasta("visibilidade_ia", "psite15") / "rodadas"
         d.mkdir(exist_ok=True)
         (d / f"{rid}.json").write_text(json.dumps({
             "id": rid, "status": status, "trigger": trigger, "locationCode": loc, "languageCode": "pt", "createdAt": quando,
@@ -816,7 +816,7 @@ class AnaliseTest(unittest.TestCase):
 
     @staticmethod
     def o(prompt, engine, mencionada=False, citada=False, status="completed", resposta=True, branded=False):
-        marcas = [{"name": "Cliente G", "domain": "psite13-com.example", "own": True, "mentioned": mencionada, "cited": citada, "firstMention": None},
+        marcas = [{"name": "Cliente G", "domain": "site-e.exemplo.com", "own": True, "mentioned": mencionada, "cited": citada, "firstMention": None},
                   {"name": "Zenklub", "domain": "", "own": False, "mentioned": True, "cited": False, "firstMention": None}]
         return {"promptId": prompt, "prompt": prompt, "topic": "General", "branded": branded, "engine": engine, "status": status,
                 "answerMarkdown": "texto" if resposta and status == "completed" else None, "sources": [],
@@ -874,8 +874,8 @@ class AnaliseTest(unittest.TestCase):
                                                                   "items": [{"type": "message", "sections": [{"text": texto, "annotations": notas}]}]}]}]
 
     def test_explorar(self):
-        notas = [{"url": "https://www.psite13-com.example/a?utm_source=x", "title": "Diretório"}, {"url": "javascript:alert(1)"},
-                 {"url": "https://www.psite13-com.example/a?utm_source=x", "title": "dup"}, {"url": "https://vittude-com.example/", "title": None}]
+        notas = [{"url": "https://www.site-e.exemplo.com/a?utm_source=x", "title": "Diretório"}, {"url": "javascript:alert(1)"},
+                 {"url": "https://www.site-e.exemplo.com/a?utm_source=x", "title": "dup"}, {"url": "https://vittude-com.example/", "title": None}]
 
         def post(caminho, tarefas, timeout=None):
             if "perplexity" in caminho:
@@ -885,7 +885,7 @@ class AnaliseTest(unittest.TestCase):
             return self.llm("Veja diretórios.", notas)
 
         args = {"prompt": "  melhor   psicólogo online ", "models": ["chat_gpt", "claude", "perplexity", "chat_gpt"], "webSearchCountryCode": "BR",
-                "highlightBrand": "psite13"}
+                "highlightBrand": "site-e"}
         with mock.patch.object(dataforseo, "post", side_effect=post) as p:
             r = self.x("explore_prompt", **args)
         corpos = {c[0][0]: c[0][1] for c in p.call_args_list}
@@ -895,23 +895,23 @@ class AnaliseTest(unittest.TestCase):
                                                                                   "web_search_country_iso_code": "BR"}])
         self.assertEqual(corpos["ai_optimization/claude/llm_responses/live"][0]["force_web_search"], True)
         self.assertEqual(corpos["ai_optimization/perplexity/llm_responses/live"][0]["model_name"], "sonar-reasoning-pro")
-        self.assertEqual((r["ok"], r["prompt"], r["highlightBrand"], r["custo"]), (True, "melhor   psicólogo online", "psite13", 0.19))
+        self.assertEqual((r["ok"], r["prompt"], r["highlightBrand"], r["custo"]), (True, "melhor   psicólogo online", "site-e", 0.19))
         self.assertTrue(r["fetchedAt"])
         g, c, px = r["results"]
         self.assertEqual([x["model"] for x in r["results"]], ["chat_gpt", "claude", "perplexity"])
         self.assertEqual((g["status"], g["modelName"], g["text"], g["outputTokens"], g["webSearch"], g["webSearchCountryCode"], len(g["fanOutQueries"])),
                          ("success", "gpt-5.6-luna", "Veja diretórios.", 812, True, "BR", 20))
-        self.assertEqual(g["citations"], [{"url": "https://www.psite13-com.example/a?utm_source=x", "domain": "psite13-com.example", "title": "Diretório", "matchedBrand": True},
+        self.assertEqual(g["citations"], [{"url": "https://www.site-e.exemplo.com/a?utm_source=x", "domain": "site-e.exemplo.com", "title": "Diretório", "matchedBrand": True},
                                           {"url": "https://vittude-com.example/", "domain": "vittude-com.example", "title": None, "matchedBrand": False}])
         self.assertEqual(g["brandMentioned"], True)  # citada, mesmo sem o nome no texto
-        self.assertEqual((c["status"], c["brandMentioned"], c["citations"]), ("success", False, []))  # "psite13" não está no texto
+        self.assertEqual((c["status"], c["brandMentioned"], c["citations"]), ("success", False, []))  # "site-e" não está no texto
         self.assertEqual((px["status"], px["errorCode"]), ("error", "UPSTREAM_ERROR"))
         # cache: os modelos que deram certo não custam de novo; o que falhou chama de novo
         with mock.patch.object(dataforseo, "post", side_effect=post) as p:
             r2 = self.x("explore_prompt", **{**args, "prompt": "melhor psicólogo online", "highlightBrand": "Cliente G"})
         self.assertEqual([c[0][0] for c in p.call_args_list], ["ai_optimization/perplexity/llm_responses/live"])
         self.assertEqual((r2["custo"], r2["results"][1]["brandMentioned"], r2["results"][0]["text"]), (0, True, "Veja diretórios."))
-        self.assertTrue(list((pasta("visibilidade_ia", "psite13") / "cache").glob("*.json")))
+        self.assertTrue(list((pasta("visibilidade_ia", "psite15") / "cache").glob("*.json")))
 
     def test_explorar_repete_quando_nao_buscou_e_pais(self):
         respostas = [self.llm("de memória", [], buscou=False), self.llm("buscou", [{"url": "https://a-com.example/"}])]
@@ -963,7 +963,7 @@ class AgendadosTest(unittest.TestCase):
     """Cron diário (python3 -m hub.mcp_grupos.visibilidade_ia rodar-agendados): roda os vencidos, com teto de US$ 1."""
     setUp, tearDown, x = VisibilidadeIATest.setUp, VisibilidadeIATest.tearDown, VisibilidadeIATest.x
 
-    def preparar(self, site="psite13", prompts=("melhor psicólogo online",), engines=("chatgpt",), **tracker):
+    def preparar(self, site="psite15", prompts=("melhor psicólogo online",), engines=("chatgpt",), **tracker):
         mcp_proxy.executar("save_ai_visibility_tracker", {"site": site, "engines": list(engines),
                                                           "prompts": [{"text": t} for t in prompts]})
         arq = pasta("visibilidade_ia", site) / "tracker.json"
@@ -978,10 +978,10 @@ class AgendadosTest(unittest.TestCase):
             codigo = rodada.rodar_agendados()
         return codigo, out.getvalue()
 
-    def tracker(self, site="psite13"):
+    def tracker(self, site="psite15"):
         return json.loads((pasta("visibilidade_ia", site) / "tracker.json").read_text(encoding="utf-8"))["tracker"]
 
-    def corridas(self, site="psite13"):
+    def corridas(self, site="psite15"):
         with contextlib.redirect_stderr(io.StringIO()):  # rodada ilegível é pulada com uma linha no stderr
             return visibilidade_ia.rodadas({"id": site})
 
@@ -996,7 +996,7 @@ class AgendadosTest(unittest.TestCase):
         t = self.tracker()
         self.assertEqual(data_iso(t["nextCheckAt"]), ancora + dt.timedelta(days=7))
         self.assertIsNone(t["lastSkipReason"])
-        self.assertIn("psite13: rodou", log)
+        self.assertIn("psite15: rodou", log)
         self.assertIn("0.0040", log)
 
     def test_base_pendente_roda_como_baseline_e_limpa(self):
@@ -1020,7 +1020,7 @@ class AgendadosTest(unittest.TestCase):
         # ligar de novo a agenda não conta a base que falhou como feita
         t = self.tracker()
         t["baselinePending"] = False
-        arq = pasta("visibilidade_ia", "psite13") / "tracker.json"
+        arq = pasta("visibilidade_ia", "psite15") / "tracker.json"
         e = json.loads(arq.read_text(encoding="utf-8"))
         e["tracker"] = t
         arq.write_text(json.dumps(e), encoding="utf-8")
@@ -1034,7 +1034,7 @@ class AgendadosTest(unittest.TestCase):
         self.assertEqual(codigo, 0)
         self.assertEqual((a.read_text(encoding="utf-8"), b.read_text(encoding="utf-8")), antes)
         self.assertEqual(self.corridas() + self.corridas("asite01"), [])
-        self.assertIn("psite13: não venceu", log)
+        self.assertIn("psite15: não venceu", log)
         self.assertIn("asite01: pausado", log)
 
     def test_acima_do_teto_nao_roda_registra_e_avanca(self):
@@ -1050,13 +1050,13 @@ class AgendadosTest(unittest.TestCase):
         self.assertIn("teto", t["lastSkipReason"])
         self.assertTrue(t["lastSkipAt"])
         self.assertEqual(data_iso(t["nextCheckAt"]), ancora + dt.timedelta(days=1))
-        self.assertIn("psite13: pulou", log)
+        self.assertIn("psite15: pulou", log)
         r = self.x("get_ai_visibility_tracker")
         self.assertIn("teto", r["tracker"]["lastSkipReason"])
 
     def test_rodada_em_andamento_pula_com_motivo(self):
         self.preparar(nextCheckAt=visibilidade_ia._iso(agora() - dt.timedelta(minutes=1)))
-        p = pasta("visibilidade_ia", "psite13") / "rodadas"
+        p = pasta("visibilidade_ia", "psite15") / "rodadas"
         p.mkdir()
         (p / "viva.json").write_text(json.dumps({"id": "viva", "status": "running", "createdAt": visibilidade_ia._iso(agora()),
                                                   "observations": []}), encoding="utf-8")
@@ -1064,7 +1064,7 @@ class AgendadosTest(unittest.TestCase):
         self.assertIn("viva", self.tracker()["lastSkipReason"])
 
     def test_um_site_com_problema_nao_para_os_outros(self):
-        (pasta("visibilidade_ia", "psite13") / "tracker.json").write_text("{quebrado", encoding="utf-8")
+        (pasta("visibilidade_ia", "psite15") / "tracker.json").write_text("{quebrado", encoding="utf-8")
         (pasta("visibilidade_ia", "fantasma") / "tracker.json").write_text("{}", encoding="utf-8")  # sem cadastro
         self.preparar("asite01", nextCheckAt=visibilidade_ia._iso(agora() - dt.timedelta(hours=1)))
         p = pasta("visibilidade_ia", "asite01") / "rodadas"
@@ -1073,7 +1073,7 @@ class AgendadosTest(unittest.TestCase):
         with mock.patch.object(dataforseo, "post", return_value=raspagem("Resposta.", [])):
             codigo, log = self.cron()
         self.assertEqual(codigo, 1)  # tracker ilegível vai para o resumo das rotinas que falharam
-        self.assertIn("psite13: tracker.json ilegível", log)
+        self.assertIn("psite15: tracker.json ilegível", log)
         self.assertIn("fantasma:", log)
         self.assertEqual([r["trigger"] for r in self.corridas("asite01")], ["scheduled"])
         with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -1098,7 +1098,7 @@ class AgendadosTest(unittest.TestCase):
 
 
 def SITE():
-    return sites.site("psite13")
+    return sites.site("psite15")
 
 
 if __name__ == "__main__":

@@ -64,20 +64,20 @@ class Rest:
 
 
 def token_gmb(env):
-    """Token OAuth do Google Meu Negócio do app da fsite05 (refresh token do contêiner do site), só em memória."""
+    """Token OAuth do Google Meu Negócio do app da fsite06 (refresh token do contêiner do site), só em memória."""
     return http_json("https://oauth2.googleapis.com/token", data=urllib.parse.urlencode({
         "client_id": env["GOOGLE_CLIENT_ID"], "client_secret": env["GOOGLE_CLIENT_SECRET"],
         "refresh_token": env["GOOGLE_REFRESH_TOKEN"], "grant_type": "refresh_token"}).encode())["access_token"]
 
 
 def unidades_gmb(env):
-    """Id do local de cada unidade da fsite05 na API do Business Profile."""
+    """Id do local de cada unidade da fsite06 na API do Business Profile."""
     return {"alfa": env.get("GMB_LOCATION_ALFA", "05572275004056503923"),
             "beta": env.get("GMB_LOCATION_BETA", "15631233265849930257")}
 
 
 def avaliacoes_google(env, tok=None):
-    """Últimas 50 avaliações, média e total do Google Meu Negócio por unidade da fsite05 (env do contêiner do site)."""
+    """Últimas 50 avaliações, média e total do Google Meu Negócio por unidade da fsite06 (env do contêiner do site)."""
     tok = tok or token_gmb(env)
     return {unidade: http_json(f"https://mybusiness.googleapis.com/v4/accounts/{env['GMB_ACCOUNT_ID']}/locations/{loc}"
                                "/reviews?pageSize=50&orderBy=updateTime%20desc", {"Authorization": f"Bearer {tok}"})

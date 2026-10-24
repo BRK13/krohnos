@@ -1,0 +1,71 @@
+function findBlockedAiBots(content) {
+  const lines = content.split("\n").map((l) => l.trim());
+  const blocked = [];
+  const sections = /* @__PURE__ */ new Map();
+  let currentAgents = [];
+  for (const line of lines) {
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) {
+      continue;
+    }
+    const directive = line.substring(0, colonIdx).trim().toLowerCase();
+    const value = line.substring(colonIdx + 1).trim();
+    if (directive === "user-agent") {
+      currentAgents.push(value);
+    } else if (directive === "disallow") {
+      for (const agent of currentAgents) {
+        const existing = sections.get(agent) || [];
+        existing.push(value);
+        sections.set(agent, existing);
+      }
+    } else {
+    }
+  }
+  const groups = [];
+  let group = { agents: [], disallows: [] };
+  for (const line of lines) {
+    if (!line || line.startsWith("#")) {
+      if (group.agents.length > 0) {
+        groups.push(group);
+        group = { agents: [], disallows: [] };
+      }
+      continue;
+    }
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const directive = line.substring(0, colonIdx).trim().toLowerCase();
+    const value = line.substring(colonIdx + 1).trim();
+    if (directive === "user-agent") {
+      if (group.disallows.length > 0) {
+        groups.push(group);
+        group = { agents: [], disallows: [] };
+      }
+      group.agents.push(value);
+    } else if (directive === "disallow") {
+      group.disallows.push(value);
+    }
+  }
+  if (group.agents.length > 0) {
+    groups.push(group);
+  }
+  for (const bot of AI_BOTS) {
+    const botLower = bot.toLowerCase();
+    let isBlocked = false;
+    for (const g of groups) {
+      const applies = g.agents.some(
+        (agent) => agent === "*" || agent.toLowerCase() === botLower
+      );
+      if (applies && g.disallows.includes("/")) {
+        isBlocked = true;
+        break;
+      }
+    }
+    if (isBlocked) {
+      blocked.push(bot);
+    }
+  }
+  return blocked;
+}

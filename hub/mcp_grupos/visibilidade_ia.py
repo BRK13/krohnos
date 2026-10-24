@@ -58,7 +58,7 @@ NOTAS = {"chatgpt": NOTA_SITE, "gemini": NOTA_SITE, "claude": NOTA_API, "perplex
 _TRAVA = threading.Lock()
 
 UUID = {"type": "string", "format": "uuid"}
-SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite13), domínio ou nome"},
+SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite15), domínio ou nome"},
         "projectId": {"type": "string", "description": "o mesmo que site"}}
 INTERVALO = {"type": "string", "enum": INTERVALOS, "description": "Frequência da checagem agendada. A mensal roda no último dia do mês."}
 PATCH = {

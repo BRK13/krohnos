@@ -36,7 +36,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--ac-forte);outline-o
 #baixo{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;align-items:start}
 #sessao h2,#eventos h2{font:500 13px var(--f-texto);color:var(--tx-2);margin:0 0 6px}
 #log{border:1px solid var(--linha);border-radius:var(--r-s);background:#041009;padding:6px 12px;height:300px;overflow:auto;font:13px/1.5 var(--f-mono);color:var(--tx-2)}
-#log .lin{display:grid;grid-template-columns:76px 30px 62px 150px 40px 84px 90px;gap:0 10px;min-width:520px;padding:4px 6px;white-space:nowrap}
+#log .lin{display:grid;grid-template-columns:76px 48px 62px 196px 40px 84px 90px;gap:0 10px;min-width:664px;padding:4px 6px;white-space:nowrap}
 #log .lin:nth-child(odd){background:#08180f}
 #log .h{color:var(--tx-3)}#log .ok{color:var(--ok)}#log .fa{color:var(--ru)}#log .it{color:var(--tx-3)}#log .u{text-align:right}#log .vazio{color:var(--tx-3)}
 #rodape{position:fixed;left:24px;right:24px;bottom:16px;display:flex;gap:12px;align-items:center}
@@ -68,7 +68,7 @@ header{position:static;padding:0;pointer-events:auto}
 #legenda summary{cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--tx-2);list-style:none;border:1px solid var(--linha-2);border-radius:50%;font:500 16px var(--f-texto)}
 #legenda summary::-webkit-details-marker{display:none}
 #legenda[open] summary{background:var(--ac);border-color:var(--ac);color:#010805}
-#legenda p{position:absolute;right:0;top:50px;z-index:4;margin:0;width:min(360px,100%);padding:12px 14px;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r-s);color:var(--tx-2);font-size:13px;line-height:1.5}
+#legenda p{position:absolute;right:0;top:50px;z-index:4;margin:0;width:min(360px,calc(100vw - 32px));padding:12px 14px;background:var(--sup);border:1px solid var(--linha-2);border-radius:var(--r-s);color:var(--tx-2);font-size:13px;line-height:1.5}
 /* Palco do mapa: #espaco (WebGL, Three.js) atrás; #mapa (Canvas 2D) por cima, transparente, é o HUD (rótulos, placar). */
 #palco{position:relative;flex:none;width:100%;background:radial-gradient(ellipse at 45% 45%,#103c252e,transparent 65%),linear-gradient(135deg,#010805,#071d12,#010805)}
 #espaco{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none}
@@ -118,7 +118,7 @@ header{position:static;padding:0;pointer-events:auto}
 </header>
 <div id="faixa">
   <div id="modelos" aria-label="Cor por modelo"></div>
-  <details id="legenda" class="sub"><summary aria-label="Como ler o mapa" title="Como ler o mapa">?</summary><p>Cada ponto é uma etapa do trabalho, da esquerda para a direita (no celular, de cima para baixo): você, o orquestrador, a fila, as contas, a revisão, o CI e o que vai ao ar. O pulso que corre pela linha é um acontecimento real. A bolinha em órbita é uma tarefa em andamento. O arco grosso em volta da conta é a cota (5 h; no Codex, a semana) e o fino, a semana. O anel verde e vermelho rente ao nó é a parte que deu certo e a que falhou nas últimas 24 h. A cor é o modelo; o brilho da linha é o volume de eventos dela nas 24 h. Ctrl + roda ou pinça aproxima, arrastar move, duplo clique ou “ajustar” volta ao mapa inteiro.</p></details>
+  <details id="legenda" class="sub"><summary aria-label="Como ler o mapa" title="Como ler o mapa">?</summary><p>Cada ponto é uma etapa do trabalho, da esquerda para a direita (no celular, de cima para baixo): você, o orquestrador, a fila, as contas, a revisão, o CI e o que vai ao ar. O pulso que corre pela linha é um acontecimento real. A bolinha em órbita é uma tarefa em andamento. O arco em volta da conta é a cota (5 h; no Codex, a semana). O anel verde e vermelho rente ao nó é a parte que deu certo e a que falhou nas últimas 24 h. A cor é o modelo; o brilho da linha é o volume de eventos dela nas 24 h. Ctrl + roda ou pinça aproxima, arrastar move, duplo clique ou “ajustar” volta ao mapa inteiro.</p></details>
 </div>
 <div id="palco">
   <canvas id="espaco" aria-hidden="true"></canvas>
@@ -130,7 +130,7 @@ header{position:static;padding:0;pointer-events:auto}
   </div>
 </div>
 <div id="baixo">
-  <section id="sessao" aria-label="Últimas execuções"><h2>Session log · últimas 10 execuções</h2><div id="log" tabindex="0" role="table" aria-label="Últimas 10 execuções das contas"></div></section>
+  <section id="sessao" aria-label="Últimas execuções"><h2>Session log · últimas 10 execuções</h2><div id="log" class="rola-x" tabindex="0" role="table" aria-label="Últimas 10 execuções das contas"></div></section>
   <section id="eventos" aria-label="Eventos recentes"><h2>Eventos recentes</h2><div id="ticker" aria-live="off"></div></section>
 </div>
 <div id="rodape"><canvas id="linha" aria-label="Eventos das últimas 24 h; clique para ir a um horário"></canvas><div id="hora"></div></div>
@@ -139,7 +139,7 @@ header{position:static;padding:0;pointer-events:auto}
 <script>
 "use strict";
 const DADOS = /*DADOS*/null;
-const URL_AO_VIVO = /*VIVO*/null;   // no painel: /cerebro.json (polling de 5 s); no protótipo, null (foto parada)
+const URL_AO_VIVO = /*VIVO*/null;   // no painel: /cerebro.json (polling de 15 s); no protótipo, null (foto parada)
 const COMPACTO = /*COMPACTO*/false;
 if (URL_AO_VIVO) document.body.classList.add("vivo");
 if (COMPACTO) document.body.classList.add("compacto");
@@ -169,7 +169,8 @@ let nos = [], porId = {}, arestas = [], porPar = {}, eventos = [], T0 = 0, T1 = 
 let modo = "replay", pausado = false, relogio = 0, ponteiro = 0, pulsos = [], raios = [], visto = [];
 let foco = null, caminho = new Set(), tempoVisual = 0, maxTotal = 1;
 const palco = document.getElementById("palco");
-const COLUNAS = [["voce"],["orch"],["fila"],["c1","c2","c3","c4","codex"],["ci"],["deploy"]];
+// colunas do fluxo, montadas em carregar() com os nós que existem (o desenho vem da config de quem instalou, KRN-1913)
+let COLUNAS = [], COL_CONTAS = [];
 function focar(n){
   foco = n?.id || null; caminho = new Set();
   if(n){
@@ -207,11 +208,13 @@ function carregar(d){
   PLACAR = d.placar || null;
   MODELO_COR = Object.fromEntries(((PLACAR||{}).modelos||[]).map(m => [m.id, m.cor]));
   for (const n of nos) n.corModelo = MODELO_COR[n.modelo] || null;
-  SITES_ORDEM = nos.filter(n => n.grupo === "site").map(n => n.id);
-  const colunas = [...COLUNAS, SITES_ORDEM];
-  const pares = colunas.slice(0,-1).flatMap((col,i) => col.flatMap(a => colunas[i+1].map(b => [a,b])));
-  const maquinas = [["orch","hub"],["orch","pc"],...["c1","c2","c3","c4","codex","ci","deploy"].map(id=>[id,"hub"]),...SITES_ORDEM.map(id=>[id,id === "clientej" ? "servidor_a" : "hub"]),["clientej","servidor_b"]];
-  const infraestrutura = [...maquinas,...(d.arestas || []).filter(([a,b])=>porId[a]?.grupo === "infra" || porId[b]?.grupo === "infra")];
+  SITES_ORDEM = nos.filter(n => n.grupo === "site" || n.grupo === "vazio").map(n => n.id);   // vazio: "configure seus sites"
+  COL_CONTAS = nos.filter(n => n.grupo === "conta" || n.id === "codex").map(n => n.id);
+  COLUNAS = [["voce"],["orch"],["fila"],COL_CONTAS,["ci"],["deploy"]].map(c => c.filter(id => porId[id])).filter(c => c.length);
+  const colunas = [...COLUNAS, SITES_ORDEM].filter(c => c.length);
+  const pares = colunas.slice(0,-1).flatMap((col,i) => col.flatMap(a => colunas[i+1].filter(b => porId[b].grupo !== "vazio").map(b => [a,b])));
+  // quem roda em qual servidor vem do servidor (hub/cerebro.py arestas: site → servidor que o atende de verdade)
+  const infraestrutura = (d.arestas || []).filter(([a,b])=>porId[a]?.grupo === "infra" || porId[b]?.grupo === "infra");
   const ligacoes = [...pares.map(([a,b])=>({a,b,infra:false})),...infraestrutura.map(([a,b])=>({a,b,infra:true})),...[ ["ci","debugger"], ["debugger","orch"] ].map(([a,b])=>({a,b,infra:false,retorno:true}))];
   const unicos = new Set();
   arestas = ligacoes.filter(({a,b})=>porId[a] && porId[b] && !unicos.has(a+"|"+b) && unicos.add(a+"|"+b)).map(({a,b,infra,retorno},i)=>{
@@ -255,17 +258,18 @@ function medir(){
   if (cv.width !== Math.round(W*DPR) || cv.height !== Math.round(H*DPR)){ cv.width = W*DPR; cv.height = H*DPR; }
   ctx.setTransform(DPR,0,0,DPR,0,0);
   escala = COMPACTO ? .7 : celular ? 1 : Math.max(.8,Math.min(1.1,W/1400));
-  const colunas = [...COLUNAS,SITES_ORDEM];
+  const colunas = [...COLUNAS,SITES_ORDEM].filter(c => c.length), passo = (W-145)/Math.max(1, colunas.length-1);
+  const colDebugger = Math.max(0, colunas.findIndex(c=>c.includes(porId.ci ? "ci" : "orch")));   // embaixo do CI (sem CI, do orquestrador)
   for(const n of nos){
     const col = colunas.findIndex(c=>c.includes(n.id)), ids = col < 0 ? nos.filter(x=>x.grupo==="infra").map(x=>x.id) : colunas[col], i=ids.indexOf(n.id);
     if(vertical){
       [n.px, n.py] = pm.pos[n.id] || [W/2, 0];
     }else{
-      n.px = col < 0 ? W*(.2+i*.2) : 65+col*(W-145)/6;
+      n.px = col < 0 ? W*(.2+i*.2) : 65+col*passo;
       n.py = col < 0 ? (COMPACTO?H-28:H-110) : (COMPACTO?28:TOPO)+(ids.length===1?.43:i/Math.max(1,ids.length-1))*(H-(COMPACTO?140:260)-(COMPACTO?0:TOPO-40));
     }
     if(COMPACTO && W < 700 && col >= 0 && ids.length === 1 && col % 2) n.py -= 45;
-    if(n.id === "debugger" && !vertical){ n.px = 65+4*(W-145)/6; /* embaixo do CI: no meio caía em cima do Codex */ n.py = H-(COMPACTO?80:220); }
+    if(n.id === "debugger" && !vertical){ n.px = 65+colDebugger*passo; /* embaixo do CI: no meio caía em cima do Codex */ n.py = H-(COMPACTO?80:220); }
     n.raio = (n.grupo==="orch"?17:12)*escala;
 
   }
@@ -277,7 +281,7 @@ function medir(){
     for(let i=0;i<=32;i++){const t=i/32,u=1-t;
       e.pts.push([u*u*u*ax+3*u*u*t*(vertical?ax:mx)+3*u*t*t*(vertical?bx:mx)+t*t*t*bx,u*u*u*ay+3*u*u*t*(vertical?my:ay)+3*u*t*t*(vertical?my:by)+t*t*t*by]);
     }
-    if(!vertical && !e.infra && COLUNAS[3].includes(e.a) && e.b === "ci"){
+    if(!vertical && !e.infra && COL_CONTAS.includes(e.a) && e.b === "ci"){
       const jx=bx-40*escala, jy=by;
       e.pts=[];
       for(let i=0;i<=32;i++){
@@ -285,7 +289,7 @@ function medir(){
         else e.pts.push([jx+(bx-jx)*(i-24)/8,jy]);
       }
     }
-    if(vertical && !e.infra && (COLUNAS[3].includes(e.a) || COLUNAS[3].includes(e.b) || SITES_ORDEM.includes(e.b))){
+    if(vertical && !e.infra && (COL_CONTAS.includes(e.a) || COL_CONTAS.includes(e.b) || SITES_ORDEM.includes(e.b))){
       const start=[A.px,A.py+A.raio], end=[B.px,B.py-B.raio], gutter=28;
       e.pts=[];
       const knots=[start,[gutter,start[1]+30],[gutter,end[1]-30],end];
@@ -302,14 +306,14 @@ function medir(){
 // Celular: o mesmo fluxo em pilha vertical, na mesma ordem. Cada etapa com placar ganha o espaço dele acima do nó.
 const BLOCO = 128;
 function posicoesCelular(){
-  const pos = {}, esq = W*.24, dir = W*.76, col3 = COLUNAS[3], meio = W/2;
+  const pos = {}, esq = W*.24, dir = W*.76, col3 = COL_CONTAS, meio = W/2;
   let y = 34;
   pos.voce = [meio, y]; y += 96;
   for (const id of ["orch","fila"]){ y += BLOCO; pos[id] = [meio, y]; y += 92; }
   y += BLOCO;
   col3.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === col3.length-1) y += 150; });
-  for (const id of ["ci","deploy"]){ y += BLOCO - 28; pos[id] = [meio, y]; y += 92; }
-  pos.debugger = [W-62, pos.ci[1]];
+  for (const id of ["ci","deploy"].filter(id => porId[id])){ y += BLOCO - 28; pos[id] = [meio, y]; y += 92; }
+  if (porId.debugger) pos.debugger = [W-62, (pos.ci || pos.orch)[1]];
   SITES_ORDEM.forEach((id,i) => { pos[id] = [i%2 ? dir : esq, y]; if (i%2 || i === SITES_ORDEM.length-1) y += 100; });
   y += 20;
   nos.filter(n => n.grupo === "infra").forEach((n,i,l) => { pos[n.id] = [i%2 ? dir : esq, y]; if (i%2 || i === l.length-1) y += 100; });
@@ -455,7 +459,7 @@ marcarVisual("estatico");
 function desligarEspaco(){ const e = espaco; espaco = null; marcarVisual("estatico"); try { e?.descartar(); } catch (_) {} }
 // Devolve uma promessa que resolve quando o visual está decidido (WebGL montado ou 2D de vez).
 function ligarEspaco(){
-  if (reduzir.matches) return Promise.resolve();
+  if (reduzir.matches || COMPACTO) return Promise.resolve();   // sem WebGL no movimento reduzido e no quadro compacto
   const prazo = new Promise((_, falha) => setTimeout(() => falha(Error("CDN sem resposta")), ESPERA_THREE_MS));
   return Promise.race([import(THREE_URL), prazo]).then(T => {
     if (reduzir.matches || espaco) return;
@@ -898,7 +902,7 @@ function placarBloco(e, x, y0, larg, deBaixo){
 }
 function desenharPlacar(){
   if (COMPACTO || !PLACAR) return;
-  const col = (W-145)/6, larg = celular ? W-40 : Math.min(200, col-14);
+  const col = (W-145)/Math.max(1, [...COLUNAS,SITES_ORDEM].filter(c => c.length).length-1), larg = celular ? W-40 : Math.min(200, col-14);
   for (const e of PLACAR.etapas){
     const n = porId[e.no];
     if (!n || e.no === "codex") continue;   // a revisão mostra o placar nas linhas do próprio nó
@@ -943,12 +947,13 @@ function resumo(n){
   }
   if (n.id === "debugger") return `${n.ativo||0} consertando`;
   if (n.id === "fila") return (n.linhas[0]||"");
-  if (n.grupo === "site") return n.alerta ? "fora do ar" : "";
-  if (["hub","servidor_a","servidor_b"].includes(n.id)) {
+  if (n.grupo === "site") return n.alerta ? "fora do ar" : ((n.linhas[1]||"").startsWith("sem leitura") ? n.linhas[1] : "");
+  if (n.grupo === "vazio") return n.linhas[0] || "";
+  if (n.papel === "servidor") {
     const partes = (n.linhas[0]||"").split(" · ");
-    return n.id === "hub" ? partes[0] : [partes.slice(0,2).join(" · "),partes.slice(2).join(" · ")].filter(Boolean).join("\n");
+    return [partes.slice(0,2).join(" · "),partes.slice(2).join(" · ")].filter(Boolean).join("\n");
   }
-  if (n.id === "pc") return n.linhas[0] || "";
+  if (n.papel === "pc") return n.linhas[0] || "";
   return "";
 }
 
@@ -983,7 +988,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 const link = u => /^https:\/\//.test(u||"") ? u : "";
 function abrir(n){
   const evs = (modo === "replay" ? visto : eventos).filter(e => e.de === n.id || e.para === n.id).slice(-8).reverse();
-  const cotas = n.grupo === "conta" || n.id === "codex" ? `<p>${n.id === "codex" ? "Cota semanal" : "Janela de 5 h"}: ${n.cota_pct ?? "sem leitura"}${n.cota_pct == null ? "" : "%"} · Semana: ${n.semana_pct ?? "sem leitura"}${n.semana_pct == null ? "" : "%"}</p>` : "";
+  const cotas = n.grupo === "conta" || n.id === "codex" ? `<p>${n.id === "codex" ? "Cota semanal" : "Janela de 5 h"}: ${n.cota_pct ?? "sem leitura"}${n.cota_pct == null ? "" : "%"}${n.id === "codex" ? ` · Semana: ${n.semana_pct ?? "sem leitura"}${n.semana_pct == null ? "" : "%"}` : ""}</p>` : "";
   detC.innerHTML = `<h2>${esc(n.rot)}</h2>${cotas}<ul>${n.linhas.map(l => `<li>${esc(l)}</li>`).join("") || "<li>sem leitura coletada</li>"}</ul>` +
     (link(n.url) ? `<p><a href="${esc(n.url)}" target="_blank" rel="noopener">abrir →</a></p>` : "") +
     (evs.length ? `<p class="sub">Últimos eventos</p><ul>${evs.map(e => `<li class="ev">${new Date(e.ms).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"})} · ${link(e.url) ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.rot)}</a>` : esc(e.rot)}</li>`).join("")}</ul>` : "");
@@ -1083,19 +1088,25 @@ function setModo(m){
   tk.replaceChildren();
   if(m === "vivo") eventos.slice(-40).forEach(e => ticker(e, true));
   document.getElementById("sub").textContent = m === "replay" ? `replay: as últimas 24 h em ${DUR_REPLAY} s` :
-    (URL_AO_VIVO ? "ao vivo: eventos chegam a cada 5 s" : "foto de agora (no painel os eventos chegam ao vivo)");
+    (URL_AO_VIVO ? "ao vivo: eventos chegam a cada 15 s" : "foto de agora (no painel os eventos chegam ao vivo)");
   desenharLinha(); contar();
 }
 bV.onclick = () => setModo("vivo"); bR.onclick = () => setModo("replay");
 bP.onclick = () => { pausado = !pausado; bP.setAttribute("aria-pressed", pausado); bP.textContent = pausado ? "Continuar" : "Pausar"; };
 
+const POLL_MS = 15000;
+let ultimaAssinatura = JSON.stringify([DADOS.nos, DADOS.arestas, DADOS.placar]);
 let ultimoVivo = DADOS.agora;   // a página já vem com as 24 h; o polling só pede o que veio depois
 async function buscarVivo(){
   if (!URL_AO_VIVO || document.hidden) return;
   try {
     const r = await fetch(URL_AO_VIVO + "?desde=" + encodeURIComponent(ultimoVivo), {cache:"no-store"});
     if (!r.ok) return;
-    const d = await r.json(), novos = d.eventos.filter(e => !chaves.has(chave(e)));
+    const d = await r.json();
+    const assinatura = JSON.stringify([d.nos, d.arestas, d.placar]);   // nada mudou nos nós: não toca no DOM nem no canvas
+    if (assinatura === ultimaAssinatura && !d.eventos.some(e => !chaves.has(chave(e)))){ ultimoVivo = d.agora; contar(); return; }
+    ultimaAssinatura = assinatura;
+    const novos = d.eventos.filter(e => !chaves.has(chave(e)));
     const todos = eventos.map(({ms, ...e}) => e).concat(novos).filter(e => e.t >= d.desde).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
     const emReplay = modo === "replay" ? relogio : null;
     chaves.clear(); carregar(Object.assign({}, d, {eventos: todos}));
@@ -1119,27 +1130,34 @@ if (tq !== null){   // ?t=N: replay congelado em N s (prints reproduzíveis); __
   const alvo = parseFloat(tq); irPara(Math.max(0, alvo-1.5)); for (let s = 0; s < 1.5; s += 1/60) passo(1/60);
   desenhar(); desenharLinha(); contar();
   visualDecidido.then(() => { desenhar(); requestAnimationFrame(() => { window.__pronto = true; }); });
-} else if (reduzir.matches){   // movimento reduzido: mapa parado, arestas com espessura pelo volume de 24 h e contadores cheios
+} else if (reduzir.matches || COMPACTO){   // movimento reduzido e quadro compacto (/cerebro?compacto=1): mapa parado, sem laço, arestas com espessura pelo volume de 24 h e contadores cheios
   setModo("vivo"); ponteiro = eventos.length; desenhar(); desenharLinha(); contar();
   document.getElementById("sub").textContent = "mapa parado (movimento reduzido): toque num nó para explorar" +
-    (URL_AO_VIVO ? "; contadores e alertas a cada 5 s" : "");
+    (URL_AO_VIVO ? "; contadores e alertas a cada 15 s" : "");
   addEventListener("resize", () => { desenhar(); contar(); });
-  if (URL_AO_VIVO) setInterval(buscarVivo, 5000);
+  if (URL_AO_VIVO) setInterval(buscarVivo, POLL_MS);
 } else {   // teto de FPS_MAX quadros/s no WebGL e no HUD; parado com a aba escondida ou o mapa fora da tela
   animado = true;
   let ant = performance.now(), acum = 0, quadro = 0;
-  (function laco(agora){
+  let rodando = false;
+  function iniciar(){ if (rodando || document.hidden) return; rodando = true; ant = performance.now(); acum = 0; requestAnimationFrame(laco); }
+  // aba oculta: o laço para de pedir quadros (zero CPU/GPU); ao voltar, retoma e busca os dados na hora
+  document.addEventListener("visibilitychange", () => { if (document.hidden) rodando = false; else { iniciar(); buscarVivo(); } });
+  reduzir.addEventListener?.("change", () => location.reload());   // liga/desliga movimento reduzido: recomeça no modo certo
+  function laco(agora){
+    if (document.hidden){ rodando = false; return; }
     requestAnimationFrame(laco);
     const bruto = Math.max(0, (agora - ant)/1000); ant = agora;
-    if (document.hidden || !visivel){ acum = 0; return; }
+    if (!visivel){ acum = 0; return; }
     acum += bruto; if (acum < 1/FPS_MAX - .004) return;
     const dt = Math.min(acum, 1/20); acum = 0;
     const mexeu = passoCam(dt); passoParalaxe(dt);
     if (!pausado){ if(!reduzir.matches) passo(dt); desenhar(); if (++quadro % 3 === 0){ desenharLinha(); contar(); } }
     else if (mexeu || sujo) desenhar();
     sujo = false;
-  })(ant);
-  if (URL_AO_VIVO){ buscarVivo(); setInterval(buscarVivo, 5000); }
+  }
+  iniciar();
+  if (URL_AO_VIVO){ buscarVivo(); setInterval(buscarVivo, POLL_MS); }
 }
 document.fonts?.ready.then(() => pedirQuadro());
 </script>

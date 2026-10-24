@@ -23,7 +23,7 @@ Repository = "https://github.com/BRK13/krohnos"
 krohnos = "hub.cli:main"
 
 [tool.setuptools]
-packages = ["hub", "hub.comum", "hub.mcp_grupos", "hub.x_salvos"]
+packages = ["hub", "hub.comum", "hub.mcp_grupos", "hub.x_salvos", "hub.harness"]
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }

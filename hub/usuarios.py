@@ -15,6 +15,7 @@ import datetime as dt
 import getpass
 import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -24,7 +25,7 @@ from pathlib import Path
 
 import hub
 
-PAPEIS = ("leitura", "operador", "dono")
+PAPEIS = ("leitura", "operador", "dono", "cliente")
 SENHA_MIN = 12
 OCIOSA = dt.timedelta(hours=12)
 MAXIMA = dt.timedelta(days=7)
@@ -35,8 +36,13 @@ CONVITE = dt.timedelta(hours=24)
 SO_DONO = ("convidar", "papel", "desativar", "autorizar-prova", "revogar-prova")
 PODE = {"leitura": {"ver"},
         "operador": {"ver", "execucao", "acao:criar-issue", "acao:comentar", "acao:pedido", "acao:criar-meta", "acao:clonar-viral",
-                     "acao:replay"},  # replay = mesmo público da tela /execucao (permissão "execucao")
-        "dono": "*"}
+                     "acao:replay", "acao:mover-issue"},  # replay = mesmo público da tela /execucao (permissão "execucao")
+        "dono": "*",
+        # cliente não "vê" tela do painel, não abre config nem /execucao e não age: só a própria tela
+        # /cliente/<site>, que o portão do painel (default-deny) libera pelo vínculo em usuario_site, não por esta tabela
+        "cliente": {"cliente"}}
+RE_SITE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")  # o mesmo formato dos ids de hub/sites.py
+CLIENTE_SEM_SITE = "Cliente precisa de pelo menos um site."
 ULTIMO_DONO = "Precisa sobrar um dono ativo."
 # sem espaço, controle nem <>"' (o e-mail aparece em tela; defesa extra além do escape)
 RE_EMAIL = re.compile(r"^[^@\s<>\"'\x00-\x1f\x7f]{1,64}@[^@\s<>\"'\x00-\x1f\x7f]{1,255}$")
@@ -70,6 +76,7 @@ def _con(pasta=None):
         " visto TEXT NOT NULL, ip TEXT, csrf TEXT NOT NULL);"
         "CREATE TABLE IF NOT EXISTS convite(token_hash TEXT PRIMARY KEY, email TEXT NOT NULL, papel TEXT NOT NULL,"
         " criado TEXT NOT NULL, usado INTEGER NOT NULL DEFAULT 0);"
+        "CREATE TABLE IF NOT EXISTS usuario_site(email TEXT NOT NULL, site TEXT NOT NULL, PRIMARY KEY(email, site));"
         "CREATE TABLE IF NOT EXISTS tentativa(chave TEXT NOT NULL, em TEXT NOT NULL);"
         "CREATE INDEX IF NOT EXISTS tentativa_em ON tentativa(em);"
         "CREATE TABLE IF NOT EXISTS auditoria(id INTEGER PRIMARY KEY, em TEXT NOT NULL, quem TEXT, acao TEXT,"
@@ -80,7 +87,31 @@ def _con(pasta=None):
         "CREATE TRIGGER IF NOT EXISTS auditoria_sem_delete BEFORE DELETE ON auditoria"
         " BEGIN SELECT RAISE(ABORT, 'auditoria só aceita INSERT'); END;"
     )
+    if "sites" not in {c[1] for c in con.execute("PRAGMA table_info(convite)")}:  # banco de antes do cliente
+        try:
+            con.execute("ALTER TABLE convite ADD COLUMN sites TEXT")
+        except sqlite3.OperationalError:  # outro processo acrescentou junto
+            pass
     return con
+
+
+def _sites(sites, papel):
+    """Lista de ids de site limpa (sem repetir, ordem mantida). Só vale para cliente (os outros papéis ignoram); cliente
+    sem nenhum site ou com id fora do formato: ValueError."""
+    if papel != "cliente":
+        return []
+    if isinstance(sites, str):
+        sites = [sites]
+    limpa = []
+    for x in sites or []:
+        x = (x or "").strip() if isinstance(x, str) else ""
+        if not RE_SITE.match(x) or len(x) > 80:
+            raise ValueError("Site inválido.")
+        if x not in limpa:
+            limpa.append(x)
+    if not limpa:
+        raise ValueError(CLIENTE_SEM_SITE)
+    return limpa
 
 
 def _normalizar(email):
@@ -116,16 +147,18 @@ def _sha(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def criar(email, senha, papel="leitura", agora=None, pasta=None):
+def criar(email, senha, papel="leitura", agora=None, pasta=None, sites=None):
+    """sites: só para o papel cliente (pelo menos um); nos outros papéis é ignorado."""
     _validar(senha, papel)
-    return _inserir(email, senha, papel, agora, pasta)
+    return _inserir(email, senha, papel, agora, pasta, sites)
 
 
-def _inserir(email, senha, papel, agora=None, pasta=None):
+def _inserir(email, senha, papel, agora=None, pasta=None, sites=None):
     """criar() sem a checagem de tamanho: só a migração usa (a senha antiga é a que já está em uso)."""
     e = _normalizar(email)
     if papel not in PAPEIS:
         raise ValueError("Papel inválido: " + ", ".join(PAPEIS) + ".")
+    sites = _sites(sites, papel)
     h = _hash(senha)
     con = _con(pasta)
     try:
@@ -135,6 +168,7 @@ def _inserir(email, senha, papel, agora=None, pasta=None):
                             (e, h, papel, _agora(agora).isoformat()))
             except sqlite3.IntegrityError:
                 raise ValueError(f"Já existe um usuário {e}.") from None
+            con.executemany("INSERT INTO usuario_site(email, site) VALUES (?,?)", [(e, x) for x in sites])
     finally:
         con.close()
     return e
@@ -185,7 +219,9 @@ def sessao(token, agora=None):
                 return None
             if agora - visto_dt >= TOQUE:
                 con.execute("UPDATE sessao SET visto=? WHERE token_hash=?", (agora.isoformat(), th))
-            return {"email": email, "papel": papel, "csrf": csrf}
+            vinculos = [x[0] for x in con.execute("SELECT site FROM usuario_site WHERE email=? ORDER BY rowid", (email,))] \
+                if papel == "cliente" else []
+            return {"email": email, "papel": papel, "csrf": csrf, "sites": vinculos}
     finally:
         con.close()
 
@@ -212,8 +248,11 @@ def contar(pasta=None):
 def listar():
     con = _con()
     try:
-        return [{"email": a, "papel": b, "criado": c, "ativo": bool(d)} for a, b, c, d in
-                con.execute("SELECT email, papel, criado, ativo FROM usuario ORDER BY criado, email")]
+        vinc = {}
+        for em, st in con.execute("SELECT email, site FROM usuario_site ORDER BY rowid"):
+            vinc.setdefault(em, []).append(st)
+        return [{"email": a, "papel": b, "criado": c, "ativo": bool(d), "sites": vinc.get(a, []) if b == "cliente" else []}
+                for a, b, c, d in con.execute("SELECT email, papel, criado, ativo FROM usuario ORDER BY criado, email")]
     finally:
         con.close()
 
@@ -223,7 +262,8 @@ _NAO_ULTIMO = (" AND NOT (papel='dono' AND ativo=1 AND"
                " (SELECT COUNT(*) FROM usuario WHERE papel='dono' AND ativo=1) <= 1)")
 
 
-def _alterar(email, sql, params, apagar_sessoes=False, guarda_dono=False):
+def _alterar(email, sql, params, apagar_sessoes=False, guarda_dono=False, tambem=()):
+    """tambem: comandos SQL de um parâmetro (o e-mail) que rodam na mesma transação, se a alteração valeu."""
     e = _normalizar(email)
     con = _con()
     try:
@@ -232,6 +272,8 @@ def _alterar(email, sql, params, apagar_sessoes=False, guarda_dono=False):
                 if guarda_dono and con.execute("SELECT 1 FROM usuario WHERE email=?", (e,)).fetchone():
                     raise ValueError(ULTIMO_DONO)
                 raise ValueError(f"Usuário {e} não existe.")
+            for extra in tambem:
+                con.execute(extra, (e,))
             if apagar_sessoes:  # senha nova ou conta desativada: sessões e convites abertos deixam de valer
                 con.execute("DELETE FROM sessao WHERE email=?", (e,))
                 con.execute("UPDATE convite SET usado=1 WHERE email=? AND usado=0", (e,))
@@ -240,9 +282,12 @@ def _alterar(email, sql, params, apagar_sessoes=False, guarda_dono=False):
 
 
 def trocar_papel(email, papel):
+    """Cliente não nasce por aqui (precisa de convite com site); quem sai de cliente perde os vínculos."""
     _validar("x" * SENHA_MIN, papel)
+    if papel == "cliente":
+        raise ValueError("Cliente só entra por convite com site: convide de novo escolhendo o papel cliente e o site.")
     sql = "UPDATE usuario SET papel=? WHERE email=?"
-    _alterar(email, sql, (papel,), guarda_dono=papel != "dono")
+    _alterar(email, sql, (papel,), guarda_dono=papel != "dono", tambem=("DELETE FROM usuario_site WHERE email=?",))
 
 
 def desativar(email):
@@ -270,12 +315,14 @@ def permissao_get(caminho):
     return "config" if partes[:1] in (["config"], ["comecar"]) else "ver"
 
 
-def convidar(email, papel, agora=None):
+def convidar(email, papel, agora=None, sites=None):
     """Convite de uso único que vale CONVITE (24 h). Devolve o token (no banco só o sha256). E-mail que já é usuário:
-    o convite serve para trocar a senha dele (papel ignorado); desativado não ganha convite."""
+    o convite serve para trocar a senha dele (papel ignorado); desativado não ganha convite.
+    sites: só para cliente, que exige pelo menos um; nos outros papéis é ignorado."""
     e = _normalizar(email)
     if papel not in PAPEIS:
         raise ValueError("Papel inválido: " + ", ".join(PAPEIS) + ".")
+    sites = _sites(sites, papel)
     token = secrets.token_urlsafe(32)
     con = _con()
     try:
@@ -283,21 +330,25 @@ def convidar(email, papel, agora=None):
             l = con.execute("SELECT ativo FROM usuario WHERE email=?", (e,)).fetchone()
             if l and not l[0]:
                 raise ValueError(f"Usuário {e} está desativado.")
-            con.execute("INSERT INTO convite(token_hash, email, papel, criado) VALUES (?,?,?,?)",
-                        (_sha(token), e, papel, _agora(agora).isoformat()))
+            con.execute("INSERT INTO convite(token_hash, email, papel, criado, sites) VALUES (?,?,?,?,?)",
+                        (_sha(token), e, papel, _agora(agora).isoformat(), json.dumps(sites) if sites else None))
     finally:
         con.close()
     return token
 
 
 def _convite(con, token, agora):
-    """(email, papel) do convite válido (não usado, dentro das 24 h) ou None."""
+    """(email, papel, sites) do convite válido (não usado, dentro das 24 h) ou None."""
     if not token or not isinstance(token, str):
         return None
-    l = con.execute("SELECT email, papel, criado FROM convite WHERE token_hash=? AND usado=0", (_sha(token),)).fetchone()
+    l = con.execute("SELECT email, papel, criado, sites FROM convite WHERE token_hash=? AND usado=0", (_sha(token),)).fetchone()
     if not l or _agora(agora) - dt.datetime.fromisoformat(l[2]) > CONVITE:
         return None
-    return l[0], l[1]
+    try:
+        sites = [x for x in json.loads(l[3] or "[]") if isinstance(x, str) and RE_SITE.match(x)]
+    except ValueError:
+        sites = []
+    return l[0], l[1], sites
 
 
 def ver_convite(token, agora=None):
@@ -323,7 +374,7 @@ def aceitar_convite(token, senha, agora=None):
             if not c or con.execute("UPDATE convite SET usado=1 WHERE token_hash=? AND usado=0",
                                     (_sha(token),)).rowcount != 1:
                 return None
-            e, papel = c
+            e, papel, sites = c
             l = con.execute("SELECT ativo FROM usuario WHERE email=?", (e,)).fetchone()
             if l and not l[0]:
                 return None
@@ -337,6 +388,8 @@ def aceitar_convite(token, senha, agora=None):
                                 (e, h, papel, _agora(agora).isoformat()))
                 except sqlite3.IntegrityError:  # outro convite do mesmo e-mail foi aceito junto: este não vale
                     return None
+                if papel == "cliente":
+                    con.executemany("INSERT OR IGNORE INTO usuario_site(email, site) VALUES (?,?)", [(e, x) for x in sites])
             return e
     finally:
         con.close()
@@ -442,6 +495,7 @@ def main(argv=None):
     c = sub.add_parser("criar")
     c.add_argument("email")
     c.add_argument("--papel", default="leitura", choices=PAPEIS)
+    c.add_argument("--site", action="append", default=[], help="id do site (só para --papel cliente; repita para vários)")
     sub.add_parser("listar")
     sub.add_parser("senha", help="troca a senha (lida do stdin ou digitada)").add_argument("email")
     a = ap.parse_args(argv)
@@ -451,7 +505,7 @@ def main(argv=None):
         return 2
     if a.cmd == "listar":
         for u in listar():
-            print(u["email"], u["papel"], "ativo" if u["ativo"] else "inativo", u["criado"])
+            print(u["email"], u["papel"], "ativo" if u["ativo"] else "inativo", u["criado"], *([",".join(u["sites"])] if u["sites"] else []))
         return 0
     senha = getpass.getpass("Senha: ") if sys.stdin.isatty() else sys.stdin.readline().rstrip("\r\n")
     try:
@@ -459,7 +513,7 @@ def main(argv=None):
             trocar_senha(a.email, senha)
             print("Senha trocada:", _normalizar(a.email))
             return 0
-        print("Criado:", criar(a.email, senha, papel=a.papel))
+        print("Criado:", criar(a.email, senha, papel=a.papel, sites=a.site))
     except ValueError as erro:
         print(erro, file=sys.stderr)
         return 1

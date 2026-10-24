@@ -11,6 +11,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 
+from hub import config
 from hub.mcp_grupos import ErroUso, pasta
 
 MAX_HTML_BYTES = 500_000
@@ -20,7 +21,7 @@ MAX_TITULO, MAX_SKILL, MAX_RESUMO = 120, 60, 2_500
 MAX_MODELOS, MAX_NOME, MAX_DESC, MAX_INSTR = 10, 80, 200, 3_000
 ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 CRIADO_POR = "MCP"
-BASE = "https://nimbus.clientec-com.example/"
+BASE = f"{config.painel_url()}/"
 
 _SITE = {"type": "string", "description": "Id do site no hub, domínio ou nome."}
 _PID = {"type": "string", "description": "Mesmo que site (nome usado pelo MCP antigo)."}

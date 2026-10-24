@@ -35,6 +35,25 @@ class AmostradorTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
+    def test_banco_travado_tenta_de_novo(self):
+        import sqlite3
+        from unittest import mock
+        chamadas = []
+
+        def fn():
+            chamadas.append(1)
+            if len(chamadas) < 3:
+                raise sqlite3.OperationalError('database is locked')
+            return 'ok'
+        with mock.patch('hub.github_api.time.sleep') as dorme:
+            self.assertEqual(g._com_tentativas(fn), 'ok')
+        self.assertEqual(dorme.call_count, 2)
+        with mock.patch('hub.github_api.time.sleep'), self.assertRaises(sqlite3.OperationalError):
+            g._com_tentativas(Mock(side_effect=sqlite3.OperationalError('database is locked')))
+        with mock.patch('hub.github_api.time.sleep') as dorme, self.assertRaises(sqlite3.OperationalError):
+            g._com_tentativas(Mock(side_effect=sqlite3.OperationalError('no such table')))
+        dorme.assert_not_called()
+
     def test_amostra_app_e_gh_sem_gravar_token(self):
         from unittest import mock
         run = Mock(side_effect=[_rl(4000), _rl(300)])
@@ -169,6 +188,26 @@ class GithubTest(unittest.TestCase):
     def get(self, now=1000, **kw):
         return g.get('repos/o/r/pulls/1', base_dados=self.tmp.name, agora=now,
                      rodar=self.run, token=kw.pop('token', 'test-token'), **kw)
+
+    def test_banco_corrompido_nao_derruba_leitura_feita(self):
+        """'database disk image is malformed' ao gravar o cache não pode virar erro do `mover Done`."""
+        import sqlite3
+        from unittest import mock
+
+        class Quebrado:
+            def __init__(self, con):
+                self.con = con
+
+            def execute(self, sql, *a):
+                if sql.lstrip().startswith(('INSERT OR REPLACE INTO cache', 'DELETE')):
+                    raise sqlite3.DatabaseError('database disk image is malformed')
+                return self.con.execute(sql, *a)
+
+            def __getattr__(self, nome):
+                return getattr(self.con, nome)
+
+        with mock.patch.object(g, '_banco_ou_memoria', lambda b=None: Quebrado(g._banco(b))):
+            self.assertEqual(self.get(), {'ok': 1})
 
     def test_cache_etag_and_304(self):
         self.assertEqual(self.get(), {'ok': 1})

@@ -11,10 +11,10 @@ import datetime as dt
 import sys
 from contextlib import closing
 
-from hub import armazem, conta, ui
+from hub import armazem, config, conta, ui
 from hub.comum.datas import BRT
 
-ORIGEM = "https://nimbus.clientec-com.example"  # endereço público do painel (link no aviso)
+ORIGEM = config.painel_url()  # endereço público do painel (link no aviso)
 LIMITE = 0.20   # variação que ganha ⚠ no resumo
 ATRASO_GSC = 3  # os 3 últimos dias do GSC são parciais
 # (fonte, métrica, rótulo, estoque?): estoque mostra o último valor; fluxo mostra o total da semana (exceto a CTR: taxa da semana)

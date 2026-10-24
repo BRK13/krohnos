@@ -27,7 +27,14 @@ _DONO = re.escape(config.dono())
 RE_PENDENCIA = re.compile(
     r"(?<![\w])(?-i:Falta|Faltam)\b(?!\s+de\b)|\bvolto\s+(?:quando|a\s+conferir)|\bno\s+CI;?\s*volto|"
     r"\bainda\s+não\s+(?:fiz|foi|fez|est[áa]|subiu|saiu|mergeei|houve|tem|mergead)|\bmerge\s+ainda\s+não|"
+    r"\bnão\s+(?:rodou|foi\s+(?:testad[oa]|validad[oa]|executad[oa]))\s+de\s+ponta\s+a\s+ponta\b|"
     r"\baguardando\b", re.I)
+# INC-239: entrega explicitamente ausente não se resolve com uma referência a outra issue.
+RE_ENTREGA_AUSENTE = re.compile(
+    r"\bnão\s+(?:foi|foram)\s+entregue[s]?\b|"
+    r"\bainda\s+não\s+tem\s+(?:a|o|as|os)\s+(?:lista|decisões|provas?|recibos?)\b|"
+    r"\bsem\s+prova\s+ainda\b", re.I)
+RE_BLOQUEIO = re.compile(f"(?:{RE_ENTREGA_AUSENTE.pattern})|(?:{RE_PENDENCIA.pattern})", re.I)
 RE_BRU = re.compile(r"\bKRN-\d+\b")
 RE_PARA_DONO = re.compile(rf"depende de voc[êe]|depende do {_DONO}|para o {_DONO}|pro {_DONO}|do {_DONO}\b|"
                           rf"{_DONO} (?:decide|precisa|tem que|deve)|precisa do {_DONO}|\bsó o {_DONO} tem\b", re.I)
@@ -42,15 +49,59 @@ class Delegada(str):
     dono = False
 
 
-def pendencias(texto, ident=""):
+# frase de espera de CI/revisão/merge/deploy ("no CI; volto quando sair"); some quando os PRs citados já foram fundidos
+RE_ESPERA = re.compile(r"\bvolto\s+(?:quando|a\s+conferir)|\bno\s+CI;?\s*volto|"
+                       r"\bainda\s+não\s+(?:fiz|mergeei|mergead|saiu|subiu)|\bmerge\s+ainda\s+não", re.I)
+RE_ESPERA_DE = re.compile(r"\bCI\b|local-ci|revis[ãa]o|merge|deploy|no\s+ar|\bsa(?:ir|iu)\b|\bsubi(?:r|u)\b", re.I)
+
+
+def pendencias(texto, ident="", historico=(), espera_resolvida=False):
     """(abertas, delegadas): trechos de pendência no texto. Delegada = o texto manda a pendência para outra issue
-    (KRN-N diferente da própria) ou para o dono, na mesma passagem; aberta = ninguém assumiu."""
+    (KRN-N diferente da própria) ou para o dono, na mesma passagem; aberta = ninguém assumiu.
+    `espera_resolvida`: os PRs do comentário já estão fundidos, então a frase de espera não conta."""
+    # (INC-205/221/231/240): trecho entre aspas que aparece literalmente num comentário anterior do portão
+    # ("Done barrado…"/"Voltou de Done…") é citação do portão, não pendência nova, qualquer que seja a redação em volta.
+    # Pendência em prosa, fora de aspas, ou entre aspas com frase que o portão nunca citou, continua contando.
+    # INC-335: o relato pode citar sem o negrito do diagnóstico ("Falta:**").
+    # Normalize só a comparação; o bloqueio de prosa e citações sem histórico permanece.
+    def sem_negrito(t):
+        return t.lower().replace("**", "")
+    citados = [sem_negrito(h) for h in historico if RE_DO_PORTAO.match(h)]
+    def _citacao_do_portao(m):
+        # INC-261: o relato pode abreviar a recusa com reticências.
+        # Só retire o sufixo de abreviação; o trecho restante exige prova no portão.
+        cru = sem_negrito(m.group(1)).strip()
+        trecho = re.sub(r"(?:…|\.\.\.)$", "", cru).strip()
+        if trecho != cru and len(trecho) < 12:  # "Falta..." abreviado casaria com quase toda recusa
+            return m.group(0)
+        return "" if trecho and any(trecho in h for h in citados) else m.group(0)
+    texto = re.sub(r'"([^"\n]+)"', _citacao_do_portao, texto or "")
+    texto = re.sub(r"(?m)^[ \t>*_-]*Falta(?:m)?[ \t*]*:[ \t*]*(?:nada|nenhuma?)[ \t*_.!]*$", "", texto)
+    # INC-293: uma sugestão explicitamente fora do escopo não é entrega pendente.
+    # Só vale na própria linha marcada; ausência de entrega continua bloqueando.
+    sugestoes = [m.span() for m in re.finditer(
+        r"(?im)^[ \t]*(?:[-*] +)?(?:\*\*)?Sugestão, não tarefa aberta(?:\*\*)?:[^\n]*", texto)]
+    # INC-297: o destino explícito no cabeçalho vale para os itens da lista
+    # imediatamente abaixo, até a próxima linha em branco ou prosa sem marcador.
+    listas_delegadas = []
+    for cab in re.finditer(
+            r"(?im)^[ \t]*Ficaram[^\n]*pendências fora do escopo desta issue[^\n]*:\n"
+            r"(?:[ \t]*[-*] [^\n]*(?:\n|$))+", texto):
+        destino = cab.group().split("\n", 1)[0]
+        if any(b != ident for b in RE_BRU.findall(destino)):
+            listas_delegadas.append(cab.span())
     abertas, delegadas = [], []
-    for m in RE_PENDENCIA.finditer(texto or ""):
+    for m in RE_BLOQUEIO.finditer(texto or ""):
+        if (not RE_ENTREGA_AUSENTE.match(m.group())
+                and any(inicio <= m.start() < fim for inicio, fim in sugestoes)):
+            continue
         trecho = texto[m.start():m.start() + JANELA].split("\n\n")[0]  # destino só vale na mesma passagem (parágrafo ou lista)
+        if espera_resolvida and RE_ESPERA.match(m.group()) and RE_ESPERA_DE.search(trecho.split("\n")[0]):
+            continue
         linha = " ".join(trecho.split())[:160]
         outras = [b for b in RE_BRU.findall(trecho) if b != ident]
-        if outras or RE_PARA_DONO.search(trecho):
+        if not RE_ENTREGA_AUSENTE.match(m.group()) and (outras or RE_PARA_DONO.search(trecho)
+                or any(inicio <= m.start() < fim for inicio, fim in listas_delegadas)):
             d = Delegada(linha)
             d.dono = bool(RE_PARA_DONO.search(trecho))
             delegadas.append(d)
@@ -62,19 +113,86 @@ def pendencias(texto, ident=""):
 def ultimo_comentario(issue):
     """(texto, humano) do último comentário da issue. Humano: o dono falou por último; aí não há pendência nossa."""
     nodes = sorted((issue.get("comments") or {}).get("nodes") or [], key=lambda c: c.get("createdAt") or "")
+    # O diagnóstico do portão repete faltas antigas; avalie a entrega anterior.
+    nodes = [c for c in nodes if (c.get("body") or "").strip() !=
+             "This thread is for an agent session with claude."
+             and not ((c.get("user") or {}).get("app")
+                                     and RE_DO_PORTAO.match(c.get("body") or ""))
+             and not RE_MERGE_DO_HUB.match(c.get("body") or "")]
     if not nodes:
         return "", False
     c = nodes[-1]
     return c.get("body") or "", not (c.get("user") or {}).get("app")
 
 
+RE_DO_PORTAO = re.compile(r"\s*(?:Done barrado|Voltou de Done)\b", re.I)
+# INC-122: o aviso mecânico de merge do hub não é entrega; sem pular ele, a pendência do comentário anterior some
+RE_MERGE_DO_HUB = re.compile(r"\s*Merge feito pelo hub\b", re.I)
+RE_DEBUGGER = re.compile(r"\s*Debugger\b|\bINC-\d+\b", re.I)
+RE_ISSUE_DONA = re.compile(r"issue\s+dona\s*:?\s*\**\s*(KRN-\d+)", re.I)
+
+
+def _entrega_de_outra(corpo, ident):
+    """comentário que não fala da entrega desta issue. Os do próprio portão ("Done barrado", "Voltou de Done")
+    só repetem PR já citado (e travavam o Done em laço); os do debugger/incidente que apontam outra issue dona (ou
+    citam outra KRN-N e não esta) falam do PR de outra issue (presa por causa do #553, que era da)."""
+    if RE_DO_PORTAO.match(corpo):
+        return True
+    if not RE_DEBUGGER.search(corpo):
+        return False
+    ident = ident.upper()
+    donas = {d.upper() for d in RE_ISSUE_DONA.findall(corpo)}
+    if donas:
+        return ident not in donas
+    # INC-278: o relatório automático do debugger publica na issue afetada
+    # o PR do harness. Sem uma atribuição explícita à entrega, esse PR não
+    # é requisito do artigo/site que a issue pediu.
+    if re.match(r"\s*Debugger\s*·\s*tentativa\b", corpo, re.I) and re.search(r"\bINC-\d+\b", corpo):
+        return True
+    citadas = {b.upper() for b in re.findall(r"\bKRN-\d+\b", corpo, re.I)}
+    return bool(citadas - {ident}) and ident not in citadas
+
+
+def _prs_de_incidente_separado(issue):
+    """INC-280: reconciliação humana pode separar o PR do incidente da entrega.
+
+    Exige referência exata, INC e a frase explícita "não é pendência desta entrega". Só vale o PR citado
+    ANTES dela na mesma frase (é o sujeito da frase): o "ver #600" depois dela continua cobrado. "Não implementa
+    o artigo" fica de fora, porque é como um revisor reprova entrega incompleta (INC-277). Relatos do agente
+    não dispensam PRs.
+    """
+    separados = set()
+    for c in (issue.get("comments") or {}).get("nodes") or []:
+        corpo = c.get("body") or ""
+        if (c.get("user") or {}).get("app"):
+            continue
+        for paragrafo in corpo.split("\n\n"):
+            if not re.search(r"\bINC-\d+\b", paragrafo, re.I):
+                continue
+            frase = re.search(r"não é pendência desta entrega", paragrafo, re.I)
+            if not frase:
+                continue
+            # só a frase da dispensa: corta no último fim de frase (ponto, !, ? + espaço, ou quebra de linha)
+            antes = re.split(r"(?<=[.!?])\s+|\n", paragrafo[:frase.start()])[-1]
+            refs = esperas.RE_PR.findall(antes)
+            refs += re.findall(r"\b([\w.-]+/[\w.-]+)#(\d+)\b", antes)
+            separados.update((repo.lower(), int(n)) for repo, n in refs)
+    return separados
+
+
 def prs_citados(issue, comentario=None):
-    """PRs anexados à issue mais os que o Claude citou nos próprios comentários e no que vai junto do Done (sem repetir)."""
+    """PRs anexados à issue mais os que o Claude citou nos próprios comentários e no que vai junto do Done (sem repetir).
+    Comentário do portão, ou do debugger/incidente sobre outra issue dona, não conta (`_entrega_de_outra`)."""
+    ident = issue.get("identifier") or ""
     textos = [a.get("url") or "" for a in (issue.get("attachments") or {}).get("nodes") or []] + [comentario or ""]
-    textos += [c.get("body") or "" for c in (issue.get("comments") or {}).get("nodes") or [] if (c.get("user") or {}).get("app")]
+    textos += [c.get("body") or "" for c in (issue.get("comments") or {}).get("nodes") or []
+               if (c.get("user") or {}).get("app") and not _entrega_de_outra(c.get("body") or "", ident)]
+    separados = _prs_de_incidente_separado(issue)
     vistos, out = set(), []
     for t in textos:
         for repo, n in esperas.RE_PR.findall(t):
+            if (repo.lower(), int(n)) in separados:
+                continue
             if (repo, n) not in vistos:
                 vistos.add((repo, n))
                 out.append((repo, int(n)))
@@ -102,13 +220,69 @@ def promete_aviso(issue):
     return bool(RE_PROMETE.search(f"{issue.get('title') or ''}\n{issue.get('description') or ''}"))
 
 
-def faltas_do_texto(issue, comentario=None):
+# repasse que só aceita a entrega e manda fechar: não é pedido novo, não pode barrar o Done
+RE_REPASSE_FECHA = re.compile(r"entrega\s+aceita|(?<!não\s)(?<!nao\s)\baceit[oa]\b|mova\s+para\s+Done|\bfech(?:o|a|ando)\b|\bfeche\b|pode\s+fechar", re.I)
+# ...mas "feche" junto de um pedido ainda por fazer ("rode X e feche") continua pedido
+RE_REPASSE_PEDE = re.compile(r"\b(?:rode|rodar|responda|corrija|conserte|falta|faltam|antes\s+de|prove|comprove|adicione|adicionar|ajuste|inclua|refa[çc]a|fa[çc]a)\b", re.I)
+
+
+def repasse_sem_resposta(issue):
+    """INC-258: pedido repassado pelo orquestrador depois da última entrega da execução ainda não foi feito."""
+    from hub.entrega_visual import RE_DISPENSA
+    from hub.linear import REPASSE
+    nodes = sorted((issue.get("comments") or {}).get("nodes") or [], key=lambda c: c.get("createdAt") or "")
+    entrega = repasse = ""
+    for c in nodes:
+        corpo = c.get("body") or ""
+        if REPASSE in corpo:
+            # dispensa do gate visual e aceite/fechamento não pedem nada, e também não são entrega
+            fecha = RE_REPASSE_FECHA.search(corpo) and not RE_REPASSE_PEDE.search(corpo)
+            if not RE_DISPENSA.search(corpo) and not fecha:
+                repasse = c.get("createdAt") or ""
+        elif ((c.get("user") or {}).get("app") and not RE_DO_PORTAO.match(corpo) and not RE_MERGE_DO_HUB.match(corpo)
+              and corpo.strip() != "This thread is for an agent session with claude."):
+            entrega = c.get("createdAt") or ""
+        elif not (c.get("user") or {}).get("app") and corpo.strip():
+            # a resposta do `mover --comentario` sai pelo token do dono (humano, sem app): também responde ao repasse
+            entrega = c.get("createdAt") or ""
+    return bool(repasse) and repasse > entrega
+
+
+RE_VOLTAR_EM = re.compile(r"voltar-em:\s*\d{4}-\d{2}-\d{2}", re.I)
+
+
+def pendencia_sem_destino(texto, ident=""):
+    """a entrega que vai para In Review com "Falta o item 1" e sem destino (outra issue KRN-N,
+    o dono, ou `voltar-em: AAAA-MM-DD`) fica parada sem ninguém para retomar. Devolve as pendências abertas ([] = pode)."""
+    # `voltar-em` só libera a pendência da mesma passagem (parágrafo); a de outro parágrafo continua sem destino
+    texto = "\n\n".join(p for p in re.split(r"\n\s*\n", texto or "") if not RE_VOLTAR_EM.search(p))
+    # espera de CI/revisão/merge/deploy ("no CI; volto quando sair") tem gancho próprio (esperas, conferência): não é desta trava
+    return [a for a in pendencias(texto, ident)[0] if not RE_ESPERA.match(a)][:3]
+
+
+def _prs_fundidos(texto, gh):
+    """True se o texto cita PR e todos estão merged. Sem `gh`, sem PR ou falha de leitura: False (continua barrando)."""
+    prs = {(r.lower(), int(n)) for r, n in esperas.RE_PR.findall(texto or "")}
+    if not gh or not prs:
+        return False
+    try:
+        return all(gh(f"repos/{r}/pulls/{n}").get("merged") for r, n in prs)
+    except Exception:  # noqa: BLE001 — falha de leitura não prova merge
+        return False
+
+
+def faltas_do_texto(issue, comentario=None, gh=None):
     """(faltas, delegadas) pelo último comentário (`comentario`: o que está para ser postado junto do Done, vale no lugar dele)."""
     ident = issue["identifier"]
+    if comentario is None and repasse_sem_resposta(issue):
+        return [("há pedido do orquestrador depois da última entrega, ainda sem resposta (INC-258): "
+                 f"responda ao repasse em `mover {ident} Done --comentario \"<resposta>\"`")], []
     texto, humano = (comentario, False) if comentario is not None else ultimo_comentario(issue)
     if humano:
         return [], []
-    abertas, delegadas = pendencias(texto, ident)
+    anteriores = [c.get("body") or "" for c in (issue.get("comments") or {}).get("nodes") or []
+                  if (c.get("body") or "") != texto]
+    abertas, delegadas = pendencias(texto, ident, anteriores, _prs_fundidos(texto, gh))
     return [f"o último comentário deixa pendência aberta: \"{a}\"" for a in abertas[:3]], delegadas
 
 
@@ -153,7 +327,7 @@ def resolver_pendencia_fulano(ident, base_dados=None):
 # ---- portão de escrita e webhook ----
 
 Q_ISSUE = ("query($i: String!) { issue(id: $i) { id identifier title description createdAt completedAt state { name type } "
-           "attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { app } } } "
+           "attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { app name } } } "
            "team { id states { nodes { id name } } } } }")
 
 
@@ -167,9 +341,38 @@ def _ip(issue):
     return {s["name"]: s["id"] for s in issue["team"]["states"]["nodes"]}["In Progress"]
 
 
-def barrar(ident, comentario=None, consulta=None, mover_fn=None, comentar_fn=None, avaliar_fn=None, base_dados=None):
+# falta que é só "ainda espero" (PR aberto, deploy subindo, "volto quando"): a execução da própria issue
+# que chama `mover Done` assim não move nem comenta, só recebe a recusa
+# (a pendência aberta é o que a própria sessão escreveu no último comentário; o merge fora do ar é o deploy que ela espera)
+ESPERA_FALTA = re.compile(r"ainda está aberto|deploy subindo|não está no ar|volto quando|no CI; volto|deixa pendência aberta", re.I)
+
+
+def so_espera(faltas):
+    return bool(faltas) and all(ESPERA_FALTA.search(f) for f in faltas)
+
+
+REPETE_BARRADO = 3600  # o mesmo "Done barrado" não se posta de novo antes de 1 h
+
+
+def _barrado_repetido(issue, texto, agora):
+    """O último comentário do portão na issue é idêntico a `texto` e tem menos de 60 min."""
+    nodes = [c for c in (issue.get("comments") or {}).get("nodes") or []
+             if RE_DO_PORTAO.match(c.get("body") or "")]  # sem exigir app: o `mover` com token do dono também posta
+    if not nodes:
+        return False
+    ultimo = max(nodes, key=lambda c: c.get("createdAt") or "")
+    try:
+        idade = (agora - conta.de_iso(ultimo["createdAt"])).total_seconds()
+    except (KeyError, ValueError, TypeError):
+        return False
+    return (ultimo.get("body") or "").strip() == texto.strip() and 0 <= idade < REPETE_BARRADO
+
+
+def barrar(ident, comentario=None, consulta=None, mover_fn=None, comentar_fn=None, avaliar_fn=None, base_dados=None, agora=None,
+           silencioso=False):
     """Chamado ANTES de mover para Done. Devolve [] se pode passar; senão volta a issue para In Progress, comenta o
-    motivo e devolve as faltas. Falha de leitura também barra: sem conferência não há recibo."""
+    motivo e devolve as faltas. Falha de leitura também barra: sem conferência não há recibo.
+    `silencioso` (execução da própria issue): se as faltas são só espera, devolve-as sem mover nem comentar."""
     from hub import linear
     consulta = consulta or linear.gql
     issue = consulta(Q_ISSUE, i=ident)["issue"]
@@ -177,7 +380,7 @@ def barrar(ident, comentario=None, consulta=None, mover_fn=None, comentar_fn=Non
         r = (avaliar_fn or avaliar)(issue, comentario=comentario, base_dados=base_dados)
     except Exception as e:  # noqa: BLE001
         print(f"{ident}: portão de Done não leu o estado ({type(e).__name__}); Done bloqueado", file=sys.stderr)
-        faltas, delegadas = faltas_do_texto(issue, comentario)
+        faltas, delegadas = faltas_do_texto(issue, comentario)  # sem gh: com a leitura quebrada, não presume PR fundido
         r = {"ok": False, "faltas": faltas + ["recibo não conferido: falha de leitura; tentar novamente"],
              "delegadas": delegadas}
     if r.get("esperar"):  # deploy ainda subindo: não é Done ainda, mas também não é falta; barra sem reabrir a fila
@@ -185,12 +388,17 @@ def barrar(ident, comentario=None, consulta=None, mover_fn=None, comentar_fn=Non
     elif r["ok"]:
         _delegar(issue, r, base_dados)
         return []
+    if silencioso and so_espera(r["faltas"]):
+        return r["faltas"]
     faltas = "; ".join(r["faltas"])
     (mover_fn or linear.mover)(issue["id"], _ip(issue))
     falar = comentar_fn or linear.comentar
-    if comentario:  # o texto que ia junto do Done não se perde
+    ultimo = max(issue["comments"]["nodes"], key=lambda c: c["createdAt"])["body"] if issue["comments"]["nodes"] else None
+    if comentario and (ultimo or "").strip() != comentario.strip():  # o texto que ia junto do Done não se perde, nem se repete
         falar(issue["id"], comentario)
-    falar(issue["id"], f"Done barrado pelo portão (KRN-979): {faltas}. A issue volta para In Progress.\n\n_{config.get('produto.nome')}._")
+    aviso = f"Done barrado pelo portão (KRN-979): {faltas}. A issue volta para In Progress.\n\n_{config.get('produto.nome')}._"
+    if not _barrado_repetido(issue, aviso, agora or conta.agora()):  # a sessão e o fim da execução chamam o portão em par
+        falar(issue["id"], aviso)
     return r["faltas"]
 
 
@@ -216,6 +424,15 @@ def conferir_uma(ident, desfazer=False, consulta=None, base_dados=None, avaliar_
         faltas = "; ".join(r["faltas"])
         (mover_fn or linear.mover)(issue["id"], _ip(issue))
         (comentar_fn or linear.comentar)(issue["id"], f"Voltou de Done (portão, KRN-979): {faltas}. Volto para fazer.\n\n_{config.get('produto.nome')}._")
+        # INC-390: o comentário do portão não é fala do dono; sozinho não
+        # acorda a ponte. Use a fila normal, com seus tetos e disjuntor.
+        from hub import agenda, esperas
+        nome = f"linear-{ident.lower()}"
+        ocupadas = {t["nome"] for t in agenda.fila(base_dados)} | {
+            t["nome"] for t in agenda.rodando_todas(base_dados)}
+        if nome not in ocupadas and not esperas.ler(ident, base_dados) and not r.get("depende_fulano"):
+            agenda.enfileirar(linear.reabrir(ident, f"Portão de Done: faça o que falta e prove: {faltas}"),
+                              "portão de Done", base_dados)
     return r["faltas"]
 
 
@@ -223,7 +440,7 @@ def conferir_uma(ident, desfazer=False, consulta=None, base_dados=None, avaliar_
 
 Q_RONDA = ("query($d: DateTimeOrDuration!, $a: String) { issues(first: 50, after: $a, filter: {state: {type: {eq: \"completed\"}}, "
            "completedAt: {gt: $d}}) { pageInfo { hasNextPage endCursor } nodes { id identifier title description createdAt completedAt "
-           "state { name type } attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { app } } } "
+           "state { name type } attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { app name } } } "
            "team { id states { nodes { id name } } } } } }")
 
 

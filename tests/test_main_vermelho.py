@@ -1,6 +1,7 @@
 """item 5 (princípios 7 e 14): main vermelho é incidente. Caso real de 14/10: o #695 quebrou o teste do cartão
 do Conector e todos os PRs seguintes falharam nele sem tê-lo tocado; a fila seguiu reenfileirando."""
 import datetime as dt, tempfile, unittest
+from unittest import mock
 from hub import esperas, incidentes, main_vermelho as mv
 
 UTC = dt.timezone.utc
@@ -15,19 +16,19 @@ class GH:
         self.prs = prs or {}  # numero: (sha, estado, descricao, updated_at, arquivos)
 
     def __call__(self, c):
-        if c.startswith("repos/example-org/clienteh/commits/main") and c.endswith("/status"):
+        if c.startswith("repos/acme/clienteh/commits/main") and c.endswith("/status"):
             return {"sha": "m" * 40, "statuses": [{"context": "local-ci", "state": self.main_estado, "description": DESC,
                                                    "updated_at": self.main_em}] if self.main_estado else []}
-        if c.startswith("repos/example-org/clienteh/commits/main"):
+        if c.startswith("repos/acme/clienteh/commits/main"):
             return {"sha": "m" * 40}
-        if c.startswith("repos/example-org/clienteh/pulls?"):
+        if c.startswith("repos/acme/clienteh/pulls?"):
             return [{"number": n, "head": {"sha": v[0]}} for n, v in self.prs.items()]
         for n, v in self.prs.items():
-            if c == f"repos/example-org/clienteh/commits/{v[0]}/status":
+            if c == f"repos/acme/clienteh/commits/{v[0]}/status":
                 return {"statuses": [{"context": "local-ci", "state": v[1], "description": v[2], "updated_at": v[3]}] if v[1] else []}
-            if c.startswith(f"repos/example-org/clienteh/pulls/{n}/files"):
+            if c.startswith(f"repos/acme/clienteh/pulls/{n}/files"):
                 return [{"filename": f} for f in v[4]]
-        if c.startswith("repos/example-org/clienteh/commits?"):
+        if c.startswith("repos/acme/clienteh/commits?"):
             return [{"sha": "c695" + "0" * 36, "commit": {"message": "Conector: cartão novo (#695)"}}]
         raise AssertionError(c)
 
@@ -37,8 +38,11 @@ class MainVermelho(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.dados = self.tmp.name
         self.criadas = []
+        self.busca = mock.patch.object(mv, "_issue_aberta_do_teste", lambda t, p: None, create=True)  # sem Linear nos testes
+        self.busca.start()
 
     def tearDown(self):
+        self.busca.stop()
         self.tmp.cleanup()
 
     def criar(self, titulo, descricao, prioridade):
@@ -76,10 +80,9 @@ class MainVermelho(unittest.TestCase):
         gh = GH(prs={701: ("a" * 40, "failure", DESC, "2026-10-14T17:00:00Z", ["x"]),
                      703: ("b" * 40, "failure", DESC, "2026-10-14T17:30:00Z", ["y"])})
         mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0)
-        esperas.gravar("KRN-700", "https://github.com/example-org/clienteh/pull/703", chamar=lambda c: {"head": {"sha": "b" * 40}} if "pulls/703" in c else [],
+        esperas.gravar("KRN-700", "https://github.com/acme/clienteh/pull/703", chamar=lambda c: {"head": {"sha": "b" * 40}} if "pulls/703" in c else [],
                        base_dados=self.dados, agora=T0)
         fala_pronta = lambda e, chamar=None, agora=None, **kw: "local-ci vermelho"
-        from unittest import mock
         with mock.patch.object(esperas, "situacao", fala_pronta):
             self.assertEqual([], esperas.prontas(base_dados=self.dados, agora=T0 + dt.timedelta(hours=1)))
             gh.main_estado = "success"
@@ -135,8 +138,9 @@ class MainVermelho(unittest.TestCase):
         self.assertIsNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=2)))
         self.assertEqual(1, len(self.criadas))
         gh.prs[720] = ("d" * 40, "failure", DESC, "2026-10-14T21:00:00Z", ["w"])  # rodada nova, ainda vermelha
-        self.assertIsNotNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=4)))
-        self.assertEqual(2, len(self.criadas))
+        self.assertIsNotNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=4),
+                                       encerrada=lambda i: False))
+        self.assertEqual(1, len(self.criadas))  # readota a issue aberta, sem 2ª
 
     def test_pr_verde_fecha_com_main_ainda_vermelho_e_so_reabre_com_main_novo(self):
         gh = GH(main_estado="failure")
@@ -147,7 +151,8 @@ class MainVermelho(unittest.TestCase):
         self.assertIsNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=3)))
         self.assertEqual(1, len(self.criadas))
         gh.main_em = "2026-10-14T21:30:00Z"  # status do main mais novo que o fechamento
-        self.assertIsNotNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=4)))
+        self.assertIsNotNone(mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=4),
+                                       encerrada=lambda i: False))
 
     def test_issue_encerrada_solta(self):
         gh = self._dois_vermelhos()
@@ -177,8 +182,44 @@ class MainVermelho(unittest.TestCase):
         mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=54), encerrada=lambda i: True)
         self.assertEqual(2, len(self.criadas))  # a anterior encerrada: abre outra
 
+    def test_fecha_porque_passou_volta_vermelho_no_mesmo_teste_readota_sem_issue_nova(self):  #
+        gh = GH(main_estado="failure")
+        mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0, encerrada=lambda i: False)
+        gh.prs[800] = ("e" * 40, "success", "ok", "2026-10-14T19:00:00Z", ["a"])  # passou: fecha por "voltou a passar"
+        mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=2), encerrada=lambda i: False)
+        self.assertIsNone(mv.aberto(mv.REPO, self.dados))
+        gh.main_em = "2026-10-14T21:30:00Z"  # voltou vermelho no mesmo teste
+        inc = mv.checar(gh=gh, criar=self.criar, base_dados=self.dados, agora=T0 + dt.timedelta(hours=4), encerrada=lambda i: False)
+        self.assertEqual(("KRN-740", 1), (inc["issue"], len(self.criadas)))
+        self.assertEqual("KRN-740", mv.aberto(mv.REPO, self.dados)["issue"])
+
+    def test_sem_marca_procura_issue_aberta_do_teste_antes_de_criar(self):  #
+        buscas = []
+        from hub import linear
+        with mock.patch.object(mv, "_issue_aberta_do_teste", lambda t, p: buscas.append((t, p)) or "KRN-555", create=True), \
+                mock.patch.object(linear, "projeto_do_repo", return_value="ClienteJ"):
+            inc = mv.checar(gh=GH(main_estado="failure"), criar=self.criar, base_dados=self.dados, agora=T0)
+        self.assertEqual(("KRN-555", [(TESTE, "ClienteJ")], 0), (inc["issue"], buscas, len(self.criadas)))
+        self.assertEqual("KRN-555", mv.aberto(mv.REPO, self.dados)["issue"])
+
+    def test_busca_no_linear_filtra_pelo_projeto_do_repo(self):  # (revisão Codex)
+        from hub import linear
+        self.busca.stop()  # aqui vale a função real
+        self.addCleanup(self.busca.start)
+        with mock.patch.object(linear, "gql", return_value={"issues": {"nodes": [{"identifier": "KRN-9", "title": f"main vermelho: {TESTE}"}]}}) as g:
+            self.assertEqual("KRN-9", mv._issue_aberta_do_teste(TESTE, "ClienteJ"))
+        self.assertEqual("ClienteJ", g.call_args.kwargs["p"])
+        self.assertIn("project: {name: {eqIgnoreCase: $p}}", g.call_args.args[0])
+
+    def test_issue_criada_leva_a_label_merge(self):  #
+        from hub import linear
+        with mock.patch.object(linear, "projeto_do_repo", return_value="ClienteJ"), \
+                mock.patch.object(linear, "criar_issue", return_value="KRN-741 http://x") as c:
+            inc = mv.checar(gh=GH(main_estado="failure"), base_dados=self.dados, agora=T0)
+        self.assertEqual("KRN-741", inc["issue"])
+        self.assertEqual(["main-vermelho", "merge"], c.call_args.args[4])
+
     def test_aviso_no_prompt_da_tarefa(self):
-        from unittest import mock
         from hub import linear
         item = lambda ident: {"tipo": "issue", "id": "x", "identifier": ident, "titulo": "t", "descricao": "", "url": "u",  # noqa: E731
                               "modelo": "haiku", "repos": [mv.REPO], "comentarios": [], "estados": {}}

@@ -1,14 +1,14 @@
 """itens 2 e 3 (princípio 10): tarefa parada tem alarme e orçamento; esperar CI não gasta sessão.
 Casos reais de 14/10: parada 4 h (a execução de 12:11 terminou dizendo "o agente das correções está rodando,
 aguardo" e nada mais aconteceu até o orquestrador cutucar às 15:55); #682: sessão consultando o CI de 10 em 10 min."""
-import datetime as dt, json, os, tempfile, unittest
+import datetime as dt, json, os, subprocess, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from hub import incidentes, linear, parada
 
 UTC = dt.timezone.utc
 T0 = dt.datetime(2026, 10, 14, 13, 0, tzinfo=UTC)
-PR = "https://github.com/example-org/clienteh/pull/682"
+PR = "https://github.com/acme/clienteh/pull/682"
 
 
 def bash(cmd):
@@ -101,6 +101,46 @@ class Classificar(Base):
         self.log.write_text("\n".join([bash(f"gh pr checks {PR}")] * 3) + "\n")
         self.envelhecer(self.log, 1)
         self.assertIsNone(parada.classificar_rodando(self.reg(), T0, self.trabalho))
+
+    def test_espera_na_fila_do_pesado_com_processo_vivo_no_trabalho_nao_e_travou(self):  #
+        self.log.write_text(bash("pesado nice -n 19 npm run build") + "\n")
+        self.envelhecer(self.log, 50)
+        wt = self.trabalho / "linear-krn-589"
+        wt.mkdir(parents=True)
+        self.envelhecer(wt, 50)
+        p = subprocess.Popen(["python3", "-c", "import time; time.sleep(60)", "hub.pesado"], cwd=wt)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        self.assertIsNone(parada.classificar_rodando(self.reg(), T0, self.trabalho))
+
+    def test_monitor_esperando_na_worktree_nao_e_travou(self):  # `timeout 60 tail -f /dev/null`
+        self.log.write_text(bash("timeout 60 tail -f /dev/null") + "\n")
+        self.envelhecer(self.log, 50)
+        wt = self.trabalho / "linear-krn-589"
+        wt.mkdir(parents=True)
+        self.envelhecer(wt, 50)
+        p = subprocess.Popen(["tail", "-f", "/dev/null"], cwd=wt)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        self.assertIsNone(parada.classificar_rodando(self.reg(), T0, self.trabalho))
+
+    def test_processo_qualquer_na_worktree_nao_segura_sessao_travada(self):  # revisão do #601: shell, servidor, travado
+        self.log.write_text(bash("python3 render.py") + "\n")
+        self.envelhecer(self.log, 50)
+        wt = self.trabalho / "linear-krn-589"
+        wt.mkdir(parents=True)
+        self.envelhecer(wt, 50)
+        p = subprocess.Popen(["sleep", "60"], cwd=wt)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        self.assertEqual("travou", parada.classificar_rodando(self.reg(), T0, self.trabalho)[0])
+
+    def test_processo_fora_da_worktree_nao_segura_sessao_parada(self):  # o sinal é só o da própria sessão
+        self.log.write_text(bash("python3 render.py") + "\n")
+        self.envelhecer(self.log, 50)
+        wt = self.trabalho / "linear-krn-589"
+        wt.mkdir(parents=True)
+        self.envelhecer(wt, 50)
+        p = subprocess.Popen(["sleep", "60"], cwd=self.dados)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        self.assertEqual("travou", parada.classificar_rodando(self.reg(), T0, self.trabalho)[0])
 
     def test_stream_andando_nao_varre_worktree_nem_git(self):
         self.log.write_text(bash("python3 render.py") + "\n")
@@ -278,6 +318,40 @@ class Vigiar(Base):
         out, _, _, _ = self._vigiar([], issues=[self.issue("O agente das correções está rodando. Aguardo.")])
         self.assertEqual(["linear-krn-589"], [t.nome for t in out])
         self.assertIn("nada roda depois que a sessão termina", out[0].fala)
+
+    def test_inc391_consulta_recente_preserva_data_de_medicao(self):
+        # Linear ordena comentários do mais novo para o mais antigo:
+        # last: 5 traz os primeiros relatos históricos, sem a espera atual.
+        antiga = self.issue("PR antigo; aguardo CI.")
+        recente = self.issue("Medição em uma semana. voltar-em: 2026-10-29")
+        def consulta(q, **v):
+            return {"issues": {"nodes": [recente if "comments(first: 5)" in q else antiga]}}
+        out, _, _, comentarios = self._vigiar([], consulta=consulta)
+        self.assertEqual(out, [])
+        self.assertEqual(comentarios, [])
+        self.assertFalse((self.dados / "claude" / "parada" / "KRN-589.json").exists())
+
+    def test_inc392_gancho_recebe_pr_recente_em_vez_da_coleta_antiga(self):
+        # last: 5 ainda descrevia o bench e a coleta pendente,
+        # enquanto o recibo recente já apontava o PR do resultado.
+        antiga = self.issue("O bench roda no contêiner; falta coletar o resultado.")
+        recente = self.issue(f"Resultado entregue em {PR}; aguardo o local-ci.")
+        def consulta(q, **v):
+            return {"issues": {"nodes": [recente if "comments(first: 5)" in q else antiga]}}
+        from hub.retomada import gancho_mecanico
+        def gancho(ident, texto, **kwargs):
+            return gancho_mecanico(
+                ident, texto, gh=lambda _: {"state": "open"},
+                gravar=lambda *a, **k: {"pr": a[1]}, **kwargs)
+        with mock.patch("hub.agenda.em_loop", return_value=None), \
+             mock.patch("hub.retomada.gancho_mecanico", side_effect=gancho) as mecanico, \
+             mock.patch("hub.esperas.registrar_sem_ia") as registrar:
+            out, _, _, comentarios = self._vigiar([], consulta=consulta)
+        self.assertEqual([], out)
+        self.assertEqual([], comentarios)
+        self.assertIn(PR, mecanico.call_args.args[1])
+        registrar.assert_called_once()
+        self.assertFalse((self.dados / "claude" / "parada" / "KRN-589.json").exists())
 
     def test_proposta_pendente_e_a_vez_de_outro_nao_escala(self):
         out, _, _, coment = self._vigiar([], issues=[self.issue("Aguardo.")], pendente=True)

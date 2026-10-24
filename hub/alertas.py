@@ -1,5 +1,4 @@
-"""Alertas que importam: site fora do ar, deploy travado, cliente da fsite05 esperando no WhatsApp e conta Claude perto do
-limite da semana. O que o orquestrador pode consertar vai primeiro a ele; o dono só recebe se continuar, no máximo
+"""Alertas que importam: site fora do ar, deploy travado, cliente da fsite06 esperando no WhatsApp. O que o orquestrador pode consertar vai primeiro a ele; o dono só recebe se continuar, no máximo
 1 aviso por dia por item. Queda de receita/leads/cliques fica no hub/bi_leitura.vigiar (não duplicar). Root, cron de 2 min.
 
     python3 -m hub.alertas               checar, chamar o orquestrador e avisar
@@ -30,7 +29,6 @@ ESPERA = {"site": 5 * 60}  # segundos fora antes de agir; demais tipos 0
 DEPLOY_MIN = 30
 DEPLOYS_VELHO_MIN = 45  # saude.json renova os deploys a cada ~30 min; foto mais velha que isso não vale
 ORQ_TIPOS = {"site", "deploy"}
-CONTA_PCT = 85
 HORARIO = {0: (8, 18), 1: (8, 18), 2: (8, 18), 3: (8, 18), 4: (8, 18), 5: (8, 12)}  # BRT, seg=0; domingo fora
 CLIENTE_A_CADA = 10 * 60
 TIMEOUT_ORQ = 15 * 60
@@ -83,22 +81,14 @@ def achados_clientes(conversas, agora):
     if not conversas:
         return []
     antigo = min(conversas, key=lambda c: de_iso(c["ultima_em"]))["ultima_em"]
-    return [_achado("cliente:fsite05", "cliente", "fsite05",
-                    f"fsite05: {len(conversas)} cliente(s) esperando resposta no WhatsApp há mais de 2 h "
+    return [_achado("cliente:fsite06", "cliente", "fsite06",
+                    f"fsite06: {len(conversas)} cliente(s) esperando resposta no WhatsApp há mais de 2 h "
                     f"(o mais antigo desde {_hora(antigo, agora)})", False)]
 
 
 def achados_contas(uso):
-    contas = [(n, c) for n, c in (uso.get("contas") or {}).items()] + [("orquestrador", uso.get("orquestrador"))]
-    saida = []
-    for n, c in contas:
-        semana = (c or {}).get("semana") or {}
-        if semana.get("pct") is None or semana["pct"] < CONTA_PCT:
-            continue
-        volta = f" (volta {de_iso(semana['reset']).astimezone(BRT):%d/%m %H:%M})" if semana.get("reset") else ""
-        saida.append(_achado(f"conta:{n}", "conta", n, f"Conta Claude {n} em {round(semana['pct'])}% do limite da semana{volta}",
-                             False))
-    return saida
+    """Sem achado de conta Claude: elas não têm limite semanal e a janela de 5 h cheia é normal (o hub espera o reset)."""
+    return []
 
 
 # ---- decisão (pura) ----
@@ -140,7 +130,7 @@ def _hora(desde, agora):
 
 def prompt_orq(it, agora):
     return (f"Alerta do hub: {it['texto']}, desde {_hora(it['desde'], agora)} (Brasília). Investigue e conserte se puder "
-            "(ssh vps-servidor_a / servidor_hub, Dokploy, docker...). Não mande mensagem a ninguém. "
+            "(o dedicado é esta máquina; ssh servidor_hub para asite01 e Listmonk; Dokploy, docker...). Não mande mensagem a ninguém. "
             "Responda só 1–2 frases: o que achou e o que fez.")
 
 
@@ -244,7 +234,7 @@ def _sites(http_get):
 
 
 def _cliente(estado, agora, consultar, sem_avisar=False):
-    # A asite01 não tem CRM de conversa: só a fsite05.
+    # A asite01 não tem CRM de conversa: só a fsite06.
     if not horario_comercial(agora):
         return []
     velho = anteriores(estado, "cliente") if estado.get("cliente_triagem_v1") else []

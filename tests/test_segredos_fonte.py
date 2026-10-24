@@ -26,6 +26,23 @@ class Fonte(unittest.TestCase):
             rc = sf.main(argv, fontes=self.fontes, destino=self.dest, grupo=None)
         return rc, out.getvalue() + err.getvalue()
 
+    def test_origem_nao_utf8_e_ignorada(self):
+        (self.t / "ruim.key").write_bytes(b"\xff\xfe\x00")
+        self.assertIsNone(sf.ler_origem(self.t / "ruim.key", None))
+
+    def test_destino_vazio_e_recriado(self):
+        self.dest.mkdir()
+        (self.dest / "CHAVE").write_text("  \n")
+        rc, saida = self.rodar(["migrar", "--aplicar"])
+        self.assertEqual(rc, 0)
+        self.assertEqual((self.dest / "CHAVE").read_text().strip(), V1)
+        self.assertNotIn(V1, saida)
+
+    def test_grupo_invalido_nao_deixa_arquivo(self):
+        with self.assertRaises((LookupError, OSError)):
+            sf._gravar(self.dest, "CHAVE", V1, "grupo-que-nao-existe-xyz")
+        self.assertFalse((self.dest / "CHAVE").exists())
+
     def test_dry_run_nao_escreve(self):
         rc, saida = self.rodar(["migrar"])
         self.assertEqual(rc, 0)

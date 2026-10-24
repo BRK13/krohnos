@@ -8,15 +8,15 @@ cronometra (meta: menos de 15 minutos, contando o build da imagem).
 - Uma máquina Linux (VPS ou PC) com **Docker 24+ e o plugin Docker Compose v2** (`docker compose version`).
 - 2 GB de RAM livres e uns 4 GB de disco (a imagem leva Python, Node 22, `git`, `gh` e o CLI do Claude Code).
 - Um domínio (ou subdomínio) apontado para o servidor, se quiser abrir o painel pela internet com TLS.
-- Opcional e depois: um token do GitHub e uma chave de API do Linear (o assistente pede; dá para pular).
+- Opcional e depois: um token do GitHub e uma chave de API do Linear (o assistente pede; dá para pular). Sem Linear, as tarefas ficam na fila própria do hub (painel → Issues).
 
 Nenhum segredo entra na imagem. Eles vivem em volumes do Docker (`cofre`, `dados`, `home`).
 
 ## 5 passos
 
 ```bash
-# 1. baixe o código
-git clone https://github.com/BRK13/krohnos.git krohnos && cd krohnos
+# 1. baixe o código (troque SEU_ORG pelo dono do repositório)
+git clone https://github.com/SEU_ORG/krohnos.git krohnos && cd krohnos
 
 # 2. construa a imagem (uma só serve os 4 serviços)
 docker compose build painel

@@ -10,4 +10,5 @@ paths = [
   '''(^|/)\.git/''',
   '''(^|/)node_modules/''',
   '''^vendor/''',
+  '''^tests/test_(ronda_segredos|portao_segredos|gasto_anormal)\.py$''',  # fixtures falsos de token (KRN-1137)
 ]

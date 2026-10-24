@@ -54,6 +54,14 @@ services:
       - "127.0.0.1:${KROHNOS_WEBHOOK_PORTA:-8790}:8790"
     healthcheck:
       disable: true
+    environment:
+      <<: *env
+      KROHNOS_CAMINHOS_SEGREDOS: /etc/krohnos/cofre  # o mesmo cofre do painel: o segredo cadastrado lá é lido aqui
+    volumes:
+      - dados:/var/lib/krohnos
+      - home:/home/krohnos
+      - cofre:/etc/krohnos/cofre
+      - config:/etc/krohnos  # volume (não arquivo): /comecar grava o toml por tmp + os.replace, que não funciona em bind de arquivo
 
   mcp:
     <<: *base
@@ -62,6 +70,14 @@ services:
       - "127.0.0.1:${KROHNOS_MCP_PORTA:-4181}:4181"
     healthcheck:
       disable: true
+    environment:
+      <<: *env
+      KROHNOS_CAMINHOS_SEGREDOS: /etc/krohnos/cofre  # o mesmo cofre do painel: o segredo cadastrado lá é lido aqui
+    volumes:
+      - dados:/var/lib/krohnos
+      - home:/home/krohnos
+      - cofre:/etc/krohnos/cofre
+      - config:/etc/krohnos  # volume (não arquivo): /comecar grava o toml por tmp + os.replace, que não funciona em bind de arquivo
 
 volumes:
   dados:

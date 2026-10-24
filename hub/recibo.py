@@ -51,7 +51,7 @@ NOME = {"video": "vídeo", "imagem": "imagem", "pdf": "PDF", "planilha": "planil
         "aviso": f"aviso ao {config.dono()}"}
 RE_ARQ = re.compile(r"https?://\S+?\.(mp4|mov|webm|png|jpe?g|gif|webp|pdf|xlsx|csv|ods)\b", re.I)
 # "cartão" sozinho é card de UI ("cartão do Conector"); só o de crédito depende do dono (I3)
-RE_DONO = re.compile(r"assinar|assinatura|plano pago|pagamento|cart[ãa]o de cr[ée]dito|depende de voc[êe]|depende do "
+RE_DONO = re.compile(r"assinar|assinatura(?!\s+(?:d[oa]s?\s+)?(?:TRF\d*|TJ[A-Z]{2}|STJ|STF)\b)|plano pago|pagamento|cart[ãa]o de cr[ée]dito|depende de voc[êe]|depende do "
                       rf"{_DONO}|precisa do {_DONO}|sua resposta|voc[êe] responder|aprova[çc][ãa]o sua", re.I)
 RE_FULANO = RE_DONO  # compatibilidade com consumidores anteriores à frente 1
 RE_URL = re.compile(r"https?://[^\s)>\]`]+")  # crase fecha código Markdown; não faz parte da URL (INC-25)
@@ -69,7 +69,7 @@ CHECKOUT = {config.repo("repo-privado"): str(codigo()), config.repo("nimbus-hub"
 # first: 50 basta: a janela é de ~1 h (ultimo - 1 h) ou vai até a pendência mais antiga (no máximo ~6 h)
 Q_DONE = ("query($d: DateTimeOrDuration!) { issues(first: 50, filter: {state: {type: {eq: \"completed\"}}, "
           "completedAt: {gt: $d}}) { nodes { id identifier title description createdAt completedAt state { name type } "
-          "attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { app } } } "
+          "attachments { nodes { url title } } comments(first: 100) { nodes { createdAt body user { name app } } } "
           "team { id states { nodes { id name } } } } } }")
 FILA_AVISO = dt.timedelta(minutes=30)  # aviso na fila da caixa há mais que isso: o bot está parado, não conta
 
@@ -114,8 +114,8 @@ def exige(texto):
     ks = {k for k, r in EXIGE.items()
           if r.search(sem_proibicao if k == "aviso" else texto or "")}
     texto = texto or ""
-    # "PR anexado à issue" não é entrega de arquivo
-    if any(not re.search(r"\bPR\b", texto[max(0, m.start() - 25):m.end() + 25]) for m in RE_ANEXO.finditer(texto)):
+    # INC-197: "PRs anexados à issue" também não é entrega de arquivo.
+    if any(not re.search(r"\bPRs?\b", texto[max(0, m.start() - 25):m.end() + 25], re.I) for m in RE_ANEXO.finditer(texto)):
         ks.add("anexo")
     return ks - {"anexo"} if ks & set(EXT) else ks  # "PDF anexado" cobra o PDF, não um anexo qualquer
 
@@ -162,16 +162,18 @@ def _sha_versao(s, get):
 
 
 def no_ar(repo, merge_sha, gh=None, get=None, base_dados=None, base=None):
-    """(True|False|None, nota). None: n/a (sem deploy que o hub confira, PR fora da branch que publica) ou leitura da
+    """(True|False|None, nota). None: n/a (sem deploy que o hub confira) ou leitura da
     produção falhou (nota começa com NAO_LEU: quem chama espera ou ignora, nunca cobra)."""
     gh, get = gh or esperas.gh_api, get or _get_json
     s = _site(repo)
+    # INC-256: merge em develop não é publicação; confira a ancestralidade
+    # em produção também para PRs que ainda dependem de promoção.
     deploya = DEPLOY_BRANCH.get(repo) or ((s or {}).get("repo") or {}).get("base") or "main"
-    if base and base != deploya:  # cliente-c: PR vai para develop; PR empilhado: base é outra branch de feature
-        return None, f"no ar: n/a (base {base}; sobe na promoção para {deploya})"
+    promocao = bool(base) and base != deploya
     try:
         if repo == config.repo("clienteh"):
-            prod = str(get("https://clientej-com-br.example/api/versao").get("commit") or "")  # 1º acesso pós-deploy leva ~60 s
+            dominio = (s or {}).get("dominio")  # domínio do site no cadastro (projetos/*.json)
+            prod = str(get(f"https://{dominio}/api/versao").get("commit") or "") if dominio else ""  # 1º acesso pós-deploy leva ~60 s
         elif repo in CHECKOUT:
             r = subprocess.run(["git", "-C", CHECKOUT[repo], "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30)
             prod = r.stdout.strip() if r.returncode == 0 else ""
@@ -186,6 +188,11 @@ def no_ar(repo, merge_sha, gh=None, get=None, base_dados=None, base=None):
             return None, f"{NAO_LEU}: produção de {repo} não devolveu o commit"
         if _contem(repo, merge_sha, prod, gh):
             return True, f"no ar ({prod[:8]})"
+        # PR de promoção (develop, pilha) que a produção não contém: "behind" é promoção pendente (cobra);
+        # "diverged" pode ser promoção por squash/rebase, que não preserva o SHA: inconclusivo, não trava a issue.
+        if promocao and not prod.startswith(merge_sha[:12]) and \
+                gh(f"repos/{repo}/compare/{merge_sha}...{prod}").get("status") == "diverged":
+            return None, f"no ar: n/a (base {base}; produção {prod[:8]} diverge do merge, promoção sem o SHA)"
     except Exception as e:  # noqa: BLE001 — leitura falhou (rede, timeout, compare): não é falta
         return None, f"{NAO_LEU}: {repo} ({type(e).__name__}: {str(e)[:100]})"
     return False, f"o merge {merge_sha[:8]} não está no ar em {repo} (produção em {prod[:8]})"
@@ -237,6 +244,39 @@ def _anexos(ident, issue, base_dados=None):
     return links
 
 
+def _anexados(ident, issue, base_dados=None):
+    """Nomes, links e hashes de tudo que está anexado na issue (registro do `anexar`, anexos e comentários do Linear)."""
+    textos = list(_anexos(ident, issue, base_dados))
+    with contextlib.suppress(OSError):
+        for l in (Path(base_dados or data()) / "claude" / "anexos" / f"{ident.upper()}.jsonl").read_text().splitlines():
+            with contextlib.suppress(ValueError):
+                r = json.loads(l)
+                textos.append(f"{Path(r.get('arquivo') or '').name} {r.get('sha') or ''}")
+    textos += [f"{a.get('title') or ''} {a.get('url') or ''}" for a in (issue.get("attachments") or {}).get("nodes") or []]
+    return textos
+
+
+RE_ZIP = re.compile(r"[^\s()<>\[\]\"'`]+\.zip\b", re.I)
+
+
+def faltas_de_canal(ident, issue, ultimo, base_dados=None):
+    """(classe entrega_incompleta_ou_fora_do_canal): entrega em.zip nunca vale (o dono pediu os arquivos soltos e o
+    zap não leva zip). Olha o registro do `anexar`, os anexos do Linear e o último comentário do agente."""
+    achados = []
+    with contextlib.suppress(OSError):
+        for l in (Path(base_dados or data()) / "claude" / "anexos" / f"{ident.upper()}.jsonl").read_text().splitlines():
+            with contextlib.suppress(ValueError):
+                r = json.loads(l)
+                zips = RE_ZIP.findall(f"{r.get('arquivo') or ''} {r.get('link') or ''}")
+                # só vale a entrega vigente: arquivo solto anexado depois substitui o zip que ficou para trás no registro
+                achados = achados + zips if zips else []
+    for a in (issue.get("attachments") or {}).get("nodes") or []:
+        achados += RE_ZIP.findall(f"{a.get('title') or ''} {a.get('url') or ''}")
+    achados += RE_ZIP.findall(ultimo or "")
+    nomes = sorted({Path(urllib.parse.unquote(a)).name for a in achados})
+    return [f"entrega em .zip ({', '.join(nomes[:3])}): anexe os arquivos soltos, sem zip"] if nomes else []
+
+
 def _avisou(ident, base_dados=None, criada_em=None, agora=None):
     """True, False ou "esperar" (aviso ainda na fila da caixa há menos de FILA_AVISO: olha de novo na próxima rodada)."""
     nome, agora, na_fila = f"linear-{ident.lower()}", agora or conta.agora(), False
@@ -277,14 +317,35 @@ RE_DADOS = re.compile(r"gabarito|backfill|reprocess|amostragem|amostra estratifi
 
 
 def conferir_dados(issue, comentario=None):
-    comentarios = [c.get("body") or "" for c in (issue.get("comments") or {}).get("nodes") or []]
+    # INC-213: diagnóstico do portão não é entrega nem novo pedido. O recibo
+    # humano posterior também precisa chegar à conferência, em ordem temporal.
+    falas = sorted((issue.get("comments") or {}).get("nodes") or [],
+                   key=lambda c: c.get("createdAt") or "")
+    comentarios = [c.get("body") or "" for c in falas
+                   if not portao_done.RE_DO_PORTAO.match(c.get("body") or "")
+                   and (c.get("body") or "").strip() != "This thread is for an agent session with claude."]
     descricao = issue.get("description") or ""
     if not RE_DADOS.search("\n".join([issue.get("title") or "", descricao, *comentarios])):
         return ""
     item = {"titulo": issue.get("title"), "descricao": descricao, "comentarios": comentarios}
-    entrega = "\n\n".join(c.get("body") or "" for c in sorted(_do_claude(issue), key=lambda c: c.get("createdAt") or "")[-3:])
+    # INC-228: repasses humanos podem deslocar o recibo do agente para fora
+    # da janela. Preserve entregas recentes junto do escopo humano mais recente.
+    agentes = [c.get("body") or "" for c in falas
+               if (c.get("user") or {}).get("app")
+               and not portao_done.RE_DO_PORTAO.match(c.get("body") or "")
+               and (c.get("body") or "").strip() != "This thread is for an agent session with claude."]
+    recentes = comentarios[-3:]
+    recentes = [c for c in agentes[-3:] if c not in recentes] + recentes
+    entrega = "\n\n".join(recentes)
     if comentario is not None:
         entrega = comentario
+    item["descricao"] += ("\nConferência prévia à transição para Done: o estado In Progress e a própria "
+                          "transição ainda não executada não são falta de entrega. Confira as provas materiais; "
+                          "recusas antigas do portão não são prova de pendência atual.")
+    anexos = [f"{a.get('title') or 'Anexo'}: {a['url']}"
+              for a in (issue.get("attachments") or {}).get("nodes") or [] if a.get("url")]
+    if anexos:
+        entrega += "\n\nAnexos presentes na issue (links, sem presumir conteúdo conferido):\n" + "\n".join(anexos)
     return linear.conferir(item, entrega, estrito=True)
 
 
@@ -339,7 +400,11 @@ def conferir(issue, gh=None, get=None, base_dados=None, agora=None, comentario=N
         elif not any(e in anexos for e in EXT[k]):
             faltas.append(f"falta o {NOME[k]} anexado que o \"Pronto quando\" pede")
     if entrega_visual.exige_olhei(issue.get("title"), pq, issue.get("completedAt")):  # visual só com evidência
-        faltas += entrega_visual.faltas(entrega_visual.ler(ident, base_dados), issue.get("title"), pq)
+        if (motivo := entrega_visual.dispensa(issue)) is not None:  # dispensa do orquestrador/dono fica no recibo
+            notas.append(f"gate visual dispensado: {motivo}")
+        else:
+            faltas += entrega_visual.faltas(entrega_visual.ler(ident, base_dados), issue.get("title"), pq, ident=ident, notas=notas,
+                                            anexados=_anexados(ident, issue, base_dados))
     from hub import sites
     dominios = {s["dominio"] for s in sites.ativos() if s.get("dominio")}
     comentarios = sorted(_do_claude(issue), key=lambda c: c.get("createdAt") or "")
@@ -365,7 +430,8 @@ def conferir(issue, gh=None, get=None, base_dados=None, agora=None, comentario=N
                     faltas.append(f"{url} respondeu {e.code}")
             except Exception as e:  # noqa: BLE001 — o hub não alcançar o domínio não prova rota quebrada; sem espera sem teto
                 notas.append(f"{url} não abriu ({type(e).__name__}); não conferida")
-    texto_faltas, delegadas = portao_done.faltas_do_texto(issue, comentario)
+    faltas += faltas_de_canal(ident, issue, ultimo, base_dados)
+    texto_faltas, delegadas = portao_done.faltas_do_texto(issue, comentario, gh)
     faltas += texto_faltas
     # cada `check:` da descrição precisa de saída PASSOU no comentário final (ou nos comentários do Claude)
     faltas += plano_itens.faltas_checks(issue.get("description"), [c.get("body") or "" for c in comentarios] + ([comentario] if comentario is not None else []))

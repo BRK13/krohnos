@@ -26,9 +26,9 @@ GERADO = "receitas/INDEX.md"
 PROJETOS = {
     "asite01": ("asite01", r"\basite01\b"),
     "clientej": ("ClienteJ", r"clientej|clienteh"),
-    "fsite05": ("fsite05", r"\bfsite05"),
+    "fsite06": ("fsite06", r"\bfsite06"),
     "clientei": ("ClienteI", r"clientei"),
-    "psite13": ("Cliente G", r"psi ?por ?a[ií]"),
+    "psite15": ("Cliente G", r"psi ?por ?a[ií]"),
     "clientee": ("ClienteE", r"clientee"),
     "hub": ("Hub", r"nimbus|krohnos|\bhub\b"),
     "reels": ("Reels/Lobo", r"\breels?\b|\blobo\b"),

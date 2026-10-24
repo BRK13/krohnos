@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Receptor do webhook do Linear (app Claude): https://painel.clientec-com.example/hooks/linear → Traefik → aqui.
+"""Receptor do webhook do Linear (app Claude): https://painel.exemplo.com.br/hooks/linear → Traefik → aqui.
 
 Só acorda a fila: responde 200 na hora; evento de sessão de agente assinado (Linear-Signature, HMAC-SHA256 com
 LINEAR_WEBHOOK_SECRET ou LINEAR_APP2_WEBHOOK_SECRET, os dois apps) ganha um "Recebi" no painel dentro dos 10 s que o Linear
@@ -21,6 +21,7 @@ from pathlib import Path
 HUB = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HUB))
 from hub import linear, linear_uso  # noqa: E402
+from hub.comum import ses_eventos  # noqa: E402
 
 _TRAVA, _ULTIMO_TICK, _ULTIMO_GRAFO = threading.Lock(), 0.0, 0.0
 ENDERECO = (os.environ.get("WEBHOOK_HOST", "172.19.0.1"), int(os.environ.get("WEBHOOK_PORTA", "8790")))
@@ -94,6 +95,20 @@ def tratar(evento, assinado):
 class Receptor(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         n = int(self.headers.get("Content-Length") or 0)
+        if self.path.split("?")[0] == "/hooks/ses" and n < 0:
+            self.send_response(400)
+            self.end_headers()
+            return
+        if self.path.split("?")[0] == "/hooks/ses" and n <= MAX:  # SNS do SES (F4): text/plain, lido por Content-Length
+            try:
+                status, info = ses_eventos.tratar(self.rfile.read(n))
+            except Exception as e:  # noqa: BLE001
+                status, info = 500, type(e).__name__
+            print("ses", status, info, flush=True)
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(str(info).encode()[:200])
+            return
         if not self.path.startswith("/hooks/linear") or n > MAX:
             self.send_response(404)
             self.end_headers()

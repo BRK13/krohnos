@@ -22,14 +22,14 @@ class CurvaTest(unittest.TestCase):
 
 class CobreTest(unittest.TestCase):
     def test_url_e_titulo(self):
-        self.assertTrue(g.cobre("pilates alfa", "https://clientea-com.example/pilates/alfa"))
+        self.assertTrue(g.cobre("pilates alfa", "https://site-b.exemplo.com/pilates/alfa"))
         self.assertTrue(g.cobre("dor lombar tratamento", None, "Dor lombar: tratamento com fisioterapia"))
         self.assertTrue(g.cobre("fisioterapias lombares", "https://x.com/fisioterapia-lombar"))  # plural/flexão
-        self.assertFalse(g.cobre("pilates beta", "https://clientea-com.example/pilates/alfa"))
+        self.assertFalse(g.cobre("pilates beta", "https://site-b.exemplo.com/pilates/alfa"))
         self.assertFalse(g.cobre("de para", "https://x.com/de-para"))  # só palavra vazia não conta como cobertura
 
     def test_dominio_nao_conta_como_url(self):
-        self.assertFalse(g.cobre("cliente a", "https://clientea-com.example/"))
+        self.assertFalse(g.cobre("cliente a", "https://site-b.exemplo.com/"))
 
 
 class ClassificarTest(unittest.TestCase):
@@ -40,7 +40,7 @@ class ClassificarTest(unittest.TestCase):
     def test_vazamentos(self):
         # posição 3, 900 impressões, CTR 0,2% contra 10% esperado → vazamento
         v = self.por_busca[("vazamento", "quiropraxia brasilia")]
-        self.assertEqual(v["pagina"], "https://clientea-com.example/quiropraxia")
+        self.assertEqual(v["pagina"], "https://site-b.exemplo.com/quiropraxia")
         self.assertEqual(v["ctr_esperado"], 0.1)
         self.assertEqual(v["cliques_perdidos"], 88)
         self.assertIn(("vazamento", "cliente a"), self.por_busca)
@@ -54,26 +54,26 @@ class ClassificarTest(unittest.TestCase):
         self.assertGreater(b["posicao"], 10)
         self.assertNotIn(("buraco", "dor lombar tratamento"), self.por_busca)  # título já cobre
         self.assertNotIn(("buraco", "pilates alfa"), self.por_busca)  # URL do sitemap já cobre
-        self.assertEqual(self.por_busca[("reforcar", "pilates alfa")]["pagina"], "https://clientea-com.example/pilates/alfa")
+        self.assertEqual(self.por_busca[("reforcar", "pilates alfa")]["pagina"], "https://site-b.exemplo.com/pilates/alfa")
         self.assertNotIn(("buraco", "acupuntura brasilia"), self.por_busca)  # teve clique
         self.assertNotIn(("buraco", "drenagem linfatica"), self.por_busca)  # menos de 50 impressões
 
-    def test_falsos_buracos_do_relatorio_da_fsite05(self):
+    def test_falsos_buracos_do_relatorio_da_fsite06(self):
         # Linhas reais do relatório de 08/10/2026: nenhuma era buraco.
         def linha(busca, pagina, imp, pos):
-            return {"keys": [busca, "https://clientea-com.example" + pagina], "clicks": 0, "impressions": imp, "ctr": 0, "position": pos}
+            return {"keys": [busca, "https://site-b.exemplo.com" + pagina], "clicks": 0, "impressions": imp, "ctr": 0, "position": pos}
         linhas = [linha("massagem miofacial", "/blog/liberacao-miofascial-vs-massagem", 401, 10.5),  # erro de digitação
                   linha("cinesioterapia fisioterapia", "/glossario/cinesioterapia", 73, 11.5),
                   linha("dentista atm brasilia", "/blog/dor-mandibula-atm-tratamento-brasilia", 181, 34.1),
-                  linha("espaço fsite05 alfa", "/unidades/alfa", 73, 11.9),  # concorrente
+                  linha("espaço fsite06 alfa", "/unidades/alfa", 73, 11.9),  # concorrente
                   linha("clientet beta", "/comparativo/cliente-a-vs-clientet", 70, 10.5),  # concorrente
                   linha("fisioterapia para hernia de disco", "/blog/coluna", 80, 18.0)]
-        ops = {o["busca"]: o for o in g.classificar(linhas, concorrentes=["Espaço fsite05", "ClienteT"])}
+        ops = {o["busca"]: o for o in g.classificar(linhas, concorrentes=["Espaço fsite06", "ClienteT"])}
         self.assertEqual(ops["massagem miofacial"]["tipo"], "reforcar")
         self.assertEqual(ops["cinesioterapia fisioterapia"]["tipo"], "reforcar")
         self.assertEqual(ops["dentista atm brasilia"]["tipo"], "reforcar")
-        self.assertEqual(ops["dentista atm brasilia"]["pagina"], "https://clientea-com.example/blog/dor-mandibula-atm-tratamento-brasilia")
-        self.assertNotIn("espaço fsite05 alfa", ops)
+        self.assertEqual(ops["dentista atm brasilia"]["pagina"], "https://site-b.exemplo.com/blog/dor-mandibula-atm-tratamento-brasilia")
+        self.assertNotIn("espaço fsite06 alfa", ops)
         self.assertNotIn("clientet beta", ops)
         self.assertEqual(ops["fisioterapia para hernia de disco"]["tipo"], "buraco")  # o buraco de verdade continua
 

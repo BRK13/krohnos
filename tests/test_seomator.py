@@ -12,8 +12,8 @@ from hub import armazem, seomator as S
 
 ABRIR = S.abrir_issues  # o de verdade; setUp troca S.abrir_issues por um falso
 META = {"perf-page-weight": {"name": "Page Weight", "description": "d", "fix": "Reduza o peso"}}
-PSI = {"id": "psi", "nome": "Cliente G", "dominio": "psite13-com.example"}
-FSITE05 = {"id": "fsite05", "nome": "fsite05", "dominio": "fsite05-com-br.example"}
+PSI = {"id": "psi", "nome": "Cliente G", "dominio": "site-e.exemplo.com"}
+FSITE06 = {"id": "fsite06", "nome": "fsite06", "dominio": "fsite06-com-br.example"}
 
 
 def _brt(dia, h, m=0):
@@ -77,7 +77,7 @@ class Base(unittest.TestCase):
         p = mock.patch.dict(os.environ, {"SEOMATOR_LIMITADO": "1"})
         p.start()
         self.addCleanup(p.stop)
-        p = mock.patch.object(S, "alvos", return_value=[PSI, FSITE05])
+        p = mock.patch.object(S, "alvos", return_value=[PSI, FSITE06])
         p.start()
         self.addCleanup(p.stop)
         p = mock.patch.object(S, "abrir_issues")  # a noite nunca chama o Linear de verdade
@@ -142,6 +142,21 @@ class AuditarTest(Base):
         self.assertEqual(r["regras"][0]["regra"], "perf-page-weight")  # maior impacto primeiro
         self.assertEqual(r["categorias"], {"perf": 80, "core": 100})
 
+    def test_regra_so_aviso_nunca_vira_fail_nem_abre_issue(self):
+        v = S.aplicar_lote("psi", {"paginas": [
+            pagina("https://p/1", achados=[achado("content-text-html-ratio", peso=3), achado("perf-page-weight", peso=8)])],
+            "erros": [], "meta": {}}, "2026-10-15", self.d)
+        self.assertEqual(v["paginas"]["https://p/1"]["regras"], {"content-text-html-ratio": "warn", "perf-page-weight": "fail"})
+        v["paginas"]["https://p/2"] = {"dia": "2026-10-14", "nota": 80, "cats": {}, "regras": {"content-text-html-ratio": "fail"}}  # gravado antes
+        r = S.consolidar(v, "2026-10-15", META)
+        g = {x["regra"]: x for x in r["regras"]}
+        self.assertEqual((g["content-text-html-ratio"]["status"], g["content-text-html-ratio"]["paginas"]),
+                         ("warn", ["https://p/1", "https://p/2"]))  # segue no relatório como alerta
+        self.assertEqual(g["perf-page-weight"]["status"], "fail")
+        fatos = S.fatos("psi", r)
+        self.assertIn(("alertas", "content-text-html-ratio", 2), [(x["metrica"], x["dim"], x["valor"]) for x in fatos])
+        self.assertFalse(any(x["dim"].startswith("content-text-html-ratio|") for x in fatos))  # sem falha_pagina por página
+
     def test_erro_http_vira_achado_e_timeout_nao(self):
         bruto = {"paginas": [], "meta": {}, "erros": [
             {"url": "https://p/404", "erro": "The page returned HTTP 404.", "http": "404"},
@@ -163,13 +178,13 @@ class AuditarTest(Base):
         os.utime(velho, (0, 0))
         novo = Path(self.d) / "seomator/tmpnovo"  # pode ser de outra auditoria rodando
         novo.mkdir()
-        rod, b = Rodar(achados={"https://psite13-com.example/p1": [achado("perf-page-weight", peso=8)]}), Sitemaps(self.mapa("psite13-com.example", 3))
+        rod, b = Rodar(achados={"https://site-e.exemplo.com/p1": [achado("perf-page-weight", peso=8)]}), Sitemaps(self.mapa("site-e.exemplo.com", 3))
         r = S.auditar(PSI, "2026-10-15", self.d, rod, baixar=b)
         self.assertFalse(velho.exists())
         self.assertTrue(novo.exists())
         novo.rmdir()
         self.assertEqual((r["paginas"], r["total"], r["nota"]), (3, 3, 90))
-        self.assertEqual(rod.lotes, [["https://psite13-com.example/p0", "https://psite13-com.example/p1", "https://psite13-com.example/p2"]])
+        self.assertEqual(rod.lotes, [["https://site-e.exemplo.com/p0", "https://site-e.exemplo.com/p1", "https://site-e.exemplo.com/p2"]])
         cmd, kw = rod.cmds[0]
         self.assertIn("--max-old-space-size=3072", cmd)
         self.assertEqual(kw["env"]["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"], "1")
@@ -178,7 +193,7 @@ class AuditarTest(Base):
         self.assertEqual((arq.stat().st_mode & 0o777, arq.parent.stat().st_mode & 0o777), (0o644, 0o755))
         self.assertEqual(S.status("psi", self.d)["falha"], None)
         self.assertEqual(S.status("psi", self.d)["total"], 3)
-        self.assertEqual(json.loads((Path(self.d) / "seomator/psi/cursor.json").read_text())["off"], {"https://psite13-com.example/sitemap.xml": 60})
+        self.assertEqual(json.loads((Path(self.d) / "seomator/psi/cursor.json").read_text())["off"], {"https://site-e.exemplo.com/sitemap.xml": 60})
         self.assertEqual(armazem.ultimo("psi", "seomator", "nota", self.d), ("2026-10-15", 90.0))
         dims = lambda m: dict(armazem.dims("psi", "seomator", m, "2026-10-15", "2026-10-15", self.d))
         self.assertEqual(dims("falhas"), {"perf-page-weight": 1})
@@ -186,9 +201,9 @@ class AuditarTest(Base):
         self.assertEqual(list((Path(self.d) / "seomator").glob("tmp*")), [])
 
     def test_node_morto_levanta_com_o_motivo_e_refaz_em_metades(self):
-        rod = Rodar(quebra=["psite13"])
+        rod = Rodar(quebra=["site-e"])
         with self.assertRaisesRegex(RuntimeError, r"seomator saiu -6: FATAL ERROR: JavaScript heap out of memory"):
-            S.auditar(PSI, "2026-10-15", self.d, rod, baixar=Sitemaps(self.mapa("psite13-com.example", 4)))
+            S.auditar(PSI, "2026-10-15", self.d, rod, baixar=Sitemaps(self.mapa("site-e.exemplo.com", 4)))
         self.assertEqual([len(x) for x in rod.lotes], [4, 2])  # inteiro, depois a 1ª metade; a falha levanta
 
     def test_lote_que_falha_so_inteiro_passa_em_metades(self):
@@ -201,14 +216,14 @@ class AuditarTest(Base):
                 return SimpleNamespace(returncode=-6, stderr="boom")
             Path(cmd[-1]).write_text(json.dumps({"paginas": [pagina(u) for u in urls], "erros": [], "meta": {}}))
             return SimpleNamespace(returncode=0, stderr="")
-        r = S.auditar(PSI, "2026-10-15", self.d, rodar, baixar=Sitemaps(self.mapa("psite13-com.example", 4)))
+        r = S.auditar(PSI, "2026-10-15", self.d, rodar, baixar=Sitemaps(self.mapa("site-e.exemplo.com", 4)))
         self.assertEqual((chamadas, r["paginas"]), ([4, 2, 2], 4))
 
     def test_timeout_do_lote(self):
         def rodar(cmd, **kw):
             raise subprocess.TimeoutExpired(cmd, 1)
-        with self.assertRaisesRegex(RuntimeError, "lote passou de 45 min"):
-            S.auditar(PSI, "2026-10-15", self.d, rodar, baixar=Sitemaps(self.mapa("psite13-com.example", 4)))
+        with self.assertRaisesRegex(RuntimeError, "lote passou de 60 min"):
+            S.auditar(PSI, "2026-10-15", self.d, rodar, baixar=Sitemaps(self.mapa("site-e.exemplo.com", 4)))
 
     def test_fora_da_unidade_o_comando_ganha_o_teto(self):
         with mock.patch.dict(os.environ, {}, clear=False):
@@ -229,7 +244,7 @@ class AuditarTest(Base):
 class NoiteTest(Base):
     def setUp(self):
         super().setUp()
-        self.b = Sitemaps({**self.mapa("psite13-com.example", 100), **self.mapa("fsite05-com-br.example", 100)})
+        self.b = Sitemaps({**self.mapa("site-e.exemplo.com", 100), **self.mapa("fsite06-com-br.example", 100)})
 
     def noite(self, rodar=None, hoje=None, **kw):
         return S.noite(hoje=hoje or _brt("2026-10-15", 1), base_dados=self.d, rodar=rodar or Rodar(), baixar=self.b,
@@ -237,15 +252,15 @@ class NoiteTest(Base):
 
     def test_rodizio_alterna_sites_ate_acabar_a_janela(self):
         rod = Rodar()
-        for sid in ("psi", "fsite05"):  # um lote de 60 páginas a 20 s cada = 20 min
+        for sid in ("psi", "fsite06"):  # um lote de 60 páginas a 20 s cada = 20 min
             S._gravar_json(Path(self.d) / f"seomator/{sid}/status.json", {"s_por_pagina": 20})
         relogio = iter([_brt("2026-10-15", h, m) for h, m in [(1, 0), (1, 20), (3, 0), (5, 45)]])
         S.noite(base_dados=self.d, rodar=rod, baixar=self.b, carga_alta=lambda: False, dormir=lambda s: None,
                 hoje=lambda: next(relogio), max_lotes=50)
-        quem = ["psite13" if "psite13" in l[0] else "fsite05" for l in rod.lotes]
-        self.assertEqual(quem, ["psite13", "fsite05", "psite13"])  # às 05:45 o lote de 20 min não cabe até as 06h
+        quem = ["site-e" if "site-e" in l[0] else "fsite06" for l in rod.lotes]
+        self.assertEqual(quem, ["site-e", "fsite06", "site-e"])  # às 05:45 o lote de 20 min não cabe até as 06h
         self.assertEqual(len(rod.lotes[0]), 60)
-        self.assertEqual(rod.lotes[2][0], "https://psite13-com.example/p60")  # o cursor seguiu adiante
+        self.assertEqual(rod.lotes[2][0], "https://site-e.exemplo.com/p60")  # o cursor seguiu adiante
 
     def test_fora_da_janela_nao_comeca_e_agora_ignora(self):
         rod = Rodar()
@@ -259,15 +274,15 @@ class NoiteTest(Base):
         S._gravar_json(Path(self.d) / "seomator/psi/status.json", {"s_por_pagina": 10, "ultimo_lote": "2026-10-01"})  # 60 × 10 s = 10 min
         rod = Rodar()
         self.noite(rod, _brt("2026-10-15", 5, 51), passada=True, agora=False)
-        self.assertEqual(rod.lotes, [])  # fsite05 nunca rodou (estimativa 60 × 20 s = 20 min): não cabe
+        self.assertEqual(rod.lotes, [])  # fsite06 nunca rodou (estimativa 60 × 20 s = 20 min): não cabe
         rod = Rodar()
         self.noite(rod, _brt("2026-10-15", 5, 39), passada=True)
         self.assertEqual(len(rod.lotes), 2)
 
     def test_passada_faz_uma_volta_e_site_com_falha_nao_derruba_os_outros(self):
-        rod = Rodar(quebra=["psite13"])
+        rod = Rodar(quebra=["site-e"])
         saida, erros = self.noite(rod, passada=True)
-        self.assertEqual(list(saida), ["fsite05"])
+        self.assertEqual(list(saida), ["fsite06"])
         self.assertEqual(len(erros), 1)
         self.assertRegex(erros[0], r"^psi: seomator saiu -6: FATAL ERROR")
         st = S.status("psi", self.d)
@@ -277,10 +292,10 @@ class NoiteTest(Base):
         self.assertTrue(f[0]["em"].endswith("+00:00"))
 
     def test_falha_nao_repete_na_mesma_noite_e_sucesso_limpa_a_falha(self):
-        rod = Rodar(quebra=["psite13"])
+        rod = Rodar(quebra=["site-e"])
         self.noite(rod, agora=True, max_lotes=6)  # sem passada: gira até todos "mortos" ou o teto
-        self.assertEqual(sum("psite13" in l[0] for l in rod.lotes), 2)  # inteiro + metade, uma vez só
-        self.assertGreater(sum("fsite05" in l[0] for l in rod.lotes), 1)  # o outro site segue sem ele
+        self.assertEqual(sum("site-e" in l[0] for l in rod.lotes), 2)  # inteiro + metade, uma vez só
+        self.assertGreater(sum("fsite06" in l[0] for l in rod.lotes), 1)  # o outro site segue sem ele
         rod = Rodar()
         self.noite(rod, passada=True)
         self.assertIsNone(S.status("psi", self.d)["falha"])
@@ -296,23 +311,23 @@ class NoiteTest(Base):
 
     def test_passada_inicial_so_marca_sem_erro_e_so_roda_uma_vez(self):
         kw = dict(base_dados=self.d, hoje=_brt("2026-10-15", 14), baixar=self.b, carga_alta=lambda: False, dormir=lambda s: None)
-        saida, erros = S.passada_inicial(rodar=Rodar(quebra=["fsite05"]), **kw)
+        saida, erros = S.passada_inicial(rodar=Rodar(quebra=["fsite06"]), **kw)
         self.assertEqual(len(erros), 1)
         self.assertNotIn("passada_v2", json.loads((Path(self.d) / "seomator/estado.json").read_text()) if (Path(self.d) / "seomator/estado.json").exists() else {})
         rod = Rodar()
         saida, erros = S.passada_inicial(rodar=rod, **kw)
-        self.assertEqual((sorted(saida), erros), (["fsite05", "psi"], []))
+        self.assertEqual((sorted(saida), erros), (["fsite06", "psi"], []))
         self.assertIn("passada_v2", json.loads((Path(self.d) / "seomator/estado.json").read_text()))
         rod = Rodar()
         self.assertIsNone(S.passada_inicial(rodar=rod, **kw))
         self.assertEqual(rod.lotes, [])
 
     def test_resumo_zap_mostra_falha_e_site_sem_auditoria(self):
-        self.noite(Rodar(achados={"https://fsite05-com-br.example/p1": [achado("perf-page-weight", peso=8)]}), passada=True)
+        self.noite(Rodar(achados={"https://fsite06-com-br.example/p1": [achado("perf-page-weight", peso=8)]}), passada=True)
         S.registrar_falha("psi", "seomator saiu -6: boom", self.d)
-        t = S.resumo_zap(self.d, hoje=dt.date(2026, 10, 15), lista=[PSI, FSITE05, {"id": "novo", "nome": "Novo", "dominio": "n-com.example"}])
+        t = S.resumo_zap(self.d, hoje=dt.date(2026, 10, 15), lista=[PSI, FSITE06, {"id": "novo", "nome": "Novo", "dominio": "n-com.example"}])
         self.assertIn("Cliente G — nota 90, 60 pág. auditadas — falhou: seomator saiu -6: boom", t)
-        self.assertIn("fsite05 — nota 90", t)
+        self.assertIn("fsite06 — nota 90", t)
         self.assertIn("• Page Weight (1 pág.)", t)
         self.assertIn("Novo — ainda sem auditoria", t)
         self.assertIn("15/10", t.splitlines()[0])
@@ -336,18 +351,33 @@ class IssuesTest(Base):
         return novas, chamadas
 
     def test_issue_so_fail_com_corpo_e_labels(self):
-        site = {**FSITE05, "repo": {"github": "example-org/fsite05"}}
+        site = {**FSITE06, "repo": {"github": "acme/fsite06"}}
         novas, c = self._abrir(site, self._res([("a", "fail", 40), ("b", "warn", 5)]))
         self.assertEqual(novas, ["KRN-1"])
         projeto, titulo, corpo, est, labels, prio = c[0]
         self.assertEqual((projeto, titulo, est, labels, prio),
-                         ("Proj", "SEO fsite05: A (40 página(s))", "Backlog", ["esteira", "seo-fix", "merge"], 3))
+                         ("Proj", "SEO fsite06: A (40 página(s))", "Backlog", ["esteira", "seo-fix", "merge"], 3))
         self.assertIn("e mais 10", corpo)
         self.assertEqual(corpo.count("- https://x/"), 30)
         self.assertIn("> Fix it", corpo)
         self.assertIn("```\nm\n```", corpo)
         self.assertIn("seomator audit <url> --format llm", corpo)
         self.assertIn("KRN-809", corpo)
+
+    def test_regra_com_excecao_nao_abre_issue(self):
+        site = {**FSITE06, "repo": {"github": "dono-x/site-f"}, "padrao": {"excecoes": {"a": "motivo"}}}
+        novas, c = self._abrir(site, self._res([("a", "fail", 40), ("b", "fail", 5)]))
+        self.assertEqual(novas, ["KRN-1"])
+        self.assertIn("SEO fsite06: B (5 página(s))", c[0][1])
+
+    def test_exceção_retirada_do_cadastro_volta_a_abrir_issue(self):
+        reg = {"a": {"issue": "KRN-7", "dia": "2026-10-10", "excecao": "2026-10-14"}}
+        S._gravar_json(S._dir(self.d) / "issues.json", {"fsite06": reg})
+        site = {**FSITE06, "repo": {"github": "dono-x/site-f"}}  # sem padrao.excecoes: a regra voltou a valer
+        novas, c = self._abrir(site, self._res([("a", "fail", 40)]))
+        self.assertEqual(novas, ["KRN-1"])
+        nova = S._ler_json(S._dir(self.d) / "issues.json", {})["fsite06"]["a"]
+        self.assertEqual((nova["issue"], nova["anteriores"]), ("KRN-1", [{"issue": "KRN-7", "dia": "2026-10-10"}]))
 
     def test_corpo_cerca_a_mensagem_do_site(self):
         g = {"regra": "a", "nome": "A", "cat": "c", "paginas": [], "msg": "x ``` <b>`y`</b>", "fix": "um\ndois"}
@@ -358,44 +388,44 @@ class IssuesTest(Base):
 
     def test_toda_regra_grave_nova_abre_uma_issue_por_regra_sem_teto_semanal(self):
         regras = [(f"r{i}", "fail", 20 - i) for i in range(6)]
-        novas, c = self._abrir(FSITE05, self._res(regras))
+        novas, c = self._abrir(FSITE06, self._res(regras))
         self.assertEqual(len(novas), 6)  # antes eram 3 por semana
         self.assertEqual([x[1].split(": ")[1][:2] for x in c], ["R0", "R1", "R2", "R3", "R4", "R5"])  # por impacto
 
     def test_teto_de_10_por_dia_somando_os_sites(self):
-        self.assertEqual(len(self._abrir(FSITE05, self._res([(f"a{i}", "fail", 5) for i in range(7)]))[0]), 7)
+        self.assertEqual(len(self._abrir(FSITE06, self._res([(f"a{i}", "fail", 5) for i in range(7)]))[0]), 7)
         self.assertEqual(len(self._abrir(PSI, self._res([(f"b{i}", "fail", 5) for i in range(7)]))[0]), 3)  # 7 + 3 = 10
         self.assertEqual(self._abrir(PSI, self._res([("c", "fail", 5)]))[0], [])
         self.assertEqual(len(self._abrir(PSI, self._res([("c", "fail", 5)], "2026-10-16"))[0]), 1)  # outro dia
 
     def test_nao_duplica_enquanto_nao_verificada(self):
         res = self._res([("a", "fail", 2)])
-        self.assertEqual(len(self._abrir(FSITE05, res)[1]), 1)
-        self.assertEqual(self._abrir(FSITE05, self._res([("a", "fail", 2)], "2026-10-16"))[1], [])
+        self.assertEqual(len(self._abrir(FSITE06, res)[1]), 1)
+        self.assertEqual(self._abrir(FSITE06, self._res([("a", "fail", 2)], "2026-10-16"))[1], [])
         reg = S._ler_json(S._dir(self.d) / "issues.json", {})
-        reg["fsite05"]["a"]["verificada"] = "2026-10-17"  # a regra sumiu e depois voltou: issue nova
+        reg["fsite06"]["a"]["verificada"] = "2026-10-17"  # a regra sumiu e depois voltou: issue nova
         S._gravar_json(S._dir(self.d) / "issues.json", reg)
-        novas, _ = self._abrir(FSITE05, self._res([("a", "fail", 2)], "2026-10-20"))
+        novas, _ = self._abrir(FSITE06, self._res([("a", "fail", 2)], "2026-10-20"))
         self.assertEqual(len(novas), 1)
-        self.assertEqual(len(S._ler_json(S._dir(self.d) / "issues.json", {})["fsite05"]["a"]["anteriores"]), 1)
+        self.assertEqual(len(S._ler_json(S._dir(self.d) / "issues.json", {})["fsite06"]["a"]["anteriores"]), 1)
 
     def test_evento_exemplo_e_site_sem_issue_nao_abre(self):
-        self.assertEqual(self._abrir({**FSITE05, "sem_issue": True}, self._res([("a", "fail", 2)])), ([], []))
+        self.assertEqual(self._abrir({**FSITE06, "sem_issue": True}, self._res([("a", "fail", 2)])), ([], []))
 
     def test_clientee_sem_merge(self):
-        site = {**FSITE05, "repo": {"github": "jpexemplo/clientee-moraes-site"}}
+        site = {**FSITE06, "repo": {"github": "terceiro/clientee-moraes-site"}}
         self.assertEqual(self._abrir(site, self._res([("a", "fail", 2)]))[1][0][4], ["esteira", "seo-fix"])
 
     def test_falha_no_criar_nao_derruba_a_noite_nem_grava(self):
         def quebra(*a):
             raise RuntimeError("Linear fora")
-        b = Sitemaps(self.mapa("psite13-com.example", 2) | self.mapa("fsite05-com-br.example", 2))
+        b = Sitemaps(self.mapa("site-e.exemplo.com", 2) | self.mapa("fsite06-com-br.example", 2))
         with mock.patch.object(S.linear, "projeto_do_repo", return_value="P"), \
                 mock.patch.object(S, "abrir_issues", lambda s, r, bd: ABRIR(s, r, bd, quebra)):
             saida, erros = S.noite(hoje=_brt("2026-10-15", 1), base_dados=self.d, passada=True, baixar=b,
-                                   rodar=Rodar(achados={"https://psite13-com.example/p0": [achado("a")]}),
+                                   rodar=Rodar(achados={"https://site-e.exemplo.com/p0": [achado("a")]}),
                                    carga_alta=lambda: False, dormir=lambda s: None)
-        self.assertEqual((sorted(saida), erros), (["fsite05", "psi"], []))
+        self.assertEqual((sorted(saida), erros), (["fsite06", "psi"], []))
         self.assertFalse((Path(self.d) / "seomator/issues.json").exists())
 
 
@@ -403,10 +433,10 @@ class ReconferirTest(Base):
     def setUp(self):
         super().setUp()
         S._gravar_json(S._dir(self.d) / "issues.json", {"psi": {
-            "a": {"issue": "KRN-1", "dia": "2026-10-10", "paginas": ["https://psite13-com.example/p0"]},
-            "b": {"issue": "KRN-2", "dia": "2026-10-10", "paginas": ["https://psite13-com.example/p1"]},
-            "c": {"issue": "KRN-3", "dia": "2026-10-10", "paginas": ["https://psite13-com.example/p2"]},
-            "d": {"issue": "KRN-4", "dia": "2026-10-10", "paginas": ["https://psite13-com.example/p3"]}}})
+            "a": {"issue": "KRN-1", "dia": "2026-10-10", "paginas": ["https://site-e.exemplo.com/p0"]},
+            "b": {"issue": "KRN-2", "dia": "2026-10-10", "paginas": ["https://site-e.exemplo.com/p1"]},
+            "c": {"issue": "KRN-3", "dia": "2026-10-10", "paginas": ["https://site-e.exemplo.com/p2"]},
+            "d": {"issue": "KRN-4", "dia": "2026-10-10", "paginas": ["https://site-e.exemplo.com/p3"]}}})
         self.estados = {"KRN-1": "completed", "KRN-2": "completed", "KRN-3": "started", "KRN-4": "canceled"}
 
     def rodar(self, rod, reabrir):
@@ -414,10 +444,10 @@ class ReconferirTest(Base):
 
     def test_regra_que_sumiu_verifica_e_a_que_ficou_reabre(self):
         reaberta = []
-        rod = Rodar(achados={"https://psite13-com.example/p1": [achado("b")]})  # p0 consertada, p1 ainda com a regra b
+        rod = Rodar(achados={"https://site-e.exemplo.com/p1": [achado("b")]})  # p0 consertada, p1 ainda com a regra b
         r = self.rodar(rod, lambda ident, texto: reaberta.append((ident, texto)))
         self.assertEqual(r, {"KRN-1": "verificada", "KRN-2": "reaberta"})
-        self.assertEqual(sorted(rod.lotes[0]), ["https://psite13-com.example/p0", "https://psite13-com.example/p1"])  # só as páginas das concluídas
+        self.assertEqual(sorted(rod.lotes[0]), ["https://site-e.exemplo.com/p0", "https://site-e.exemplo.com/p1"])  # só as páginas das concluídas
         self.assertEqual([i for i, _ in reaberta], ["KRN-2"])
         self.assertIn("regra `b` e ela continua em 1 página(s)", reaberta[0][1])
         reg = S._ler_json(S._dir(self.d) / "issues.json", {})["psi"]
@@ -427,7 +457,7 @@ class ReconferirTest(Base):
         self.assertNotIn("verificada", reg["c"])  # em andamento: não mexe
 
     def test_reabre_no_maximo_duas_vezes(self):
-        rod, reaberta = Rodar(achados={"https://psite13-com.example/p1": [achado("b")]}), []
+        rod, reaberta = Rodar(achados={"https://site-e.exemplo.com/p1": [achado("b")]}), []
         for _ in range(3):
             self.rodar(rod, lambda ident, texto: reaberta.append(ident))
         self.assertEqual(reaberta, ["KRN-2", "KRN-2"])
@@ -439,7 +469,7 @@ class ReconferirTest(Base):
 
     def test_sem_medicao_valida_nao_verifica(self):
         rod = Rodar(achados={})
-        with mock.patch.object(S, "_lote_resiliente", return_value={"paginas": [], "erros": [{"url": "https://psite13-com.example/p0", "erro": "timeout"}], "meta": {}}):
+        with mock.patch.object(S, "_lote_resiliente", return_value={"paginas": [], "erros": [{"url": "https://site-e.exemplo.com/p0", "erro": "timeout"}], "meta": {}}):
             r = self.rodar(rod, lambda *a: 1 / 0)
         self.assertEqual(r, {})
         reg = S._ler_json(S._dir(self.d) / "issues.json", {})["psi"]
@@ -447,17 +477,39 @@ class ReconferirTest(Base):
 
     def test_verificadas_nao_ocupam_o_limite(self):
         reg = {f"r{i}": {"issue": f"KRN-9{i}", "dia": "2026-10-01", "verificada": "2026-10-02"} for i in range(5)}
-        reg["nova"] = {"issue": "KRN-1", "dia": "2026-10-10", "paginas": ["https://psite13-com.example/p0"]}
+        reg["nova"] = {"issue": "KRN-1", "dia": "2026-10-10", "paginas": ["https://site-e.exemplo.com/p0"]}
         S._gravar_json(S._dir(self.d) / "issues.json", {"psi": reg})
         r = S.reconferir(PSI, "2026-10-15", self.d, Rodar(), self.estados.get, lambda *a: 1 / 0, max_issues=2)
         self.assertEqual(r, {"KRN-1": "verificada"})
 
     def test_reabre_pelo_linear_no_backlog(self):
         with mock.patch.object(S.linear, "mover_por_nome") as mv:
-            Rodar_ = Rodar(achados={"https://psite13-com.example/p1": [achado("b")]})
+            Rodar_ = Rodar(achados={"https://site-e.exemplo.com/p1": [achado("b")]})
             S.reconferir(PSI, "2026-10-15", self.d, Rodar_, self.estados.get)
         mv.assert_called_once()
         self.assertEqual(mv.call_args.args[:2], ("KRN-2", "Backlog"))
+
+    def test_regra_so_aviso_com_registro_antigo_nao_reabre_por_dado_gravado_antes(self):  #
+        S._gravar_json(S._dir(self.d) / "issues.json", {"psi": {"content-text-html-ratio": {"issue": "KRN-7", "dia": "2026-10-10"}}})  # sem lista de páginas
+        self.estados["KRN-7"] = "completed"
+        S._gravar_json(S._dir(self.d) / "psi" / "varredura.json", {"paginas": {
+            "https://site-e.exemplo.com/antiga": {"dia": "2026-10-12", "nota": 80, "cats": {}, "regras": {"content-text-html-ratio": "fail"}}},
+            "info": {}})
+        reaberta = []
+        r = S.reconferir(PSI, "2026-10-15", self.d, Rodar(achados={}), self.estados.get, lambda ident, texto: reaberta.append(ident))
+        self.assertEqual(r, {"KRN-7": "verificada"})
+        self.assertEqual(reaberta, [])
+
+    def test_regra_com_excecao_concluida_nao_reabre_nem_mede(self):
+        site = {**PSI, "padrao": {"excecoes": {"b": "beacon da Cloudflare"}}}
+        rod, reaberta = Rodar(achados={"https://site-e.exemplo.com/p1": [achado("b")]}), []
+        r = S.reconferir(site, "2026-10-15", self.d, rod, self.estados.get, lambda ident, texto: reaberta.append(ident))
+        self.assertEqual(r, {"KRN-1": "verificada", "KRN-2": "excecao"})
+        self.assertEqual(reaberta, [])
+        self.assertEqual(rod.lotes[0], ["https://site-e.exemplo.com/p0"])  # a regra excepcionada não entra na medição
+        reg = S._ler_json(S._dir(self.d) / "issues.json", {})["psi"]
+        self.assertEqual(reg["b"]["excecao"], "2026-10-15")
+        self.assertNotIn("reaberturas", reg["b"])
 
 
 if __name__ == "__main__":

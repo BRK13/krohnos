@@ -25,7 +25,7 @@ from hub import config, conta, data, gh as gh_mod, home_agentes, saude, sites
 
 UTC = dt.timezone.utc
 ESTADOS = ("consertado", "precisa_fulano", "tentando")
-REPOS_ATIVOS = ("repo-privado", "bot_whatsapp", "ferramentas_seo", "cliente-a-v2", "clienteipsi-v2", "psite13",
+REPOS_ATIVOS = ("repo-privado", "bot_whatsapp", "ferramentas_seo", "cliente-a-v2", "clienteipsi-v2", "psite15",
                 "cliente-c", "clienteh", "Emissor_nf_exemplo", "infra", "cliente-oestrutura")
 
 NOTAS_TECNICAS = "/opt/asite01-wpp/data/agente/notas-tecnicas.jsonl"  # bot_whatsapp PR #135: nota/falha do grupo da equipe
@@ -120,7 +120,13 @@ def problemas_ponte(base, agora, home=None, servico_ativo=None):
     except (OSError, ValueError, KeyError):
         p.append("agenda.json sem ultimo_tick")
     for arq in sorted((claude / "fila").glob("*.json")):
-        r = _em(json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}, "enfileirada_em")
+        try:
+            r = _em(json.loads(arq.read_text(encoding="utf-8")), "enfileirada_em")
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):  # vazio ou cortado: o item nunca sai e bloqueia o nome (enfileirar vê "já está lá")
+            p.append(f"{arq.stem} na fila com arquivo ilegível (vazio ou cortado): mova para fora e reenfileire")
+            continue
         if r and agora - r > dt.timedelta(hours=2):
             p.append(f"{arq.stem} parado na fila desde {conta.iso(r)}")
     from hub.agenda import _registro_vivo

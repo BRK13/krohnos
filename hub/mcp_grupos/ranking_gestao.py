@@ -13,7 +13,7 @@ from hub import citacao, dataforseo, ranking
 from hub.mcp_grupos import ErroUso, pasta, padrao
 
 CARO = " Custa crédito do DataForSEO."
-SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite13), domínio ou nome"},
+SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite15), domínio ou nome"},
         "projectId": {"type": "string", "description": "id do site no hub (o mesmo que site); list_projects lista"}}
 TRACKER = {"trackerId": {"type": "string", "description": "id do rastreador (é o id do site; opcional)"}}
 IDS = {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 2000,

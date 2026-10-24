@@ -9,12 +9,16 @@
   issues enquanto o webhook estiver vivo (evento nos últimos 5 min) e varre tudo a cada 15 min como rede de segurança.
 """
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
 import time
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows (PC do dono): só despacha issue, não roda o tick
+    fcntl = None
 
 from hub import data
 
@@ -34,6 +38,11 @@ def _pasta():
 
 @contextlib.contextmanager
 def _trava(nome):
+    if fcntl is None:
+        # ponytail: sem trava no Windows; corrida entre processos no PC só perde contagem de uso/cache.
+        # Se o tick/webhook passar a rodar no Windows, trocar por msvcrt.locking.
+        yield
+        return
     with open(_pasta() / f"{nome}.lock", "a") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
         try:

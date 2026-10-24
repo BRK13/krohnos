@@ -11,7 +11,7 @@ from hub import sites
 BASE = {
     "id": "exemplo", "ids_antigos": ["exemplo-antigo"], "ativo": True, "nome": "Exemplo", "dominio": "exemplo.com.br",
     "hosts_alternativos": ["www.exemplo.com.br"], "hosts_citacao": [],
-    "repo": {"github": "example-org/exemplo", "base": "main", "pacotes": "npm", "deploy": "dokploy"},
+    "repo": {"github": "acme/exemplo", "base": "main", "pacotes": "npm", "deploy": "dokploy"},
     "ids": {"gsc": "sc-domain:exemplo.com.br", "ga4": "111111112",
             "ga4_medicao": "G-X0X0XXX0X3", "clarity": "xxxxx0xxx4", "dokploy_app": None},
     "marca": {"nome": "Exemplo", "aliases": ["Ex"], "identificador": None, "nome_generico": False},
@@ -83,6 +83,10 @@ class ValidacaoTest(unittest.TestCase):
         self.assertErro(com(padrao__paginas_amostra=["sobre"]), "começando com '/'")
         self.assertErro(com(padrao__indexnow={"chave": "x", "aviso": None}), "indexnow.chave")
         self.assertErro(com(padrao__fora_do_google=True), "fora do Google não pode ser ativo")
+        self.assertEqual(sites.validar(com(padrao__excecoes={"security-csp-xss": "beacon da Cloudflare"}), "x.json"), [])
+        self.assertErro(com(padrao__excecoes={"Security CSP": "x"}), "'padrao.excecoes'")
+        self.assertErro(com(padrao__excecoes={"security-csp-xss": "  "}), "'padrao.excecoes'")
+        self.assertErro(com(padrao__excecoes=["security-csp-xss"]), "'padrao.excecoes'")
 
 
 class CargaTest(unittest.TestCase):
@@ -113,7 +117,7 @@ class CargaTest(unittest.TestCase):
             sites.carregar(tmp.name)
 
     def test_resumo_marca_repo_de_terceiro(self):
-        terceiro = com(repo__github="jpexemplo/x")
+        terceiro = com(repo__github="terceiro/x")
         with tempfile.TemporaryDirectory() as dados:
             texto = sites.resumo(pasta=self.pasta(("exemplo.json", terceiro)), base_dados=dados)
             self.assertIn("Repo de terceiro", texto)
@@ -138,16 +142,16 @@ class CargaTest(unittest.TestCase):
 
     def test_resumo_com_repos_limita_sites_e_janelas(self):
         from hub import janelas
-        outro = com(id="outro", ids_antigos=[], hosts_alternativos=[], nome="Outro", dominio="outro-com.example", repo__github="example-org/outro", ids__gsc=None)
+        outro = com(id="outro", ids_antigos=[], hosts_alternativos=[], nome="Outro", dominio="outro-com.example", repo__github="acme/outro", ids__gsc=None)
         with tempfile.TemporaryDirectory() as dados:
             pasta = self.pasta(("exemplo.json", BASE), ("outro.json", outro))
             for site, caminho in (("exemplo", "/a"), ("exemplo", "/a"), ("outro", "/b")):  # a repetida entra uma vez só
                 janelas.registrar(site, caminho, "pagina_nova", base_dados=dados, pasta_sites=pasta, pr="https://github.com/x/pull/1")
             completo = sites.resumo(pasta=pasta, base_dados=dados)
-            texto = sites.resumo(pasta=pasta, base_dados=dados, repos=["example-org/EXEMPLO"])  # caixa não importa
+            texto = sites.resumo(pasta=pasta, base_dados=dados, repos=["acme/EXEMPLO"])  # caixa não importa
         self.assertIn("### Exemplo (`exemplo`)", texto)
         self.assertNotIn("### Outro", texto)
-        self.assertIn("- Outro (outro) · outro-com.example · example-org/outro · base main", texto)
+        self.assertIn("- Outro (outro) · outro-com.example · acme/outro · base main", texto)
         self.assertEqual(texto.count("- exemplo · exemplo.com.br/a · pagina_nova · julgar a partir de"), 1)
         self.assertNotIn("outro-com.example/b", texto)
         self.assertNotIn("github.com/x/pull/1", texto)  # sem repetir o PR

@@ -26,7 +26,8 @@ TEXTO_DADO = re.compile(
 ARQUIVO_DADO = re.compile(r"(^|/)coleta/|importar|classificar|\.cron$|(^|/)cron/", re.I)
 SEM_MASSA = re.compile(r"n[ãa]o\s+(?:roda|rodei|rodou|rodamos|rodar)\s+(?:em\s+massa|a\s+carga)|sem\s+rodar\s+em\s+massa", re.I)
 BLOCO = re.compile(r"^#{0,6}\s*\**\s*Prova de execu[çc][ãa]o\b.*?$(.*?)(?=^#{1,6}\s|\Z)", re.I | re.S | re.M)
-ANTES_DEPOIS = re.compile(r"antes.*depois|depois.*antes", re.I | re.S)
+ANTES = re.compile(r"\bantes\b", re.I)
+DEPOIS = re.compile(r"\b(?:depois|agora|ap[óo]s|hoje)\b", re.I)  # "antes… agora" também é antes/depois
 AGENDA = re.compile(r"\bcron\b|agendad|agendamento|systemd|timer", re.I)
 
 
@@ -42,8 +43,12 @@ def faltou_prova(texto):
         return 'falta o bloco "Prova de execução" (contagem antes/depois e agendamento) no comentário final'
     corpo = m.group(1)
     falta = []
-    if not (ANTES_DEPOIS.search(corpo) and len(re.findall(r"\d", corpo)) >= 2):
-        falta.append("a contagem antes/depois (consulta ou log, com números)")
+    if not ANTES.search(corpo):
+        falta.append('a contagem "Antes: N" (consulta ou log)')
+    if not DEPOIS.search(corpo):
+        falta.append('a contagem "Depois: N" (consulta ou log)')
+    if ANTES.search(corpo) and DEPOIS.search(corpo) and len(re.findall(r"\d", corpo)) < 2:
+        falta.append("os números da contagem antes/depois (consulta ou log)")
     if not AGENDA.search(corpo):
         falta.append("o agendamento (cron instalado)")
     return ("no bloco \"Prova de execução\" falta " + " e ".join(falta)) if falta else ""

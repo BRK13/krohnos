@@ -16,7 +16,7 @@ class ConsertosTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.d = Path(tmp.name)
-        for p in ("claude", "rotinas", "vps", "verificador/fsite05"):
+        for p in ("claude", "rotinas", "vps", "verificador/fsite06"):
             (self.d / p).mkdir(parents=True)
 
     def test_notas_do_bot_falha_a_consertar_e_nota_com_pendencia_no_resumo(self):
@@ -51,13 +51,13 @@ class ConsertosTest(unittest.TestCase):
         (self.d / "latest.json").write_text(json.dumps({"at": "x", "projects": [
             {"id": "asite01", "checks": {"status": {"ok": True}, "clarity": {"ok": False, "error": "quota"}}},
             {"id": "site-desativado", "checks": {"gsc": {"ok": False}}}]}))
-        (self.d / "verificador/fsite05/latest.json").write_text(json.dumps({"pioras": [{"n": 3, "item": "canonical"}]}))
+        (self.d / "verificador/fsite06/latest.json").write_text(json.dumps({"pioras": [{"n": 3, "item": "canonical"}]}))
         n = consertos.novidades(dt.datetime(2026, 10, 8, 10, 0, tzinfo=UTC), self.d, com_gh=False, agora=AGORA)
         self.assertEqual([t["nome"] for t in n["tarefas_falharam"]], ["seo-semanal"])
         self.assertEqual(n["rotinas_falharam"][0]["nome"], "coleta")
         self.assertEqual(n["root_falhou"][0]["acao"], "reiniciar-servico")
         self.assertEqual([(c["site"], c["check"]) for c in n["coleta_checks_falhando"]], [("asite01", "clarity")])
-        self.assertEqual(n["verificador_piorou"][0]["site"], "fsite05")
+        self.assertEqual(n["verificador_piorou"][0]["site"], "fsite06")
 
     def test_marcar_e_desde_padrao(self):
         consertos.marcar(self.d, AGORA - dt.timedelta(hours=1))

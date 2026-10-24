@@ -38,6 +38,176 @@ class DadosTest(unittest.TestCase):
 
 
 class TipoObrigatorioTest(unittest.TestCase):
+    def test_inc_317_in_review_parada_bru_1528(self):
+        # uso.jsonl: 2026-10-22T04:19:02+00:00, encerrada às 04:19:34.
+        for horas in (2, 12, 48):
+            motivo = f"In Review parada há {horas} h com conta ociosa (KRN-1600)"
+            with self.subTest(horas=horas):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo, {"identifier": "KRN-1528"})
+                self.assertEqual("parada", tipo)
+                self.assertEqual("parada", retomada.exigir_tipo(tipo, "linear-krn-1528", registrar=registrar))
+                registrar.assert_not_called()
+        for motivo in ("In Review parada", "In Review parada há 12 h com conta ociosa (KRN-1600) causa nova"):
+            registrar = mock.Mock()
+            tipo = TK.tipo_execucao(motivo)
+            self.assertEqual("outro", tipo)
+            retomada.exigir_tipo(tipo, "linear-krn-1528", registrar=registrar)
+            registrar.assert_called_once()
+
+
+    def test_inc_316_treino_f4_bru_1097(self):
+        # uso.jsonl: 2026-10-22T04:08:08+00:00 a 04:09:20, motivo operacional explícito.
+        motivo = "treino F4 previsto para 14h BRT"
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao(motivo, {"identifier": "KRN-1097"})
+        self.assertEqual("manual", tipo)
+        self.assertEqual("manual", retomada.exigir_tipo(tipo, "linear-krn-1097", registrar=registrar))
+        registrar.assert_not_called()
+        for desconhecido in (motivo + " com causa nova", "treino desconhecido", "treino F4 previsto"):
+            with self.subTest(motivo=desconhecido):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(desconhecido)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, "linear-krn-1097", registrar=registrar)
+                registrar.assert_called_once()
+                self.assertEqual("execucao_sem_tipo", registrar.call_args.args[1])
+
+    def test_inc_267_primeira_execucao_bru_1503(self):
+        # uso.jsonl: início 2026-10-20T19:57:22+00:00, motivo_volta="primeira".
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao("primeira", {"identifier": "KRN-1503"})
+        self.assertEqual("primeira", tipo)
+        self.assertEqual("primeira", retomada.exigir_tipo(tipo, "linear-krn-1503", registrar=registrar))
+        registrar.assert_not_called()
+        for motivo in ("primeiramente", "primeira com causa desconhecida", "motivo desconhecido"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, "linear-krn-1503", registrar=registrar)
+                registrar.assert_called_once()
+                self.assertEqual("execucao_sem_tipo", registrar.call_args.args[1])
+
+    def test_inc_210_fora_do_fantasma_oauth(self):
+        # uso.jsonl:, fim 2026-10-18T20:53:20+00:00.
+        motivo = "orquestrador: fora do fantasma OAuth"
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao(motivo, {"identifier": "KRN-1215"})
+        self.assertEqual("manual", tipo)
+        self.assertEqual("manual", retomada.exigir_tipo(tipo, "linear-krn-1215", registrar=registrar))
+        registrar.assert_not_called()
+        for desconhecido in (motivo + " com causa nova", "orquestrador: fora do fantasma"):
+            with self.subTest(motivo=desconhecido):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(desconhecido)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, "linear-krn-1215", registrar=registrar)
+                registrar.assert_called_once()
+                self.assertEqual("execucao_sem_tipo", registrar.call_args.args[1])  # fora de `outra`
+
+    def test_inc_207_reenvio_apos_oauth_de_outra_instalacao(self):
+        # uso.jsonl: linear-, encerrada em 2026-10-18T18:35:54+00:00.
+        motivo = "orquestrador: caiu por OAuth de outra instalação (0 min); fila local sem sessão"
+        for minutos in (0, 12):
+            with self.subTest(minutos=minutos):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo.replace("(0 min)", f"({minutos} min)"),
+                                        {"identifier": "KRN-1170"})
+                self.assertEqual("manual", tipo)
+                self.assertEqual("manual", retomada.exigir_tipo(tipo, "linear-krn-1170", registrar=registrar))
+                registrar.assert_not_called()
+        for desconhecido in ("orquestrador: caiu por OAuth de outra instalação",
+                             motivo + " com causa nova", "orquestrador: motivo desconhecido"):
+            with self.subTest(desconhecido=desconhecido):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(desconhecido)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, "linear-krn-1170", registrar=registrar)
+                registrar.assert_called_once()
+
+    def test_inc_202_registro_real_bru_1009_nao_abre_incidente(self):
+        registro = {
+            "nome": "linear-krn-1009",
+            "inicio": "2026-10-18T15:57:32+00:00",
+            "fim": "2026-10-18T16:06:10+00:00",
+            "motivo_volta": "orquestrador: reenfileirada direto (falha OAuth do fantasma, sem sessão)",
+        }
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao(registro["motivo_volta"], {"identifier": "KRN-1009"})
+        self.assertEqual("manual", tipo)
+        self.assertEqual("manual", retomada.exigir_tipo(tipo, registro["nome"], registrar=registrar))
+        registrar.assert_not_called()
+        # Motivos desconhecidos continuam abrindo incidente, inclusive palavras maiores.
+        for motivo in ("orquestrador: outro motivo", "orquestrador: reenfileirada diretamente"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, registro["nome"], registrar=registrar)
+                registrar.assert_called_once()
+
+    def test_inc_201_registro_real_bru_1196_nao_abre_incidente(self):
+        registro = {
+            "nome": "linear-krn-1196",
+            "inicio": "2026-10-18T14:57:25+00:00",
+            "fim": "2026-10-18T15:28:03+00:00",
+            "motivo_volta": "orquestrador: reenfileirada direto (falha OAuth do fantasma, sem sessão)",
+        }
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao(registro["motivo_volta"], {"identifier": "KRN-1196"})
+        self.assertEqual("manual", tipo)
+        self.assertEqual("manual", retomada.exigir_tipo(tipo, registro["nome"], registrar=registrar))
+        registrar.assert_not_called()
+        # Motivos desconhecidos continuam abrindo incidente, inclusive palavras maiores.
+        for motivo in ("orquestrador: outro motivo", "orquestrador: reenfileirada diretamente"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo)
+                self.assertEqual("outro", tipo)
+                retomada.exigir_tipo(tipo, registro["nome"], registrar=registrar)
+                registrar.assert_called_once()
+
+    def test_inc_200_proposta_aprovada_bru_1199_nao_abre_incidente(self):
+        # uso.jsonl: execução encerrada em 2026-10-18T15:04:09+00:00.
+        for motivo in ("orquestrador: proposta aprovada", "orquestrador: proposta aprovada (pedido 123)"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo, {"identifier": "KRN-1199"})
+                self.assertEqual("proposta", tipo)
+                self.assertEqual("proposta", retomada.exigir_tipo(tipo, "linear-krn-1199", registrar=registrar))
+                registrar.assert_not_called()
+        for motivo in ("orquestrador: proposta aprovadamente", "orquestrador: motivo desconhecido"):
+            registrar = mock.Mock()
+            tipo = TK.tipo_execucao(motivo)
+            self.assertEqual("outro", tipo)
+            retomada.exigir_tipo(tipo, "linear-krn-1199", registrar=registrar)
+            registrar.assert_called_once()
+
+    def test_inc_198_reenvio_do_orquestrador_tem_tipo_sem_incidente(self):
+        for motivo in ("orquestrador: reenfileirada direto",
+                       "orquestrador: reenfileirada direto (falha OAuth do fantasma, sem sessão)"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo, ITEM)
+                self.assertEqual("manual", tipo)
+                self.assertEqual("manual", retomada.exigir_tipo(tipo, "linear-krn-1197", registrar=registrar))
+                registrar.assert_not_called()
+        # Uma mensagem nova do orquestrador continua exigindo classificação explícita.
+        self.assertEqual("outro", TK.tipo_execucao("orquestrador: motivo desconhecido", ITEM))
+
+    def test_inc_199_registro_real_bru_1198_nao_abre_incidente(self):
+        # uso.jsonl: execução encerrada em 2026-10-18T14:55:21+00:00.
+        motivo = "orquestrador: reenfileirada direto (falha OAuth do fantasma, sem sessão)"
+        registrar = mock.Mock()
+        tipo = TK.tipo_execucao(motivo, {"identifier": "KRN-1198"})
+        self.assertEqual("manual", tipo)
+        self.assertEqual("manual", retomada.exigir_tipo(tipo, "linear-krn-1198", registrar=registrar))
+        registrar.assert_not_called()
+        # O prefixo operacional não pode engolir motivos novos ou palavras maiores.
+        for desconhecido in ("orquestrador: outro motivo", "orquestrador: reenfileirada diretamente"):
+            self.assertEqual("outro", TK.tipo_execucao(desconhecido))
+
     def test_tipo_sempre_do_conjunto_conhecido(self):
         for motivo in (None, "", "   ", "motivo novo que ninguém previu", "voltou da espera do CI (x; vermelho)", "manual",
                        "linear KRN-1", "volta: conferência", "voltou de Done sem recibo", "alarme de tarefa parada"):
@@ -52,12 +222,25 @@ class TipoObrigatorioTest(unittest.TestCase):
     def test_todo_motivo_de_enfileirar_no_codigo_tem_tipo_proprio(self):
         """Quem inventa um motivo novo em `enfileirar(...)` sem casar um tipo cai em "outro": o teste quebra."""
         achados = set()
-        for arq in Path(agenda.__file__).parent.glob("*.py"):
+        for arq in [*Path(agenda.__file__).parent.glob("*.py"),
+                    *(Path(__file__).parent / "fixtures" / "tarefas").glob("*.md")]:
             for m in re.finditer(r"enfileirar\(\s*[\w.\[\]\"']+,\s*f?\"([^\"{]+)", arq.read_text(encoding="utf-8")):
                 achados.add(m.group(1))
         self.assertTrue(achados)
         sem_tipo = {m for m in achados if TK.tipo_execucao(m + "X" if m.endswith(" ") else m, {"comentarios": []}) == "outro"}
         self.assertEqual(set(), sem_tipo, "motivo de fila sem tipo em tokens._TIPOS")
+
+    def test_revisor_devolve_correcao_com_tipo_e_sem_incidente(self):
+        # INC-152/181/182/184/185/186: a devolução do revisor caía em "outro"; com sufixo de causa também vale.
+        for motivo in ("codex-revisor-merge: correção necessária",
+                       "codex-revisor-merge: correção necessária (CI vermelho)",
+                       "codex-revisor-merge: correção necessária\n"):
+            with self.subTest(motivo=motivo):
+                registrar = mock.Mock()
+                tipo = TK.tipo_execucao(motivo, ITEM)
+                self.assertEqual("conferencia", tipo)
+                self.assertEqual("conferencia", retomada.exigir_tipo(tipo, NOME, registrar=registrar))
+                registrar.assert_not_called()
 
     def test_exigir_tipo_valido_passa_e_vazio_vira_outro_com_incidente(self):
         incidentes = []
@@ -257,15 +440,19 @@ class ConferenciaMecanicaTest(DadosTest):
         linear.conferir({"titulo": "t"}, "x", chamar=lambda p: '{"completo": true, "mecanica": true}', extra=extra)
         self.assertFalse(extra["mecanica"])
 
-    def concluir(self, extra_mecanica, resultado):
+    def concluir(self, extra_mecanica, resultado, tipo=None):
         with tempfile.TemporaryDirectory() as d:
             saida = Path(d, "r.md")
             saida.write_text("Entreguei; falta só conferir se subiu.", encoding="utf-8")
             item = {"tipo": "issue", "id": "u", "identifier": "KRN-77", "titulo": "t", "descricao": "", "url": "x",
                     "modelo": "sonnet", "repos": [], "comentarios": [], "estados": {"In Review": "r", "In Progress": "p"}}
             reg = {"ok": True, "saida": str(saida), "conta": "1", "duracao_s": 60, "inicio": "2026-10-17T11:00:00+00:00"}
+            if tipo:
+                reg["tipo"] = tipo
+            self.chamou_conferir = False
 
             def conferir(i, t, extra=None, **k):
+                self.chamou_conferir = True
                 extra["mecanica"] = extra_mecanica
                 return "conferir que está no ar"
             with mock.patch.object(linear, "gql", side_effect=OSError("x")), mock.patch.object(linear, "atividade"), \
@@ -299,6 +486,39 @@ class ConferenciaMecanicaTest(DadosTest):
     def test_leitura_indisponivel_volta_como_sempre(self):
         volta, _, _ = self.concluir(True, {"resultado": "indisponivel", "faltas": []})
         self.assertIn("faltou conferir que está no ar", volta.linear["comentarios"][-1])
+
+    def test_retomada_de_espera_confere_pelo_recibo_sem_abrir_sessao(self):
+        # 19-21/10: 179 das 362 conferências vieram logo depois de espera_deploy, espera_ci, parada ou recibo
+        for tipo in sorted(retomada.SEM_CONFERENCIA_APOS):
+            volta, mover, mec = self.concluir(False, {"resultado": "ok", "faltas": []}, tipo=tipo)
+            self.assertFalse(self.chamou_conferir, tipo)
+            mec.assert_called_once()
+            self.assertIsNone(volta, tipo)
+            self.assertEqual("In Review", mover.call_args[0][1], tipo)
+
+    def test_retomada_de_espera_com_recibo_falhando_volta_com_o_motivo(self):
+        # Codex P2 (PR #836): nunca fechar sem nenhuma conferência, nem depois de mudança de código na retomada
+        for tipo in sorted(retomada.SEM_CONFERENCIA_APOS):
+            volta, _, _ = self.concluir(False, {"resultado": "falha", "faltas": ["PR não entrou"]}, tipo=tipo)
+            self.assertFalse(self.chamou_conferir, tipo)
+            self.assertIn("faltou PR não entrou", volta.linear["comentarios"][-1], tipo)
+
+    def test_retomada_de_espera_com_recibo_indisponivel_cai_na_conferencia_de_sempre(self):
+        for tipo in sorted(retomada.SEM_CONFERENCIA_APOS):
+            volta, _, _ = self.concluir(False, {"resultado": "indisponivel", "faltas": []}, tipo=tipo)
+            self.assertTrue(self.chamou_conferir, tipo)
+            self.assertIn("faltou conferir que está no ar", volta.linear["comentarios"][-1], tipo)
+
+    def test_primeira_fala_e_proposta_continuam_conferidas(self):
+        for tipo in ("primeira", "fala", "proposta", "fala_durante", "promessa", None):
+            volta, _, _ = self.concluir(False, {"resultado": "ok", "faltas": []}, tipo=tipo)
+            self.assertTrue(self.chamou_conferir, tipo)
+            self.assertIn("faltou conferir que está no ar", volta.linear["comentarios"][-1], tipo)
+
+    def test_so_tipos_de_retomada_de_espera_pulam_a_conferencia(self):
+        self.assertLessEqual(retomada.SEM_CONFERENCIA_APOS, TK.TIPOS_RETOMADA)
+        self.assertFalse(retomada.pular_conferencia("fala"))
+        self.assertFalse(retomada.pular_conferencia(None))
 
 
 class ParadaSemSessaoTest(DadosTest):
@@ -367,6 +587,49 @@ class EsperaCiTest(DadosTest):
         self.assertIn("; vermelho)", item["motivo"])
         self.assertEqual("espera_ci", TK.tipo_execucao(item["motivo"], item["linear"]))
 
+    def causa_deploy(self, pr, minutos, recibo_no_ar=None, tem_site=True):
+        e = esperas.gravar("krn-713", PR, 6, chamar=GitHubFalso(), base_dados=self.dados, agora=T0, no_ar="")
+        out = {}
+        with mock.patch("hub.recibo.no_ar", return_value=recibo_no_ar or (False, "ainda não")), \
+                mock.patch.object(esperas, "_tem_site", lambda r: tem_site):
+            fala = esperas.situacao(e, GitHubFalso(pr=pr), T0 + dt.timedelta(minutes=minutos), _out=out)
+        return fala, out
+
+    def test_causa_de_cada_abertura_da_espera_do_deploy(self):
+        fundido = {"state": "closed", "merged": True, "merge_commit_sha": SHA, "head": {"sha": SHA}}
+        casos = [({"state": "closed", "merged": False, "head": {"sha": SHA}}, 10, None, "pr_fechado"),
+                 ({"state": "open", "merged": False, "head": {"sha": SHA}}, 6 * 60 + 1, None, "pr_sem_merge"),
+                 (fundido, 6 * 60 + 1, None, "deploy_vencido"),
+                 (fundido, 10, (None, "o deploy deste repo não tem como conferir"), "deploy_nao_confere")]
+        for pr, minutos, recibo, causa in casos:
+            fala, out = self.causa_deploy(pr, minutos, recibo)
+            self.assertTrue(fala, causa)
+            self.assertEqual(causa, out.get("causa"))
+
+    def test_deploy_ainda_subindo_nao_acorda_nem_tem_causa(self):
+        fundido = {"state": "closed", "merged": True, "merge_commit_sha": SHA, "head": {"sha": SHA}}
+        fala, out = self.causa_deploy(fundido, 10)
+        self.assertIsNone(fala)
+        self.assertNotIn("causa", out)
+
+    def test_causa_da_sessao_sem_ia_que_falha_vai_no_motivo_do_deploy(self):
+        esperas.gravar("krn-164", PR, 6, chamar=GitHubFalso(), base_dados=self.dados, agora=T0, no_ar="")
+        fundido = {"state": "closed", "merged": True, "merge_commit_sha": SHA, "head": {"sha": SHA}}
+
+        def reabrir(ident, fala):
+            return linear.tarefa({"tipo": "issue", "id": "u", "identifier": ident, "titulo": "t", "descricao": "", "url": "x",
+                                  "modelo": "sonnet", "repos": [], "comentarios": [fala], "estados": {}})
+
+        def sem_ia(e, fala, d, *a, **k):
+            d["causa_ia"] = "recibo_falta"
+            return fala
+        with mock.patch.object(linear, "reabrir", reabrir), mock.patch.object(agenda, "em_loop", lambda *a, **k: None), \
+                mock.patch.object(agenda, "_sem_ia", sem_ia), mock.patch.object(linear, "gql", side_effect=AssertionError("L")), \
+                mock.patch("hub.recibo.no_ar", return_value=(True, "no ar (abc)")), mock.patch("hub.telemetria.marcar_no_ar"):
+            agenda.voltar_das_esperas({}, self.dados, chamar=GitHubFalso(pr=fundido), agora=T0 + dt.timedelta(minutes=10))
+        item = agenda.fila(self.dados)[0]
+        self.assertIn("; recibo_falta)", item["motivo"])
+
     def test_trecho_do_log_cai_para_o_job_vermelho_do_ci_yml(self):
         chamadas = []
 
@@ -381,16 +644,52 @@ class EsperaCiTest(DadosTest):
             logs.append(caminho)
             return "ok\n FAIL  tests/x.test.ts > grupo > nome\nAssertionError: 1 != 2\n"
         with mock.patch.object(esperas, "LOG_CI", "/nao/existe/{sha}.log"):
-            trecho = esperas.trecho_log(SHA, "example-org/clienteh", chamar, ler)
-        self.assertEqual(["repos/example-org/clienteh/actions/jobs/78/logs"], logs)
+            trecho = esperas.trecho_log(SHA, "acme/clienteh", chamar, ler)
+        self.assertEqual(["repos/acme/clienteh/actions/jobs/78/logs"], logs)
         self.assertIn("- tests/x.test.ts > grupo > nome", trecho)
-        self.assertIn("job do ci.yml de example-org/clienteh@39290728", trecho)
+        self.assertIn("job do ci.yml de acme/clienteh@39290728", trecho)
+
+    def test_trecho_le_o_comentario_do_local_ci_antes_do_ci_yml(self):  #
+        corpo = (f"<!-- local-ci-log {SHA} -->\n**local-ci vermelho** em `npm test` (12 min) no commit `{SHA[:8]}`, em vps-parceiro.\n\n"
+                 "Testes que falharam:\n- tests/x.test.ts > grupo > nome\n- tests/y.test.ts > outro\n\n"
+                 "Últimas 80 linhas do log:\n```\nlinha 1\nAssertionError: 1 != 2\n```\n")
+        chamadas = []
+
+        def chamar(caminho):
+            chamadas.append(caminho)
+            if caminho.endswith(f"commits/{SHA}/pulls?per_page=10"):
+                return [{"number": 42}]
+            if "issues/42/comments" in caminho:
+                return [{"body": "revisão", "id": 1},
+                        {"body": f"<!-- local-ci-log {'0' * 40} -->\nvelho\n```\nde outro sha\n```\n", "id": 2},
+                        {"body": corpo, "id": 3, "updated_at": "2026-10-20T10:00:00Z"}]
+            if "commits/" in caminho and "/comments" in caminho:
+                return []
+            raise AssertionError(f"foi ao ci.yml: {caminho}")
+        with mock.patch.object(esperas, "LOG_CI", "/nao/existe/{sha}.log"):
+            trecho = esperas.trecho_log(SHA, "acme/clienteh", chamar, lambda c: self.fail("leu o ci.yml"))
+        self.assertIn("Testes que falharam:\n- tests/x.test.ts > grupo > nome\n- tests/y.test.ts > outro", trecho)
+        self.assertIn("AssertionError: 1 != 2", trecho)
+        self.assertIn("comentário do local-ci no PR #42", trecho)
+        self.assertNotIn("de outro sha", trecho)
+
+    def test_trecho_le_o_comentario_no_commit_da_main(self):  #
+        corpo = f"<!-- local-ci-log {SHA} -->\nx\n\nÚltimas 80 linhas do log:\n```\nerro de build\n```\n"
+
+        def chamar(caminho):
+            if "/comments" in caminho and caminho.split("?")[0].endswith(f"commits/{SHA}/comments"):
+                return [{"body": corpo}]
+            return []
+        with mock.patch.object(esperas, "LOG_CI", "/nao/existe/{sha}.log"):
+            trecho = esperas.trecho_log(SHA, "acme/clienteh", chamar, lambda c: "")
+        self.assertIn("erro de build", trecho)
+        self.assertIn(f"comentário do local-ci no commit {SHA[:8]}", trecho)
 
     def test_trecho_sem_log_nem_job_mantem_o_aviso_de_nao_re_disparar(self):
         def chamar(caminho):
             raise OSError("sem rede")
         with mock.patch.object(esperas, "LOG_CI", "/nao/existe/{sha}.log"):
-            trecho = esperas.trecho_log(SHA, "example-org/clienteh", chamar, lambda c: "")
+            trecho = esperas.trecho_log(SHA, "acme/clienteh", chamar, lambda c: "")
         self.assertIn("NÃO re-dispare às cegas", trecho)
 
 

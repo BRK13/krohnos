@@ -303,9 +303,27 @@ def passo_linear(c):
         raise Erro("informe o time ou a chave de API, ou toque em pular")
     if chave:
         _gravar_env(_segredos() / "linear.env", "LINEAR_API_KEY", chave)
-    if time:
-        _gravar_toml(lambda d: d.setdefault("linear", {}).update({"time": time}))
+    if time or chave:
+        def altera(d):
+            if time:
+                d.setdefault("linear", {}).update({"time": time})
+            if chave:  # chave salva = Linear liga como fila; só o time não basta (sem chave nada conversa com ele)
+                d.setdefault("issues", {})["provedor"] = "linear"
+        _gravar_toml(altera)
     return "Linear salvo."
+
+
+def _pular_linear():
+    """Sem Linear as tarefas ficam na fila própria do hub; não rebaixa quem já escolheu o Linear nem quem tem a chave
+    salva (pular o passo de novo desligaria o Linear calado)."""
+    from hub import linear
+    if linear._segredo("LINEAR_API_KEY") or linear._segredo("LINEAR_APP2_CLIENT_ID"):
+        return
+
+    def altera(d):
+        if d.get("issues", {}).get("provedor") != "linear":
+            d.setdefault("issues", {})["provedor"] = "local"
+    _gravar_toml(altera)
 
 
 def passo_projeto(c):
@@ -358,6 +376,13 @@ def executar(passo, campos):
     proximo = PASSOS[PASSOS.index(passo) + 1] if passo != PASSOS[-1] else None
     if passo in OPCIONAIS and campos.get("acao") == "pular":
         msg = "Pulado."
+        if passo == "linear":
+            try:
+                _pular_linear()
+            except (Erro, init.InitErro) as ex:
+                return "erro", str(ex), passo
+            except OSError as ex:
+                return "erro", f"Não consegui gravar ({type(ex).__name__}).", passo
     else:
         try:
             msg = FUNCOES[passo](campos)
@@ -405,7 +430,7 @@ def _corpo_passo(passo, token, token_config=""):
         campos = (_campo("time", "Chave do time (ex.: EXE)", config.get("linear.time"), dica="EXE")
                   + _campo("chave", "Chave de API" + (f" (já salva, termina em {u}; deixe vazio para manter)" if u else ""),
                            tipo="password"))
-        ajuda = "Opcional. Sem Linear, o hub ainda mostra os sites, só não cria tarefas."
+        ajuda = "Opcional. Sem Linear, as tarefas ficam na fila própria do hub (painel → Issues)."
     elif passo == "projeto":
         campos = (_campo("dominio", "Domínio do site (ex.: minhaempresa-com.example)", obrigatorio=True)
                   + _campo("id", "Id curto (minúsculas e hífen; vazio = primeira parte do domínio)")

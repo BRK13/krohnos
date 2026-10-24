@@ -325,14 +325,48 @@ def _log_do_job(repo, sha, chamar, ler_texto):
     return ""
 
 
+RE_BLOCO_LOG = re.compile(r"```\n(.*?)\n?```\s*$", re.S)
+
+
+def _log_do_comentario(repo, sha, chamar):
+    """o local-ci (vps-parceiro) comenta no PR, ou no commit se é a main, `<!-- local-ci-log <sha> -->` com os
+    testes que falharam e o fim do log. Devolve (onde, falhas, texto do log) do comentário mais novo deste sha, ou None."""
+    marca = f"<!-- local-ci-log {sha} -->"
+    fontes = [(f"repos/{repo}/commits/{sha}/comments?per_page=100", f"commit {sha[:8]}")]
+    for pr in chamar(f"repos/{repo}/commits/{sha}/pulls?per_page=10") or []:
+        fontes.append((f"repos/{repo}/issues/{pr['number']}/comments?per_page=100", f"PR #{pr['number']}"))
+    achados = []
+    for caminho, onde in fontes:
+        with contextlib.suppress(Exception):
+            achados += [(c, onde) for c in chamar(caminho) or [] if (c.get("body") or "").startswith(marca)]
+    if not achados:
+        return None
+    c, onde = max(achados, key=lambda a: a[0].get("updated_at") or a[0].get("created_at") or "")
+    corpo = c["body"]
+    bloco = RE_BLOCO_LOG.search(corpo)
+    if not bloco:
+        return None
+    falhas = []
+    if "Testes que falharam:" in corpo:
+        for ln in corpo.split("Testes que falharam:", 1)[1].splitlines()[1:]:
+            if not ln.startswith("- "):
+                break
+            falhas.append(ln[2:].strip())
+    return f"comentário do local-ci no {onde}", falhas, bloco.group(1)
+
+
 def trecho_log(sha, repo=None, chamar=None, ler_texto=None):
     """Testes que falharam e as últimas LINHAS_LOG linhas do log do local-ci deste commit, para a fala de volta. Sem
-    acesso ao log do runner, tenta o job vermelho do `ci.yml` (o hub abre a sessão JÁ com o erro no prompt)."""
+    acesso ao log do runner, tenta o comentário que o local-ci deixa no PR e, depois, o job vermelho do `ci.yml` (o hub abre a sessão JÁ com o erro no prompt)."""
     caminho = LOG_CI.format(sha=sha)
     try:
         texto = RE_ANSI.sub("", Path(caminho).read_text(encoding="utf-8", errors="replace"))
     except OSError as erro:
         if repo:
+            with contextlib.suppress(Exception):  # o runner (outra máquina) deixa o fim do log num comentário
+                achado = _log_do_comentario(repo, sha, chamar or gh_api)
+                if achado:
+                    return _formatar_log(achado[2], achado[0], achado[1])
             with contextlib.suppress(Exception):
                 texto = RE_ANSI.sub("", _log_do_job(repo, sha, chamar or gh_api, ler_texto or _gh_texto))
                 if texto.strip():
@@ -343,9 +377,9 @@ def trecho_log(sha, repo=None, chamar=None, ler_texto=None):
     return _formatar_log(texto, caminho)
 
 
-def _formatar_log(texto, caminho):
+def _formatar_log(texto, caminho, falhas=None):
     linhas = texto.splitlines()
-    falhas = list(dict.fromkeys(m.group(1).strip() for ln in linhas if (m := RE_FALHA.match(ln))))
+    falhas = falhas or list(dict.fromkeys(m.group(1).strip() for ln in linhas if (m := RE_FALHA.match(ln))))
     saida = ""
     if falhas:
         mais = f" (+{len(falhas) - MAX_FALHAS})" if len(falhas) > MAX_FALHAS else ""
@@ -367,7 +401,10 @@ def _situacao_no_ar(e, chamar, agora, vencida, aviso, get=None, _out=None):
         sha = e.get("no_ar") or pr.get("merge_commit_sha") or ""
         if not (pr.get("merged") or pr.get("merged_at")) and not e.get("no_ar"):
             if pr.get("state") == "closed":
+                _causa(_out, "pr_fechado")
                 return f"{aviso}PR {e['pr']} foi fechado sem merge: não há o que esperar no ar. Veja por quê e termine."
+            if vencida:
+                _causa(_out, "pr_sem_merge")
             return f"{aviso}PR {e['pr']} ainda não tem merge: nada para conferir no ar. Faça o merge (ou espere o CI com `voltar-quando --pr`)." if vencida else None
         if e.get("url"):
             corpo = (get or _get_texto)(e["url"])
@@ -383,6 +420,7 @@ def _situacao_no_ar(e, chamar, agora, vencida, aviso, get=None, _out=None):
             _out["desfecho"] = {"tipo": "no_ar", "texto": f"No ar: {nota}. Fechado pelo hub, sem IA.", "sha": sha}
         return f"O merge {sha[:8]} do PR {e['pr']} está no ar ({nota}). Confira a página uma vez com curl e termine."
     if ok is None and not nota.startswith(recibo.NAO_LEU):  # sem deploy que o hub confira: esperar não adianta
+        _causa(_out, "deploy_nao_confere")
         if _out is not None and sha and ("promoção" in nota or not _tem_site(e["repo"])):
             # develop (nada novo no ar até a promoção) ou repo sem site: não há o que conferir, o merge basta.
             # Com site, um 200 pode ser a página antiga (deploy falho): a IA confere e pede o deploy-app.
@@ -390,8 +428,15 @@ def _situacao_no_ar(e, chamar, agora, vencida, aviso, get=None, _out=None):
         return f"PR {e['pr']}: o hub não sabe conferir o deploy deste repo ({nota}). Confira uma vez com curl; não subiu: `deploy-app` e termine."
     if not vencida:
         return None
+    _causa(_out, "deploy_vencido")
     return (f"{aviso}O merge {sha[:8]} do PR {e['pr']} ainda não está no ar ({nota}). Registre no diário "
             "(`hub.consertos registrar`) e termine; no ClienteJ não peça deploy-app, nos outros sites peça uma vez.")
+
+
+def _causa(out, causa):
+    """por que a espera do deploy abre uma sessão (vai no motivo da execução, como a causa da espera do CI)."""
+    if out is not None:
+        out["causa"] = causa
 
 
 def _tem_site(repo):

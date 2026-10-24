@@ -29,9 +29,14 @@ idioma = "pt-BR"
 org = "exemplo-org"
 base_padrao = "main"
 
-[linear]
+[issues]
+provedor = "local"              # "local" = fila própria do hub (SQLite, painel -> Issues); "linear" = Linear (opcional)
+prefixo = "KRO"                  # as issues locais se chamam KRO-1, KRO-2...
+
+[linear]                         # só vale com provedor = "linear"
 time = "EXE"
 projeto_padrao = ""
+# workspace = "exemplo"           # linear.app/<workspace>/issue/EXE-1: o link das issues no Cérebro (vazio = sem link)
 
 [painel]
 dominio = "krohnos.exemplo.test"
@@ -61,6 +66,27 @@ site = ""
 # Negócios do BI: ids do armazém e nomes curtos; não depende dos sites de SEO.
 [bi.negocios]
 exemplo-loja = "Loja exemplo"
+
+# Cérebro (/cerebro): o mapa da operação nasce daqui e do cadastro de sites, nunca do código. Sem nada: Você → Orquestrador →
+# Fila → as contas de [agentes] contas e "configure seus sites" (ou os sites do cadastro / do `krohnos demo`). Cada nó de
+# infraestrutura só aparece com a chave dele; caminho vazio = sem nó e sem leitura.
+# [cerebro]
+# servidor = ""                  # id do servidor do hub (a chave dele em monitor/remotos.json); vazio = sem nó de servidor
+# servidor_rotulo = "Servidor"
+# servidor_deploys = ""          # id do site que sobe direto no servidor (deploys em remotos.json[servidor].deploys)
+# codex = false                  # nó Codex (também liga sozinho com uma faixa "codex" em [agentes.faixas])
+# codex_revisoes = ""            # jsonl das revisões do Codex (um evento por revisão); vazio = sem leitura
+# gpu_estacao = ""               # json do sinal da estação GPU ({"visto_em", "ocupada", "gpu"}); vazio = sem nó PC
+# pc_rotulo = "PC · GPU"
+# ci = false                     # nó CI (local-ci): só com a esteira de CI ligada
+# debugger = false               # nó Debugger (conserta CI vermelho): só com a esteira do Debugger ligada
+# versao = []                    # ids de site que respondem /api/versao (commit no ar)
+# [cerebro.sites]                # lista fechada: só estes sites, nesta ordem e com este rótulo (sem: todos os ativos, rótulo = nome)
+# exemplo-loja = "Loja"
+# [cerebro.repos]                # repo (nome curto) → nó, além do repo.github de cada site do cadastro
+# meu-hub = "servidor-1"
+# [cerebro.projetos]             # projeto do Dokploy → nó, além do evento_exemplo pelo nome do site
+# "Loja Exemplo App" = "exemplo-loja"
 
 # Rotinas do sistema (crontab): sem esta seção a tela só mostra as rotinas de plugin.
 # [rotinas]

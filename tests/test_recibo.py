@@ -13,9 +13,9 @@ MERGE = "a" * 40
 BRU667 = {
     "id": "id-667", "identifier": "KRN-667", "title": "Reel ClienteJ: trocar a voz por narradora da ElevenLabs",
     "completedAt": "2026-10-14T20:14:34.860Z", "state": {"name": "Done", "type": "completed"},
-    "description": ("Repo: example-org/filmes.\n\n4. Render final A e B com a voz escolhida.\n"
+    "description": ("Repo: acme/filmes.\n\n4. Render final A e B com a voz escolhida.\n"
                     "5. Comente aqui o caminho dos 2 mp4 finais e das 3 amostras; eu mando para o WhatsApp dele. PR com merge."),
-    "attachments": {"nodes": [{"url": "https://github.com/example-org/filmes/pull/64", "title": "Reel ClienteJ"}]},
+    "attachments": {"nodes": [{"url": "https://github.com/acme/filmes/pull/64", "title": "Reel ClienteJ"}]},
     "comments": {"nodes": [{"createdAt": "2026-10-14T20:19:00Z", "user": {"app": True}, "body":
         "Os 2 mp4 finais e as 3 amostras de voz ainda não foram feitos. A conta da chave continua no plano free. "
         "A voz nova depende de assinar o Starter da ElevenLabs (US$ 5/mês)."}]},
@@ -64,6 +64,23 @@ class Regras(unittest.TestCase):
         self.assertEqual({"pdf", "aviso"}, recibo.exige("PDF anexado e um aviso ao Ana no WhatsApp"))
         self.assertEqual(set(), recibo.exige("PR mergeado e no ar"))
 
+    def test_inc197_prs_anexados_nao_exigem_arquivo(self):
+        # Último parágrafo real da o falso anexo devolvia Done
+        # para In Progress e disparava o alarme de tarefa parada.
+        descricao = (
+            "Corrigir o portão de Done.\n\n"
+            "1. Não contar PR citado nos comentários do próprio portão.\n"
+            "2. Melhor ainda: contar só os PRs anexados à issue e os que ela mesma cita como entrega "
+            '(Fixes/Closes KRN-N no corpo do PR ou a "issue dona" bater).\n'
+            "3. Teste de regressão com o caso da KRN-1129."
+        )
+        self.assertEqual(set(), recibo.exige(recibo.pronto_quando(descricao)))
+        for texto in ("PR anexado à issue", "PRs anexados à issue", "prs anexados à issue"):
+            with self.subTest(texto=texto):
+                self.assertEqual(set(), recibo.exige(texto))
+        self.assertEqual({"anexo"}, recibo.exige("Relatório anexado à issue"))
+        self.assertEqual({"pdf"}, recibo.exige("PRs anexados à issue; PDF anexado com a prova"))
+
     def test_inc45_proibicao_de_whatsapp_nao_exige_aviso(self):
         descricao = (
             "## O que fazer\n\n"
@@ -99,7 +116,7 @@ class Regras(unittest.TestCase):
 
 class DeployNaFila(unittest.TestCase):
     """merge fora do ar com execução do workflow pendente é deploy atrasado, não falta."""
-    ISSUE = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
+    ISSUE = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/acme/clienteh/pull/9"}]}}
 
     def setUp(self):
         patch = mock.patch.dict(recibo.DEPLOY_CRON, {}, clear=True)
@@ -157,7 +174,7 @@ class DeployCronLocal(unittest.TestCase):
     def test_cron_nao_consulta_actions(self):
         def gh(c):
             raise AssertionError(c)
-        estado, nota = recibo.deploy_pendente("example-org/clienteh", MERGE, "main", gh)
+        estado, nota = recibo.deploy_pendente("acme/clienteh", MERGE, "main", gh)
         self.assertEqual("pendente", estado)
         self.assertIn("ainda não confirmada", nota)
 
@@ -190,7 +207,7 @@ class DeployCronLocal(unittest.TestCase):
 
 class FixRodada1(unittest.TestCase):
     MEDIR = ("página no ar com status 200, no sitemap; testes verdes, deploy conferido com curl.{sep}**Medir depois:** "
-             "[https://clientec-com.example/tabela-de-emolumentos](<https://clientec-com.example/tabela-de-emolumentos>) · \"tabela\"")
+             "[https://site-a.exemplo.com/tabela-de-emolumentos](<https://site-a.exemplo.com/tabela-de-emolumentos>) · \"tabela\"")
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -218,14 +235,12 @@ class FixRodada1(unittest.TestCase):
         self.assertEqual({"aviso"}, recibo.exige("**Um** aviso ao Ana com o número."))
         self.assertEqual({"aviso"}, recibo.exige("Mande ao Ana no WhatsApp **um** aviso com uma prancha"))
 
-    def test_d_sem_registro_de_deploy_e_base_diferente_sao_na(self):
-        site = {"repo": {"github": "example-org/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}}
+    def test_d_sem_registro_de_deploy_e_na(self):
+        site = {"repo": {"github": "acme/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}}
         with mock.patch("hub.sites.ativos", return_value=[site]):
-            ok, nota = recibo.no_ar("example-org/cliente-a-v2", MERGE, gh=lambda c: {}, base_dados=self.dados)
+            ok, nota = recibo.no_ar("acme/cliente-a-v2", MERGE, gh=lambda c: {}, base_dados=self.dados)
         self.assertIsNone(ok)
         self.assertIn("sem registro de deploy", nota)
-        ok, nota = recibo.no_ar("example-org/cliente-c", MERGE, gh=lambda c: {}, base_dados=self.dados, base="develop")
-        self.assertEqual((None, "no ar: n/a (base develop; sobe na promoção para main)"), (ok, nota))
 
     def test_e_consulta_parte_de_ultimo_menos_1h(self):
         vistas = []
@@ -257,8 +272,8 @@ class FixRodada1(unittest.TestCase):
 
     def test_url_em_comando_markdown_nao_inclui_crase(self):
         import urllib.error
-        url = "https://clienteeemoraesadv-com.example/tribunais-superiores/sumulas"
-        site = {"dominio": "clienteeemoraesadv-com.example", "repo": None, "ids": {}}
+        url = "https://site-f.exemplo.com/tribunais-superiores/sumulas"
+        site = {"dominio": "site-f.exemplo.com", "repo": None, "ids": {}}
         for texto in (f"`{url}`", f"[{url}]({url})",
                       f"`curl -s {url}` mostra ItemList válido.",
                       f"[{url}](<{url}>)", url):
@@ -279,7 +294,7 @@ class FixRodada1(unittest.TestCase):
 
 
 class ProvaUrlInc60(unittest.TestCase):
-    URL = "https://clientej-com-br.example/lei/sp/lei-123"
+    URL = "https://site-d.exemplo.com/lei/sp/lei-123"
 
     def avaliar(self, corpo, abrir, comentario=None):
         issue = {**BRU667, "identifier": "KRN-975", "title": "Leis estaduais no ar",
@@ -287,9 +302,9 @@ class ProvaUrlInc60(unittest.TestCase):
                  "attachments": {"nodes": []}, "comments": {"nodes": [
                      {"createdAt": "2026-10-17T02:00:00Z", "user": {"app": True}, "body": corpo},
                      {"createdAt": "2026-10-16T22:00:00Z", "user": {"app": True},
-                      "body": "Versão antiga https://clientej-com-br.example/antiga"}]}}
+                      "body": "Versão antiga https://site-d.exemplo.com/antiga"}]}}
         with tempfile.TemporaryDirectory() as dados, \
-                mock.patch("hub.sites.ativos", return_value=[{"dominio": "clientej-com-br.example"}]), \
+                mock.patch("hub.sites.ativos", return_value=[{"dominio": "site-d.exemplo.com"}]), \
                 mock.patch.object(recibo, "conferir_dados", return_value=""), \
                 mock.patch("urllib.request.urlopen", side_effect=abrir) as chamada:
             r = recibo.conferir(issue, base_dados=dados, agora=T0, comentario=comentario)
@@ -310,12 +325,12 @@ class ProvaUrlInc60(unittest.TestCase):
 
     def test_subdominio_e_conferido_e_pontuacao_final_sai_da_url(self):
         erro = urllib.error.HTTPError(self.URL, 404, "x", {}, None)
-        r, urls = self.avaliar("Veja https://www.clientej-com-br.example/lei/a.", erro)
-        self.assertEqual(["https://www.clientej-com-br.example/lei/a"], urls)
+        r, urls = self.avaliar("Veja https://www.site-d.exemplo.com/lei/a.", erro)
+        self.assertEqual(["https://www.site-d.exemplo.com/lei/a"], urls)
         self.assertFalse(r["ok"])
 
     def test_comentario_final_cita_login_403_sem_barrar(self):
-        r, urls = self.avaliar("Rota protegida https://clientej-com-br.example/admin responde 403.",
+        r, urls = self.avaliar("Rota protegida https://site-d.exemplo.com/admin responde 403.",
                                urllib.error.HTTPError(self.URL, 403, "x", {}, None))
         self.assertEqual(1, len(urls))
         self.assertTrue(r["ok"], r)
@@ -331,8 +346,8 @@ class ProvaUrlInc60(unittest.TestCase):
         self.assertEqual([self.URL], urls)
 
     def test_dominio_no_caminho_ou_sufixo_nao_e_site_cadastrado(self):
-        r, urls = self.avaliar("https://externo.test/clientej-com-br.example/a "
-                               "https://clientej-com-br.example.externo.test/a", AssertionError("rede indevida"))
+        r, urls = self.avaliar("https://externo.test/site-d.exemplo.com/a "
+                               "https://site-d.exemplo.com.externo.test/a", AssertionError("rede indevida"))
         self.assertTrue(r["ok"], r)
         self.assertEqual([], urls)
 
@@ -394,24 +409,29 @@ class FixRodada3(unittest.TestCase):
         def get(url):
             raise TimeoutError("lento")
         pr = {"merged": True, "merge_commit_sha": MERGE, "state": "closed", "base": {"ref": "main"}}
-        issue = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/example-org/clienteh/pull/9"}]}}
+        issue = {**BRU667, "description": "Corrigir.", "attachments": {"nodes": [{"url": "https://github.com/acme/clienteh/pull/9"}]}}
         for merged_at, esperar in (("2026-10-14T20:00:00Z", True), ("2026-10-14T10:00:00Z", False)):
             r = recibo.conferir(issue, gh=lambda c: {**pr, "merged_at": merged_at}, get=get, base_dados=self.dados, agora=T0)
             self.assertEqual((esperar, []), (r["esperar"], r["faltas"]), r)
-        ok, nota = recibo.no_ar("example-org/clienteh", MERGE, gh=lambda c: {}, get=lambda u: {"commit": ""})
+        ok, nota = recibo.no_ar("acme/clienteh", MERGE, gh=lambda c: {}, get=lambda u: {"commit": ""})
         self.assertIsNone(ok)
         self.assertIn(recibo.NAO_LEU, nota)
         with mock.patch("subprocess.run", return_value=mock.Mock(returncode=1, stdout="")):
-            ok, nota = recibo.no_ar("example-org/bot_whatsapp", MERGE, gh=lambda c: {})
+            ok, nota = recibo.no_ar("acme/bot_whatsapp", MERGE, gh=lambda c: {})
         self.assertIsNone(ok)
 
-    def test_3_pr_empilhado_e_na(self):
-        ok, nota = recibo.no_ar("example-org/clienteh", MERGE, gh=lambda c: {}, base="krn-1-a")
-        self.assertIsNone(ok)
-        self.assertIn("base krn-1-a", nota)
+    def test_3_pr_empilhado_confere_producao(self):
+        ok, nota = recibo.no_ar("acme/clienteh", MERGE, gh=lambda c: {},
+                                 get=lambda u: {"commit": MERGE}, base="krn-1-a")
+        self.assertTrue(ok, nota)
+        # pilha ainda fora da produção (behind) cobra; divergente (squash na pilha) é inconclusivo
+        for status, esperado in (("behind", False), ("diverged", None)):
+            ok, nota = recibo.no_ar("acme/clienteh", MERGE, gh=lambda c, st=status: {"status": st},
+                                     get=lambda u: {"commit": "b" * 40}, base="krn-1-a")
+            self.assertIs(ok, esperado, nota)
         # Codex 104569a: bot_whatsapp publica de master; PR na master confere o checkout, não vira n/a
         with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0, stdout=MERGE)):
-            ok, nota = recibo.no_ar("example-org/bot_whatsapp", MERGE, gh=lambda c: {}, base="master")
+            ok, nota = recibo.no_ar("acme/bot_whatsapp", MERGE, gh=lambda c: {}, base="master")
         self.assertTrue(ok, nota)
 
     def test_4_exige_so_entregas(self):
@@ -488,18 +508,18 @@ class Conferir(unittest.TestCase):
         self.assertTrue(recibo.conferir(issue, gh=gh_falso(), base_dados=self.dados)["ok"])
 
     def test_repo_sem_deploy_conhecido_nao_cobra_no_ar(self):  # Review Focus 2
-        self.assertEqual((None, "no ar: n/a"), recibo.no_ar("example-org/filmes", MERGE, gh=gh_falso()))
+        self.assertEqual((None, "no ar: n/a"), recibo.no_ar("acme/filmes", MERGE, gh=gh_falso()))
 
     def test_site_com_dokploy_usa_o_sha_do_deploys_json(self):  # repo é dict em sites/*.json: repo["github"]
-        site = {"repo": {"github": "example-org/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}}
+        site = {"repo": {"github": "acme/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}}
         (Path(self.dados) / "vps").mkdir()
         (Path(self.dados) / "vps" / "deploys.json").write_text(json.dumps({"APP1": {"sha": "b" * 40}}))
         with mock.patch("hub.sites.ativos", return_value=[site]):
-            ok, _ = recibo.no_ar("example-org/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, base_dados=self.dados)
+            ok, _ = recibo.no_ar("acme/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, base_dados=self.dados)
         self.assertTrue(ok)
 
     def test_site_com_api_versao_usa_o_commit_servido_e_cai_no_registro_sem_ela(self):  # F5
-        site = {"repo": {"github": "example-org/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}, "dominio": "clientea-com.example"}
+        site = {"repo": {"github": "acme/cliente-a-v2"}, "ids": {"dokploy_app": "APP1"}, "dominio": "site-b.exemplo.com"}
         (Path(self.dados) / "vps").mkdir()
         (Path(self.dados) / "vps" / "deploys.json").write_text(json.dumps({"APP1": {"sha": "b" * 40}}))
         urls = []
@@ -507,36 +527,36 @@ class Conferir(unittest.TestCase):
             urls.append(u)
             return {"commit": MERGE, "buildStamp": None, "startedAt": "x"}
         with mock.patch("hub.sites.ativos", return_value=[site]):
-            ok, nota = recibo.no_ar("example-org/cliente-a-v2", MERGE, gh=lambda c: {}, get=get, base_dados=self.dados)
-            self.assertEqual(["https://clientea-com.example/api/versao"], urls)
+            ok, nota = recibo.no_ar("acme/cliente-a-v2", MERGE, gh=lambda c: {}, get=get, base_dados=self.dados)
+            self.assertEqual(["https://site-b.exemplo.com/api/versao"], urls)
             self.assertTrue(ok)
             self.assertIn(MERGE[:8], nota)
             # rota ainda não existe (404) ou sem commit: vale o registro do Dokploy
             def sem_rota(u):
                 raise urllib.error.HTTPError(u, 404, "nf", {}, None)
-            ok, nota = recibo.no_ar("example-org/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, get=sem_rota, base_dados=self.dados)
+            ok, nota = recibo.no_ar("acme/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, get=sem_rota, base_dados=self.dados)
             self.assertTrue(ok)
             self.assertIn("bbbbbbbb", nota)
-            ok, _ = recibo.no_ar("example-org/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, get=lambda u: {"commit": None}, base_dados=self.dados)
+            ok, _ = recibo.no_ar("acme/cliente-a-v2", MERGE, gh=lambda c: {"status": "ahead"}, get=lambda u: {"commit": None}, base_dados=self.dados)
             self.assertTrue(ok)
 
     def test_site_sem_dokploy_mas_com_api_versao_tambem_e_conferido(self):  # F5
-        site = {"repo": {"github": "example-org/cliente-q-clientei"}, "ids": {}, "dominio": "clientel"}
+        site = {"repo": {"github": "acme/cliente-q-clientei"}, "ids": {}, "dominio": "clientel"}
         with mock.patch("hub.sites.ativos", return_value=[site]):
-            ok, _ = recibo.no_ar("example-org/cliente-q-clientei", MERGE, gh=lambda c: {}, get=lambda u: {"commit": "c" * 40}, base_dados=self.dados)
+            ok, _ = recibo.no_ar("acme/cliente-q-clientei", MERGE, gh=lambda c: {}, get=lambda u: {"commit": "c" * 40}, base_dados=self.dados)
             self.assertFalse(ok)  # servindo outro commit que não contém o merge
-            ok, nota = recibo.no_ar("example-org/cliente-q-clientei", MERGE, gh=lambda c: {}, get=lambda u: {}, base_dados=self.dados)
+            ok, nota = recibo.no_ar("acme/cliente-q-clientei", MERGE, gh=lambda c: {}, get=lambda u: {}, base_dados=self.dados)
             self.assertEqual((None, "no ar: n/a"), (ok, nota))
 
     def test_clientej_no_ar_pela_api_versao(self):
         def gh(c):
             self.assertIn(f"compare/{MERGE}...{'b' * 40}", c)
             return {"status": "ahead"}
-        ok, _ = recibo.no_ar("example-org/clienteh", MERGE, gh=gh, get=lambda url: {"commit": "b" * 40})
+        ok, _ = recibo.no_ar("acme/clienteh", MERGE, gh=gh, get=lambda url: {"commit": "b" * 40})
         self.assertTrue(ok)
 
     def test_clientej_ainda_sem_o_merge(self):
-        ok, nota = recibo.no_ar("example-org/clienteh", MERGE, gh=lambda c: {"status": "behind"}, get=lambda url: {"commit": "b" * 40})
+        ok, nota = recibo.no_ar("acme/clienteh", MERGE, gh=lambda c: {"status": "behind"}, get=lambda url: {"commit": "b" * 40})
         self.assertFalse(ok)
         self.assertIn("não está no ar", nota)
 
@@ -721,3 +741,164 @@ class FixFinal(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=OSError("x")) as u, self.assertRaises(OSError):
             recibo._get_json("https://x")
         self.assertEqual(20, u.call_args.kwargs["timeout"])
+
+
+class Inc213(unittest.TestCase):
+    def test_recibo_humano_posterior_substitui_diagnosticos(self):
+        def c(data, body, app=True):
+            return {"createdAt": data, "body": body, "user": {"app": app}}
+        issue = {"title": "Amostragem STJ", "description": "Provar dedup",
+                 "comments": {"nodes": [
+                     c("4", "Voltou de Done: sem recibo de pronto (OAuth antigo)."),
+                     c("3", "Recibo: 3704 duplicatas removidas; backup conferido.", False),
+                     c("2", "Done barrado pelo portão: falta prova antiga", False),
+                     c("1", "Dedup aplicada"),
+                     {"createdAt": "5", "body": "This thread is for an agent session with claude.", "user": None}]}}
+        with mock.patch.object(recibo.linear, "conferir", return_value="") as conferir:
+            self.assertEqual("", recibo.conferir_dados(issue))
+            item, entrega = conferir.call_args.args
+            self.assertEqual(["Dedup aplicada", "Recibo: 3704 duplicatas removidas; backup conferido."], item["comentarios"])
+            self.assertIn("3704", entrega)
+            self.assertNotIn("OAuth", entrega)
+            self.assertIn("não são falta de entrega", item["descricao"])
+            recibo.conferir_dados(issue, "Falta conferir backup")
+            self.assertEqual("Falta conferir backup", conferir.call_args.args[1])
+
+
+class Inc228(unittest.TestCase):
+    def test_bru987_recibo_e_ranking_sobrevivem_aos_repasses(self):
+        ranking = "https://uploads.linear.app/workspace/ranking.json"
+        recibo_real = ("Feito: a mineração rodou e o ranking.json novo está anexado na issue "
+                       "(1813 eventos, 31 classes). Conferi no GitHub que as 15 peças estão "
+                       "mergeadas no main, e o recibo está postado.")
+        falas = [(recibo_real, True),
+                 ("Orquestrador: as 15 peças estão na main e no ar; resto segue na KRN-1034.", False),
+                 ("Orquestrador: o único bloqueio do Done é o deploy do #698 subir.", False),
+                 ("Parei: esta issue rodou 8 voltas automáticas em 24 h sem entrega.", True),
+                 ("Orquestrador: #698 no ar; 15 peças na main e no ar.", False),
+                 ("Voltou de Done: não mostra o ranking novo anexado.", True),
+                 ("This thread is for an agent session with claude.", False)]
+        issue = {"title": "Lições frente 2", "description": "Anexar ranking novo da amostragem.",
+                 "attachments": {"nodes": [{"title": "ranking.json", "url": ranking}]},
+                 "comments": {"nodes": [{"createdAt": str(n), "body": b, "user": {"app": app}}
+                                        for n, (b, app) in enumerate(falas)]}}
+        with mock.patch.object(recibo.linear, "conferir", return_value="") as conferir:
+            recibo.conferir_dados(issue)
+            item, entrega = conferir.call_args.args
+            self.assertIn(recibo_real, entrega)
+            self.assertIn("#698 no ar", entrega)
+            self.assertIn(ranking, entrega)
+            self.assertNotIn("Voltou de Done", entrega)
+            self.assertNotIn("This thread", entrega)
+            # O comentário novo ainda governa o escopo; anexo não implica aceite.
+            recibo.conferir_dados(issue, "Falta conferir conserto_atual das classes")
+            entrega = conferir.call_args.args[1]
+            self.assertIn("Falta conferir conserto_atual", entrega)
+            self.assertIn(ranking, entrega)
+            self.assertNotIn(recibo_real, entrega)
+
+
+class EntregaEmZip(unittest.TestCase):
+    """(classe entrega_incompleta_ou_fora_do_canal): aceitou o.zip; o recibo agora recusa."""
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.dados = self._t.name
+        self.addCleanup(self._t.cleanup)
+
+    def issue(self, corpo, anexos=()):
+        return {**BRU667, "identifier": "KRN-864", "description": "Entregar o material.", "completedAt": None,
+                "attachments": {"nodes": [{"url": u, "title": t} for t, u in anexos]},
+                "comments": {"nodes": [{"createdAt": "2026-10-14T20:19:00Z", "user": {"app": True}, "body": corpo}]}}
+
+    def faltas(self, issue):
+        with mock.patch("hub.sites.ativos", return_value=[]):
+            return recibo.conferir(issue, gh=gh_falso(), base_dados=self.dados, agora=T0)["faltas"]
+
+    def test_zip_no_anexo_do_linear_e_falta(self):
+        f = self.faltas(self.issue("Pronto, material anexado.", [("material.zip", "https://uploads.linear.app/x/material.zip")]))
+        self.assertTrue(any("zip" in x and "material.zip" in x for x in f), f)
+
+    def test_zip_no_registro_do_anexar_e_falta(self):
+        pasta = Path(self.dados) / "claude" / "anexos"
+        pasta.mkdir(parents=True)
+        (pasta / "KRN-864.jsonl").write_text(json.dumps({"arquivo": "/tmp/out/pacote.zip", "link": "[pacote.zip](https://uploads.linear.app/a/pacote.zip)"}) + "\n")
+        f = self.faltas(self.issue("Pronto."))
+        self.assertTrue(any("pacote.zip" in x for x in f), f)
+
+    def test_zip_substituido_por_arquivo_solto_depois_nao_e_falta(self):
+        pasta = Path(self.dados) / "claude" / "anexos"
+        pasta.mkdir(parents=True)
+        (pasta / "KRN-864.jsonl").write_text(
+            json.dumps({"arquivo": "/tmp/out/pacote.zip", "link": "[pacote.zip](https://uploads.linear.app/a/pacote.zip)"}) + "\n"
+            + json.dumps({"arquivo": "/tmp/out/a.pdf", "link": "[a.pdf](https://uploads.linear.app/a/a.pdf)"}) + "\n")
+        f = self.faltas(self.issue("Pronto, arquivos soltos."))
+        self.assertFalse(any("zip" in x for x in f), f)
+
+    def test_zip_citado_no_ultimo_comentario_e_falta(self):
+        f = self.faltas(self.issue("Entrega em /home/nimbus/saida/receitas.zip"))
+        self.assertTrue(any("receitas.zip" in x for x in f), f)
+
+    def test_arquivos_soltos_e_texto_sobre_zip_passam(self):
+        f = self.faltas(self.issue("Arquivos soltos, nunca zip (KRN-943).", [("a.pdf", "https://uploads.linear.app/x/a.pdf")]))
+        self.assertFalse(any("zip" in x for x in f), f)
+class Inc233(unittest.TestCase):
+    def test_assinatura_judicial_nao_depende_do_dono(self):
+        texto = ("O relator saía vazio quando o nome estava no cabeçalho do TJAL, "
+                 "no Relator do TJAP ou na assinatura do TRF1 e do TRF5.")
+        self.assertIsNone(recibo.RE_DONO.search(texto))
+        for tribunal in ("TJAL", "TJAP", "STJ", "STF", "TRF5"):
+            with self.subTest(tribunal=tribunal):
+                self.assertIsNone(recibo.RE_DONO.search("assinatura do " + tribunal))
+
+    def test_assinatura_do_dono_continua_pendente(self):
+        for texto in ("Falta sua assinatura", "Preciso assinar o contrato",
+                      "assinatura do Fulano", "Falta pagamento"):
+            with self.subTest(texto=texto):
+                self.assertIsNotNone(recibo.RE_DONO.search(texto))
+
+
+class ReciboINC298(unittest.TestCase):
+    def test_bru1460_so_passa_depois_do_merge_do_pr94(self):
+        issue = {
+            "id": "id-1460", "identifier": "KRN-1460",
+            "title": "Relatório do J1 e E0", "description": "Corrigir o relatório.",
+            "completedAt": "2026-10-21T18:58:44.747Z",
+            "attachments": {"nodes": [{"url": "https://github.com/example-org/apartamento-bf/pull/94"}]},
+            "comments": {"nodes": []},
+        }
+        agora = dt.datetime(2026, 10, 22, tzinfo=UTC)
+        with tempfile.TemporaryDirectory() as dados, \
+                mock.patch("hub.sites.ativos", return_value=[]):
+            for mergeado in (False, True):
+                with self.subTest(mergeado=mergeado):
+                    gh = mock.Mock(return_value={
+                        "merged": mergeado, "state": "closed" if mergeado else "open",
+                        "merged_at": "2026-10-21T22:22:56Z" if mergeado else None,
+                        "merge_commit_sha": MERGE if mergeado else None,
+                        "base": {"ref": "main"},
+                    })
+                    r = recibo.conferir(issue, gh=gh, base_dados=dados, agora=agora)
+                    gh.assert_called_once_with("repos/example-org/apartamento-bf/pulls/94")
+                    self.assertIs(r["ok"], mergeado, r)
+                    self.assertFalse(r["esperar"], r)
+                    self.assertEqual([] if mergeado else [
+                        "o PR example-org/apartamento-bf#94 ainda está aberto (não mergeado)"
+                    ], r["faltas"])
+
+
+class PromocaoINC256(unittest.TestCase):
+    def test_develop_so_pronto_quando_merge_chega_a_producao(self):
+        site = {"dominio": "asite01.example", "repo": {"github": "acme/cliente-c"}}
+        with mock.patch("hub.sites.ativos", return_value=[site]):
+            for status, esperado in (("behind", False), ("diverged", None), ("ahead", True), ("identical", True)):
+                with self.subTest(status=status):
+                    gh = mock.Mock(return_value={"status": status})
+                    ok, nota = recibo.no_ar("acme/cliente-c", MERGE, gh=gh,
+                                           get=lambda u: {"commit": "b" * 40}, base="develop")
+                    self.assertIs(ok, esperado, nota)
+                    gh.assert_called_with("repos/acme/cliente-c/compare/" + MERGE + "..." + "b" * 40)
+        # PR na própria main continua cobrando divergência
+        with mock.patch("hub.sites.ativos", return_value=[site]):
+            ok, nota = recibo.no_ar("acme/cliente-c", MERGE, gh=lambda c: {"status": "diverged"},
+                                   get=lambda u: {"commit": "b" * 40}, base="main")
+        self.assertIs(ok, False, nota)

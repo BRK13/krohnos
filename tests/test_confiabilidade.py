@@ -48,8 +48,8 @@ class Base(unittest.TestCase):
             con.execute("UPDATE execucao SET merge_em=? WHERE issue=?", (t(merge_h), issue))
         con.close()
 
-    def _inc(self, classe, issue, h, estado="pendente", chave="", nota=""):
-        inc = incidentes.registrar("falha de teste", classe, "peca x", issue=issue, chave=chave, base_dados=self.d,
+    def _inc(self, classe, issue, h, estado="pendente", chave="", nota="", peca="peca x"):
+        inc = incidentes.registrar("falha de teste", classe, peca, issue=issue, chave=chave, base_dados=self.d,
                                    agora=AGORA - dt.timedelta(hours=h))
         if estado == "feito":
             incidentes.marcar(inc["id"], "feito", nota, base_dados=self.d, agora=AGORA, gh=lambda *a, **k: None)
@@ -256,7 +256,7 @@ class LinhaDeBase(Base):
         self._inc("tarefa_parada", "KRN-1", 3)
         self._inc("tarefa_parada", "KRN-2", 4)
         self._inc("cota_estourada", "", 2)
-        self._inc("tarefa_parada", "KRN-3", 40)  # outro dia
+        self._inc("tarefa_parada", "KRN-3", 40, peca="peca y")  # outro dia (causa distinta, não se junta ao INC de hoje)
         lb = C.linha_de_base("2026-10-17", self.d)
         self.assertEqual(lb["dia"], "2026-10-17")
         self.assertEqual(len(lb["fila_parada"]), 2)

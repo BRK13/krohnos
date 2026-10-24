@@ -31,7 +31,7 @@ FONTE = "seomator"
 INSTALACAO = Path("/opt/seomator")
 LOTE = INSTALACAO / "lote.mjs"
 REGRAS = INSTALACAO / "regras.mjs"
-TIMEOUT_LOTE_S = 45 * 60
+TIMEOUT_LOTE_S = 60 * 60  # 60 págs a ~33 s medidos (ClienteJ) = 33 min; com a HUB carregada passava de 45
 SEG_POR_PAGINA = 20  # estimativa até medir (a medida real fica em status.json)
 JANELA = (1, 6)  # só começa lote entre 01h e 06h BRT
 FATIA = 60  # páginas por lote (~10-20 min)
@@ -44,9 +44,11 @@ ERRO_REGRA = "sitemap-pagina-com-erro"
 META_ERRO = {"name": "Página do sitemap com erro HTTP", "description": "Página listada no sitemap responde 4xx/5xx",
              "fix": "Corrija a página ou tire a URL do sitemap; página no sitemap tem que responder 200."}
 PESO_ERRO = 5
+# Só aviso, nunca falha (nunca abre issue; o número segue no relatório como alerta). Text-to-HTML ratio não é sinal de
+# ranqueamento, e em página Next o JSON-LD e o script inline inflam o HTML (aprovado pelo orquestrador em 22/10).
+SO_AVISO = {"content-text-html-ratio"}
 _PIOR = {"fail": 2, "warn": 1}
 MAX_ISSUES_DIA, MAX_LINKS, MAX_REABERTURAS = 10, 30, 2
-TERCEIROS = {"jpexemplo/clientee-moraes-site"}  # repo de terceiro: sem label merge
 _TRAVA = threading.Lock()
 
 
@@ -225,6 +227,11 @@ def _regras(ids, base_dados, meta_novo):
     return cache
 
 
+def _status(regra, st):
+    """Status que vale para a regra: as de SO_AVISO nunca passam de warn (também no que já estava gravado)."""
+    return "warn" if regra in SO_AVISO else st
+
+
 def aplicar_lote(site_id, bruto, dia, base_dados=None):
     """Grava no mapa de páginas do site o que o lote achou; devolve o mapa."""
     arq = _arq(site_id, "varredura.json", base_dados)
@@ -233,7 +240,7 @@ def aplicar_lote(site_id, bruto, dia, base_dados=None):
     for p in bruto["paginas"]:
         regras = {}
         for a in p["achados"]:
-            regras[a["ruleId"]] = "fail" if a["status"] == "fail" or regras.get(a["ruleId"]) == "fail" else "warn"
+            regras[a["ruleId"]] = "fail" if _status(a["ruleId"], a["status"]) == "fail" or regras.get(a["ruleId"]) == "fail" else "warn"
             i = info.setdefault(a["ruleId"], {"cat": a["cat"], "peso": a["weight"], "msg": a.get("message")})
             if a["status"] == "fail":
                 i.update(peso=a["weight"], msg=a.get("message") or i.get("msg"))
@@ -256,6 +263,7 @@ def consolidar(varredura, dia, meta=None, total=None, url=None):
     regras = {}
     for u, p in paginas.items():
         for r, st in p["regras"].items():
+            st = _status(r, st)
             i = (varredura.get("info") or {}).get(r, {})
             g = regras.setdefault(r, {"regra": r, "cat": i.get("cat"), "status": st, "peso": i.get("peso") or 0, "falhas": [],
                                       "alertas": [], "msg": i.get("msg")})
@@ -395,6 +403,12 @@ def abrir_issues(site, resumo, base_dados=None, criar=None):
         return _abrir_issues(site, resumo, base_dados, criar or linear.criar_issue)
 
 
+def _excecoes(site):
+    """Regras que o cadastro declara como exceção (`padrao.excecoes`, PADRAO-SEO.md): {regra: motivo}.
+    Regra excepcionada não abre issue e, concluída a issue dela, não é reaberta."""
+    return (site.get("padrao") or {}).get("excecoes") or {}
+
+
 def _abrir_issues(site, resumo, base_dados, criar):
     arq = _dir(base_dados) / "issues.json"
     reg = _ler_json(arq, {})
@@ -404,16 +418,19 @@ def _abrir_issues(site, resumo, base_dados, criar):
     hoje = sum(1 for s in reg.values() for v in s.values() for d in [v["dia"], *(a["dia"] for a in v.get("anteriores", []))]
                if d == dia)
     github = (site.get("repo") or {}).get("github")
-    labels = ["esteira", "seo-fix"] + ([] if github in TERCEIROS else ["merge"])
+    org = config.get("github.org") or ""
+    terceiro = bool(github and org and github.split("/")[0].lower() != org.lower())  # repo de terceiro (outro dono): sem label merge
+    labels = ["esteira", "seo-fix"] + ([] if terceiro else ["merge"])
+    excecoes = _excecoes(site)
     projeto, novas = None, []
     for g in resumo["regras"]:  # já ordenadas por impacto
-        if g["status"] != "fail":
+        if g["status"] != "fail" or g["regra"] in excecoes:
             continue
         if hoje >= MAX_ISSUES_DIA:
             break
         ant = do_site.get(g["regra"])
-        if ant and not ant.get("verificada"):  # a reconferência noturna verifica (ou reabre) a issue anterior
-            continue
+        if ant and not (ant.get("verificada") or ant.get("excecao")):  # a reconferência noturna verifica (ou reabre) a anterior
+            continue  # excecao aqui = regra retirada do cadastro (a declarada já saiu lá em cima): abre issue nova
         projeto = projeto or linear.projeto_do_repo(github)
         titulo = f"SEO {site['nome']}: {g['nome']} ({len(g['paginas'])} página(s))"
         ident = criar(projeto, titulo, _corpo(g, resumo), "Backlog", labels, 3).split()[0]
@@ -435,7 +452,8 @@ def reconferir(site, dia, base_dados=None, rodar=None, estado_de=None, reabrir=N
     estado_de = estado_de or _estado_linear
     reabrir = reabrir or (lambda ident, texto: linear.mover_por_nome(ident, "Backlog", texto))
     saida, pendentes = {}, []
-    abertas = [(r, v) for r, v in do_site.items() if not (v.get("verificada") or v.get("cancelada"))]
+    excecoes = _excecoes(site)
+    abertas = [(r, v) for r, v in do_site.items() if not (v.get("verificada") or v.get("cancelada") or v.get("excecao"))]
     for regra, v in abertas[:max_issues]:
         try:
             st = estado_de(v["issue"])
@@ -443,6 +461,9 @@ def reconferir(site, dia, base_dados=None, rodar=None, estado_de=None, reabrir=N
             continue
         if st == "canceled":
             v["cancelada"] = dia
+        elif st == "completed" and regra in excecoes:  # exceção declarada: concluída, não reabre nem mede de novo
+            v["excecao"] = dia
+            saida[v["issue"]] = "excecao"
         elif st == "completed":
             pendentes.append((regra, v))
     if pendentes:
@@ -452,9 +473,9 @@ def reconferir(site, dia, base_dados=None, rodar=None, estado_de=None, reabrir=N
         varredura = _ler_json(_arq(site["id"], "varredura.json", base_dados), {"paginas": {}})
         for regra, v in pendentes:
             pags = v.get("paginas") or []
-            ainda = [u for u in pags if (varredura["paginas"].get(u) or {}).get("regras", {}).get(regra) == "fail"]
+            ainda = [u for u in pags if _status(regra, (varredura["paginas"].get(u) or {}).get("regras", {}).get(regra)) == "fail"]
             if not pags:  # registro antigo, sem a lista de páginas: vale o mapa do site, se ele tiver medida
-                ainda = [u for u, p in varredura["paginas"].items() if p["regras"].get(regra) == "fail"]
+                ainda = [u for u, p in varredura["paginas"].items() if _status(regra, p["regras"].get(regra)) == "fail"]
                 medidas = bool(varredura["paginas"])
             else:  # só vale a página medida agora: timeout/falha de render mantém a medida velha e não prova nada
                 medidas = all((varredura["paginas"].get(u) or {}).get("dia") == dia for u in pags)
@@ -468,7 +489,7 @@ def reconferir(site, dia, base_dados=None, rodar=None, estado_de=None, reabrir=N
                 reabrir(v["issue"], f"A auditoria de {dia} reconferiu a regra `{regra}` e ela continua em {len(ainda)} página(s), "
                                     f"por exemplo {ainda[0]}. Reaberta: a tarefa só fecha quando a regra some.")
                 saida[v["issue"]] = "reaberta"
-    if pendentes or any(v.get("cancelada") for v in do_site.values()):
+    if pendentes or any(v.get("cancelada") or v.get("excecao") for v in do_site.values()):
         _gravar_json(arq, reg)
     return saida
 
@@ -583,7 +604,7 @@ def resumo_zap(base_dados=None, hoje=None, lista=None):
         linhas.append(f"\n{s['nome']} — nota {r.get('nota')}{velho}{cob}{_nota_falha(st)}")
         falhas = sorted((g for g in r.get("regras") or [] if g["status"] == "fail"), key=lambda g: -g["impacto"])
         linhas += [f"• {g['nome']} ({len(g['paginas'])} pág.)" for g in falhas[:3]]
-    linhas.append("\nTela: https://nimbus.clientec-com.example/seo")
+    linhas.append(f"\nTela: {config.painel_url()}/seo")
     return "\n".join(linhas)
 
 

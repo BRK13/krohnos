@@ -157,7 +157,7 @@ def log(msg):
 
 
 def descrever_erro(e):
-    return mascarar(f"{type(e).__name__}: {str(e)[:150]}")
+    return mascarar(f"{type(e).__name__}: {e}")[:150]  # mascara antes de cortar: o corte não pode partir um valor
 
 
 def log_erro(e, contexto=""):

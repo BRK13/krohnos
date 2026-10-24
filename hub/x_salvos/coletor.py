@@ -293,10 +293,14 @@ def coletar(cfg, forcar=False):
         return 0
     avisar_primeira_rodada(est)
     vistos = set(est["ids"])
+    retomando = bool(est.get("incompleta"))  # teto cortou a rodada anterior: os mais velhos ainda faltam
+    if retomando:
+        log("retomando coleta cortada pelo teto da rodada anterior")
+    forcar = forcar or retomando  # pula os já vistos e segue rolando
     taxa = G.LimiteTaxa(cfg.limite_taxa_s)
     rodada = G.Rodada(cfg.max_paginas, cfg.max_itens)
     arq = arquivo_do_dia(saida, hoje)
-    novos, caiu = [], False
+    novos, caiu, cortou = [], False, False
     with sync_playwright() as p:
         nav, ctx, page, cookies = abrir(p, cfg)
         try:
@@ -351,6 +355,7 @@ def coletar(cfg, forcar=False):
                     page.mouse.wheel(0, random.randint(700, 1400))
                     time.sleep(random.uniform(2.5, 4.5))  # rolagem sempre no ritmo normal: o X precisa carregar a lista
             except G.TetoAtingido as e:
+                cortou = True
                 log(f"teto atingido: {e}")
             log(f"{len(achados)} salvos novos na lista")
             salvar_cookies(ctx, cfg)
@@ -361,6 +366,7 @@ def coletar(cfg, forcar=False):
             nav.close()
     est["ids"] = list(vistos | {it["id"] for it in novos})
     est["ultima_coleta"] = hoje
+    est["incompleta"] = cortou  # a próxima rodada normal continua de onde o teto parou
     gravar_json(saida / "vistos.json", est)
     if caiu:
         gravar_erro(saida, f"sessão do X caiu no meio da coleta ({len(novos)} gravados): exporte cookies novos para {cfg.cookies}")

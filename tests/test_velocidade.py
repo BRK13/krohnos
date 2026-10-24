@@ -8,7 +8,7 @@ from unittest import mock
 
 from hub import armazem, velocidade as V
 
-SITE = {"id": "fsite05", "nome": "fsite05", "dominio": "fsite05-com-br.example", "repo": {"github": "example-org/cliente-a-v2"}, "ids": {"ga4": "1"}}
+SITE = {"id": "fsite06", "nome": "fsite06", "dominio": "fsite06-com-br.example", "repo": {"github": "acme/cliente-a-v2"}, "ids": {"ga4": "1"}}
 
 
 def _semear(d, lcp=2000, nota=90, dias=(7, 14, 21, 28), path="/"):
@@ -16,8 +16,8 @@ def _semear(d, lcp=2000, nota=90, dias=(7, 14, 21, 28), path="/"):
     fs = []
     for n in dias:
         dia = (hoje - dt.timedelta(days=n)).isoformat()
-        fs += [{"dia": dia, "negocio": "fsite05", "fonte": "velocidade", "metrica": "lcp_ms", "dim": path, "valor": lcp},
-               {"dia": dia, "negocio": "fsite05", "fonte": "velocidade", "metrica": "nota", "dim": path, "valor": nota}]
+        fs += [{"dia": dia, "negocio": "fsite06", "fonte": "velocidade", "metrica": "lcp_ms", "dim": path, "valor": lcp},
+               {"dia": dia, "negocio": "fsite06", "fonte": "velocidade", "metrica": "nota", "dim": path, "valor": nota}]
     armazem.gravar(fs, d)
 
 
@@ -26,7 +26,7 @@ class VelocidadeTest(unittest.TestCase):
         self.d = tempfile.mkdtemp()
 
     def reg(self, lcp, nota, path="/"):
-        return V.regressoes("fsite05", "2026-10-15", {path: {"lcp_ms": lcp, "nota": nota}}, self.d)
+        return V.regressoes("fsite06", "2026-10-15", {path: {"lcp_ms": lcp, "nota": nota}}, self.d)
 
     def test_regressao_por_lcp(self):
         _semear(self.d)
@@ -47,7 +47,7 @@ class VelocidadeTest(unittest.TestCase):
     def test_abrir_issue_nao_repete_em_28_dias(self):
         criar = mock.Mock(return_value="KRN-9 http://x")
         regs = [{"pagina": "/", "lcp_ms": 3000, "base_lcp": 2000, "nota": 70, "base_nota": 90}]
-        with mock.patch("hub.linear.projeto_do_repo", return_value="fsite05"):
+        with mock.patch("hub.linear.projeto_do_repo", return_value="fsite06"):
             self.assertEqual(V.abrir_issue(SITE, regs, self.d, criar), "KRN-9")
             self.assertIsNone(V.abrir_issue(SITE, regs, self.d, criar))
         self.assertEqual(criar.call_count, 1)
@@ -63,10 +63,10 @@ class VelocidadeTest(unittest.TestCase):
         medir = lambda url: {"nota": 80, "lcp_ms": 2100, "tbt_ms": 10, "cls": 0.1}  # noqa: E731
         with mock.patch("hub.sites.ativos", return_value=[SITE]), mock.patch("hub.psi.chave", return_value=None):
             r = V.coletar("2026-10-15", self.d, medir, lambda s: ["/"])
-        self.assertEqual(armazem.serie("fsite05", "velocidade", "lcp_ms", "2026-10-15", "2026-10-15", "", self.d)[0][1], 2100)
-        self.assertEqual(armazem.serie("fsite05", "velocidade", "lcp_ms", "2026-10-15", "2026-10-15", "/", self.d)[0][1], 2100)
+        self.assertEqual(armazem.serie("fsite06", "velocidade", "lcp_ms", "2026-10-15", "2026-10-15", "", self.d)[0][1], 2100)
+        self.assertEqual(armazem.serie("fsite06", "velocidade", "lcp_ms", "2026-10-15", "2026-10-15", "/", self.d)[0][1], 2100)
         self.assertEqual(json.loads((Path(self.d) / "velocidade" / "ultima.json").read_text())["dia"], "2026-10-15")
-        self.assertIn("fsite05", r["sites"])
+        self.assertIn("fsite06", r["sites"])
 
     def test_issues_de_dois_sites_em_paralelo(self):
         criar = lambda *a: "KRN-" + str(len(a[1])) + " u"  # noqa: E731
@@ -84,7 +84,7 @@ class VelocidadeTest(unittest.TestCase):
             raise SystemExit("sem projeto")
         with mock.patch("hub.sites.ativos", return_value=[SITE]), mock.patch("hub.psi.chave", return_value=None):
             r = V.coletar("2026-10-15", self.d, medir, lambda s: ["/"], abrir)
-        self.assertEqual(r["sites"]["fsite05"]["issue"], None)
+        self.assertEqual(r["sites"]["fsite06"]["issue"], None)
         self.assertTrue((Path(self.d) / "velocidade" / "ultima.json").exists())
 
     def test_ga4_falha_mede_so_a_home(self):
@@ -94,17 +94,17 @@ class VelocidadeTest(unittest.TestCase):
         self.assertEqual(V.paginas({**SITE, "ids": {}}), ["/"])
 
     def test_saude(self):
-        self.assertEqual(V.saude("fsite05", self.d), (None, None))
+        self.assertEqual(V.saude("fsite06", self.d), (None, None))
         _semear(self.d, lcp=2600, dias=(1,))
-        self.assertEqual(V.saude("fsite05", self.d), ("alerta", 2600))
+        self.assertEqual(V.saude("fsite06", self.d), ("alerta", 2600))
         _semear(self.d, lcp=4100, dias=(0,))
-        self.assertEqual(V.saude("fsite05", self.d)[0], "ruim")
+        self.assertEqual(V.saude("fsite06", self.d)[0], "ruim")
 
     def test_bloco_resumo_velho_vazio(self):
         v = Path(self.d) / "velocidade"
         v.mkdir()
         velho = (dt.date.today() - dt.timedelta(days=10)).isoformat()
-        (v / "ultima.json").write_text(json.dumps({"dia": velho, "sites": {"fsite05": {"paginas": {}, "regressoes": []}}}))
+        (v / "ultima.json").write_text(json.dumps({"dia": velho, "sites": {"fsite06": {"paginas": {}, "regressoes": []}}}))
         self.assertEqual(V.bloco_resumo(self.d), [])
 
 

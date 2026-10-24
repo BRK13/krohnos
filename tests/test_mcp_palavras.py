@@ -48,7 +48,7 @@ class ResearchKeywordsTest(Base):
         def post(caminho, tarefas):
             return [_tarefa(SUGESTOES if "suggestions" in caminho else IDEIAS)]
         with mock.patch.object(dataforseo, "post", side_effect=post) as p:
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "seeds": [{"seed": "Terapia Online", "locationCode": 2076, "languageCode": "pt"}]})
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "seeds": [{"seed": "Terapia Online", "locationCode": 2076, "languageCode": "pt"}]})
         caminhos = [c.args[0] for c in p.call_args_list]
         self.assertEqual(caminhos, ["dataforseo_labs/google/keyword_suggestions/live", "dataforseo_labs/google/keyword_ideas/live"])
         sug, ide = (c.args[1][0] for c in p.call_args_list)
@@ -72,7 +72,7 @@ class ResearchKeywordsTest(Base):
         def post(caminho, tarefas):
             return [_tarefa(relacionadas if "related" in caminho else pouco)]
         with mock.patch.object(dataforseo, "post", side_effect=post) as p:
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "includeClickstreamData": True, "groupKeywords": True, "resultLimit": 300,
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "includeClickstreamData": True, "groupKeywords": True, "resultLimit": 300,
                                                         "seeds": [{"seed": "terapia online"}]})
         self.assertEqual(p.call_args[0][0], "dataforseo_labs/google/related_keywords/live")
         rel = p.call_args[0][1][0]
@@ -88,7 +88,7 @@ class ResearchKeywordsTest(Base):
                 return [{"status_code": 40501, "status_message": "Invalid Field", "cost": 0}]
             return [_tarefa(SUGESTOES if "suggestions" in caminho else IDEIAS)]
         with mock.patch.object(dataforseo, "post", side_effect=post):
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "seeds": [{"seed": "ruim"}, {"seed": "terapia online"}]})
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "seeds": [{"seed": "ruim"}, {"seed": "terapia online"}]})
         self.assertTrue(r["ok"])
         self.assertEqual([x["ok"] for x in r["results"]], [False, True])
         self.assertIn("40501", r["results"][0]["error"])
@@ -101,7 +101,7 @@ class ResearchKeywordsTest(Base):
                 return [{"status_code": 20000, "cost": 0.05, "result": [{"keyword": "terapia online", "search_volume": 90, "cpc": 0.7, "competition_index": 25}]}]
             return [_tarefa([_kd("terapia online", 1000, kd=33), _kd("terapia online?", 5)] + SUGESTOES[2:])]
         with mock.patch.object(dataforseo, "post", side_effect=post), mock.patch.object(dataforseo, "get", return_value=LOCAIS_BR):
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "seeds": [{"seed": "terapia online", "locationName": "Belo Horizonte,State of Minas Gerais,Brazil"}]})
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "seeds": [{"seed": "terapia online", "locationName": "Belo Horizonte,State of Minas Gerais,Brazil"}]})
         rows = {x["keyword"]: x for x in r["results"][0]["rows"]}
         self.assertEqual(rows["terapia online"], {"keyword": "terapia online", "searchVolume": 90, "keywordDifficulty": 33, "cpc": 0.7, "competition": 0.25, "intent": "informational"})
         self.assertEqual((rows["psicólogo online"]["searchVolume"], rows["psicólogo online"]["cpc"], rows["psicólogo online"]["keywordDifficulty"]), (None, None, 30))
@@ -110,7 +110,7 @@ class ResearchKeywordsTest(Base):
 
     def test_locationName_desconhecido_nao_chama_chamada_paga(self):
         with mock.patch.object(dataforseo, "post") as p, mock.patch.object(dataforseo, "get", return_value=LOCAIS_BR):
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "seeds": [{"seed": "a", "locationName": "Atlantis"}]})
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "seeds": [{"seed": "a", "locationName": "Atlantis"}]})
         p.assert_not_called()
         s = r["results"][0]
         self.assertFalse(s["ok"])
@@ -119,7 +119,7 @@ class ResearchKeywordsTest(Base):
 
     def test_sementes_em_ordem_mesmo_em_paralelo(self):
         with mock.patch.object(dataforseo, "post", return_value=[_tarefa(SUGESTOES)]):
-            r = mcp_proxy.executar("research_keywords", {"site": "psite13", "seeds": [{"seed": x} for x in "abcde"]})
+            r = mcp_proxy.executar("research_keywords", {"site": "psite15", "seeds": [{"seed": x} for x in "abcde"]})
         self.assertEqual([x["seed"] for x in r["results"]], list("abcde"))
 
     def test_volume_local_desliga_clickstream_nas_chamadas_labs(self):
@@ -128,19 +128,19 @@ class ResearchKeywordsTest(Base):
                 return [{"status_code": 20000, "cost": 0, "result": []}]
             return [_tarefa(SUGESTOES)]
         with mock.patch.object(dataforseo, "post", side_effect=post) as p, mock.patch.object(dataforseo, "get", return_value=LOCAIS_BR):
-            mcp_proxy.executar("research_keywords", {"site": "psite13", "includeClickstreamData": True,
+            mcp_proxy.executar("research_keywords", {"site": "psite15", "includeClickstreamData": True,
                                                     "seeds": [{"seed": "a"}, {"seed": "b", "locationName": "Belo Horizonte,State of Minas Gerais,Brazil"}]})
         labs = [(c.args[1][0]["keyword" if "keyword" in c.args[1][0] else "keywords"], c.args[1][0]["include_clickstream_data"])
                 for c in p.call_args_list if "dataforseo_labs" in c.args[0]]
         self.assertEqual({(str(k), v) for k, v in labs}, {("a", True), ("['a']", True), ("['b']", False), ("b", False)})
 
     def test_pedido_errado_vira_erro_de_uso(self):
-        for args in ({"site": "psite13"}, {"site": "psite13", "seeds": []}, {"site": "psite13", "seeds": [{"seed": " "}]},
-                     {"site": "psite13", "seeds": [{"seed": "x"}] * 6}, {"site": "psite13", "seeds": [{"seed": "x"}], "resultLimit": 200},
-                     {"site": "psite13", "seeds": [{"seed": "x", "locationName": " "}]},
-                     {"site": "psite13", "seeds": [{"seed": "x"}], "resultLimit": 150.0},
-                     {"site": "psite13", "seeds": [{"seed": "x", "locationCode": 0}]}, {"site": "psite13", "seeds": [{"seed": "x", "locationCode": 2076.0}]},
-                     {"site": "psite13", "seeds": [{"seed": "x", "languageCode": 5}]}):
+        for args in ({"site": "psite15"}, {"site": "psite15", "seeds": []}, {"site": "psite15", "seeds": [{"seed": " "}]},
+                     {"site": "psite15", "seeds": [{"seed": "x"}] * 6}, {"site": "psite15", "seeds": [{"seed": "x"}], "resultLimit": 200},
+                     {"site": "psite15", "seeds": [{"seed": "x", "locationName": " "}]},
+                     {"site": "psite15", "seeds": [{"seed": "x"}], "resultLimit": 150.0},
+                     {"site": "psite15", "seeds": [{"seed": "x", "locationCode": 0}]}, {"site": "psite15", "seeds": [{"seed": "x", "locationCode": 2076.0}]},
+                     {"site": "psite15", "seeds": [{"seed": "x", "languageCode": 5}]}):
             with mock.patch.object(dataforseo, "post") as p, self.assertRaises(ErroUso, msg=args):
                 mcp_proxy.executar("research_keywords", args)
             p.assert_not_called()
@@ -161,7 +161,7 @@ class DomainKeywordSuggestionsTest(Base):
 
     def test_raiz_usa_subdominios_sem_filtro(self):
         with mock.patch.object(dataforseo, "post", return_value=[_tarefa(RANKED, 0.05)]) as p:
-            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite13", "domain": "https://www.zenklub-com-br.example/"})
+            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite15", "domain": "https://www.zenklub-com-br.example/"})
         self.assertEqual(p.call_args[0][0], "dataforseo_labs/google/ranked_keywords/live")
         t = p.call_args[0][1][0]
         self.assertEqual({k: t[k] for k in ("target", "limit", "order_by")}, {"target": "zenklub-com-br.example", "limit": 100, "order_by": ["ranked_serp_element.serp_item.etv,desc"]})
@@ -172,7 +172,7 @@ class DomainKeywordSuggestionsTest(Base):
 
     def test_caminho_vira_subpasta_com_filtro(self):
         with mock.patch.object(dataforseo, "post", return_value=[_tarefa(RANKED)]) as p:
-            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite13", "domain": "zenklub-com-br.example/blog/", "locationCode": 2076, "languageCode": "pt"})
+            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite15", "domain": "zenklub-com-br.example/blog/", "locationCode": 2076, "languageCode": "pt"})
         t = p.call_args[0][1][0]
         self.assertEqual(t["filters"][0], ["ranked_serp_element.serp_item.domain", "in", ["zenklub-com-br.example", "www.zenklub-com-br.example"]])
         self.assertEqual(t["filters"][2][0], ["ranked_serp_element.serp_item.relative_url", "=", "/blog"])
@@ -180,26 +180,26 @@ class DomainKeywordSuggestionsTest(Base):
 
     def test_escopo_domain_filtra_so_o_host(self):
         with mock.patch.object(dataforseo, "post", return_value=[_tarefa([])]) as p:
-            mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite13", "domain": "zenklub-com-br.example", "scope": "domain"})
+            mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite15", "domain": "zenklub-com-br.example", "scope": "domain"})
         self.assertEqual(p.call_args[0][1][0]["filters"], [["ranked_serp_element.serp_item.domain", "in", ["zenklub-com-br.example", "www.zenklub-com-br.example"]]])
 
     def test_pedido_errado_vira_erro_de_uso(self):
-        for args in ({"site": "psite13"}, {"site": "psite13", "domain": "nao e dominio"}, {"site": "psite13", "domain": "semponto"},
-                     {"site": "psite13", "domain": "a-com.example", "scope": "subfolder"}, {"site": "psite13", "domain": "a-com.example", "scope": "xis"},
-                     {"site": "psite13", "domain": "https://u:user9@example.com"}):
+        for args in ({"site": "psite15"}, {"site": "psite15", "domain": "nao e dominio"}, {"site": "psite15", "domain": "semponto"},
+                     {"site": "psite15", "domain": "a-com.example", "scope": "subfolder"}, {"site": "psite15", "domain": "a-com.example", "scope": "xis"},
+                     {"site": "psite15", "domain": "https://u:user13@example.com"}):
             with mock.patch.object(dataforseo, "post") as p, self.assertRaises(ErroUso, msg=args):
                 mcp_proxy.executar("get_domain_keyword_suggestions", args)
             p.assert_not_called()
 
     def test_falha_da_fonte_devolve_ok_false(self):
         with mock.patch.object(dataforseo, "post", side_effect=RuntimeError("DataForSEO respondeu HTTP 500")):
-            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite13", "domain": "a-com.example"})
+            r = mcp_proxy.executar("get_domain_keyword_suggestions", {"site": "psite15", "domain": "a-com.example"})
         self.assertFalse(r["ok"])
 
 
 
 def _salvar(**kw):
-    return mcp_proxy.executar("save_keywords", {"site": "psite13", **kw})
+    return mcp_proxy.executar("save_keywords", {"site": "psite15", **kw})
 
 
 class PalavrasSalvasTest(Base):
@@ -214,33 +214,33 @@ class PalavrasSalvasTest(Base):
 
     def test_salva_lista_e_remove_no_arquivo_do_site(self):
         r = _salvar(keywords=["Terapia Online", "ansiedade"], tags=["lp"], metrics=[{"keyword": "terapia online", "searchVolume": 900, "cpc": 1.2, "intent": "commercial"}])
-        self.assertEqual((r["ok"], r["projectId"], r["savedCount"], r["tags"], r["tagMode"], r["locationCode"], r["languageCode"]), (True, "psite13", 2, ["lp"], "append", 2076, "pt"))
-        arq = os.path.join(self.tmp.name, "mcp", "palavras", "psite13", "salvas.json")
+        self.assertEqual((r["ok"], r["projectId"], r["savedCount"], r["tags"], r["tagMode"], r["locationCode"], r["languageCode"]), (True, "psite15", 2, ["lp"], "append", 2076, "pt"))
+        arq = os.path.join(self.tmp.name, "mcp", "palavras", "psite15", "salvas.json")
         self.assertTrue(os.path.exists(arq))
         self.assertFalse(os.path.exists(arq + ".tmp"))
-        l = mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})
+        l = mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})
         self.assertEqual(l["totalCount"], 2)
         self.assertEqual([x["keyword"] for x in l["rows"]], ["ansiedade", "terapia online"])  # mais nova primeiro
         t = l["rows"][1]
         self.assertEqual((t["searchVolume"], t["cpc"], t["intent"], t["keywordDifficulty"], t["tags"]), (900, 1.2, "commercial", None, ["lp"]))
         self.assertEqual(l["tags"], [{"name": "lp", "keywordCount": 2}])
-        d = mcp_proxy.executar("remove_saved_keywords", {"site": "psite13", "savedKeywordIds": [t["id"], "nao-existe"]})
-        self.assertEqual((d["projectId"], d["requested"], d["deletedCount"]), ("psite13", 2, 1))
-        self.assertEqual([x["keyword"] for x in mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})["rows"]], ["ansiedade"])
+        d = mcp_proxy.executar("remove_saved_keywords", {"site": "psite15", "savedKeywordIds": [t["id"], "nao-existe"]})
+        self.assertEqual((d["projectId"], d["requested"], d["deletedCount"]), ("psite15", 2, 1))
+        self.assertEqual([x["keyword"] for x in mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})["rows"]], ["ansiedade"])
 
     def test_salvar_duas_vezes_nao_duplica_e_atualiza_metricas_e_tags(self):
         _salvar(keywords=["Terapia Online"], tags=["a"])
-        id1 = mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})["rows"][0]["id"]
+        id1 = mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})["rows"][0]["id"]
         _salvar(keywords=["terapia online "], tags=["b"], metrics=[{"keyword": "Terapia Online", "searchVolume": 5}])
-        l = mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})
+        l = mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})
         self.assertEqual((l["totalCount"], l["rows"][0]["id"], l["rows"][0]["tags"], l["rows"][0]["searchVolume"]), (1, id1, ["a", "b"], 5))
         _salvar(keywords=["terapia online"], tags=["c"], tagMode="replace")
-        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})["rows"][0]["tags"], ["c"])
+        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})["rows"][0]["tags"], ["c"])
 
     def test_lista_filtra_por_texto_tag_e_limite(self):
         _salvar(keywords=["terapia online", "terapia de casal"], tags=["x"])
         _salvar(keywords=["meditação"], tags=["y"])
-        ler = lambda **a: mcp_proxy.executar("list_saved_keywords", {"site": "psite13", **a})
+        ler = lambda **a: mcp_proxy.executar("list_saved_keywords", {"site": "psite15", **a})
         self.assertEqual([r["keyword"] for r in ler(search="TERAPIA")["rows"]], ["terapia de casal", "terapia online"])
         self.assertEqual([r["keyword"] for r in ler(tags=["Y", "zzz"])["rows"]], ["meditação"])
         self.assertEqual((len(ler(limit=50)["rows"]), ler(limit=50)["totalCount"]), (3, 3))
@@ -253,30 +253,30 @@ class PalavrasSalvasTest(Base):
         ts = [threading.Thread(target=salvar, args=(i,)) for i in range(2)]
         [t.start() for t in ts]
         [t.join() for t in ts]
-        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite13", "limit": 50})["totalCount"], 30)
-        pasta = os.path.join(self.tmp.name, "mcp", "palavras", "psite13")
+        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite15", "limit": 50})["totalCount"], 30)
+        pasta = os.path.join(self.tmp.name, "mcp", "palavras", "psite15")
         self.assertEqual(sorted(os.listdir(pasta)), ["salvas.json", "salvas.lock"])
 
     def test_remove_pelas_palavras(self):
         _salvar(keywords=["um", "dois", "três"])
-        d = mcp_proxy.executar("remove_saved_keywords", {"site": "psite13", "keywords": ["UM", "três", "nada"]})
+        d = mcp_proxy.executar("remove_saved_keywords", {"site": "psite15", "keywords": ["UM", "três", "nada"]})
         self.assertEqual((d["requested"], d["deletedCount"]), (3, 2))
-        self.assertEqual([r["keyword"] for r in mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})["rows"]], ["dois"])
+        self.assertEqual([r["keyword"] for r in mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})["rows"]], ["dois"])
 
     def test_estado_e_por_site(self):
         _salvar(keywords=["um"])
-        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite13"})["totalCount"], 1)
-        outro = next(s for s in mcp_proxy.executar("list_projects", {})["projects"] if s["id"] != "psite13")["id"]
+        self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": "psite15"})["totalCount"], 1)
+        outro = next(s for s in mcp_proxy.executar("list_projects", {})["projects"] if s["id"] != "psite15")["id"]
         self.assertEqual(mcp_proxy.executar("list_saved_keywords", {"site": outro})["totalCount"], 0)
 
     def test_pedido_errado_vira_erro_de_uso(self):
-        casos = [("save_keywords", {"site": "psite13"}), ("save_keywords", {"site": "psite13", "keywords": []}),
-                 ("save_keywords", {"site": "psite13", "keywords": ["a"] * 101}), ("save_keywords", {"site": "psite13", "keywords": ["a"], "tagMode": "replace"}),
-                 ("save_keywords", {"site": "psite13", "keywords": ["a"], "tagMode": "x", "tags": ["t"]}),
-                 ("save_keywords", {"site": "psite13", "keywords": ["a"], "tags": ["t" * 65]}),
+        casos = [("save_keywords", {"site": "psite15"}), ("save_keywords", {"site": "psite15", "keywords": []}),
+                 ("save_keywords", {"site": "psite15", "keywords": ["a"] * 101}), ("save_keywords", {"site": "psite15", "keywords": ["a"], "tagMode": "replace"}),
+                 ("save_keywords", {"site": "psite15", "keywords": ["a"], "tagMode": "x", "tags": ["t"]}),
+                 ("save_keywords", {"site": "psite15", "keywords": ["a"], "tags": ["t" * 65]}),
                  ("save_keywords", {"keywords": ["a"]}), ("list_saved_keywords", {}),
-                 ("list_saved_keywords", {"site": "psite13", "limit": 10}), ("list_saved_keywords", {"site": "psite13", "limit": 100.0}), ("list_saved_keywords", {"site": "psite13", "search": ""}),
-                 ("remove_saved_keywords", {"site": "psite13"}), ("remove_saved_keywords", {"site": "psite13", "savedKeywordIds": []}),
+                 ("list_saved_keywords", {"site": "psite15", "limit": 10}), ("list_saved_keywords", {"site": "psite15", "limit": 100.0}), ("list_saved_keywords", {"site": "psite15", "search": ""}),
+                 ("remove_saved_keywords", {"site": "psite15"}), ("remove_saved_keywords", {"site": "psite15", "savedKeywordIds": []}),
                  ("remove_saved_keywords", {})]
         for nome, args in casos:
             with self.subTest(nome=nome, args=args), self.assertRaises(ErroUso):

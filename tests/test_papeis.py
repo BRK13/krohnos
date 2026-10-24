@@ -50,7 +50,8 @@ class Servidor(Base):
         self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
         limite.esquecer()  # a cota de POST por IP (/convite) é do processo: cada teste começa do zero
         self.addCleanup(limite.esquecer)
-        self.sessoes = {p: sessao_teste.cookie_e_csrf(p) for p in usuarios.PAPEIS}
+        # cliente tem portão próprio (tests/test_cliente_login.py): aqui só os papéis do painel
+        self.sessoes = {p: sessao_teste.cookie_e_csrf(p) for p in usuarios.PAPEIS if p != "cliente"}
 
     def req(self, caminho, dados=None, cookie=None, origin=True, cab=None):
         h = dict(cab or {})

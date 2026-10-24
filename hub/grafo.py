@@ -21,18 +21,15 @@ import re
 import sqlite3
 import sys
 import unicodedata
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 
-from hub.comum.segredos import chave_openrouter
 from hub import data
 
 MODELO = "openai/text-embedding-3-small"
 DIM = 768
-URL = "https://openrouter.ai/api/v1/embeddings"
 LOTE = 64
 PEDACO = 1500
 RRF_K = 60
@@ -41,7 +38,7 @@ STOP = set("""a o as os um uma uns umas de do da dos das em no na nos nas por pa
 ser foi são como mais menos mas já não nao sim qual quais onde quem quando the of and or to in for on with is are be an at by from""".split())
 RE_TOKEN = re.compile(r"[a-z0-9][a-z0-9._-]*[a-z0-9]|[a-z0-9]")
 TIPOS = ("projeto", "repo", "dominio", "app", "vps", "banco", "cron", "servico", "segredo", "pessoa", "decisao", "issue", "pr",
-         "receita", "documento", "memoria", "relatorio", "tarefa", "pagina")
+         "receita", "referencia", "documento", "memoria", "relatorio", "tarefa", "pagina")
 
 
 # a página da wiki compilada (estado atual, com fonte e data) é a resposta principal: peso máximo; os trechos soltos complementam.
@@ -54,11 +51,11 @@ INTENCAO = [(re.compile(r"\b(repo|repositorio|codigo)\b"), ("repo",)), (re.compi
             (re.compile(r"\bservico\b|\bsystemd\b|\bporta\b"), ("servico",)), (re.compile(r"\bbanco\b|\bpostgres"), ("banco",)),
             (re.compile(r"\bvps\b|\bservidor"), ("vps",)), (re.compile(r"credencial|\bchave|\btoken|\bsegredo|\bvariave|\bsenha|\benv\b"), ("segredo",)),
             (re.compile(r"decidiu|decisao|\bregra\b|\bvetou|combinado"), ("decisao", "memoria")), (re.compile(r"\bissue\b|\bkrn-?\d+"), ("issue",)),
-            (re.compile(r"\breceita|biblioteca"), ("receita",)), (re.compile(r"\btarefa"), ("tarefa", "cron")), (re.compile(r"instruc|claude\.md|diretriz"), ("documento",)), (re.compile(r"\bquem\b|\bdono\b"), ("pessoa",))]
+            (re.compile(r"\breceita|biblioteca"), ("receita",)), (re.compile(r"\breferencia|\bfonte conferida|\bcitacao"), ("referencia",)), (re.compile(r"\btarefa"), ("tarefa", "cron")), (re.compile(r"instruc|claude\.md|diretriz"), ("documento",)), (re.compile(r"\bquem\b|\bdono\b"), ("pessoa",))]
 BOOST_INTENCAO = 1.6
 BOOST_INTENCAO_2 = 1.25
 SEM_MARCA = 0.7
-NOME_NA_PERGUNTA = 2.5  # a pergunta traz o nome inteiro (2+ palavras) da entidade: "reel" + "fsite05" pede o cron reels-fsite05
+NOME_NA_PERGUNTA = 2.5  # a pergunta traz o nome inteiro (2+ palavras) da entidade: "reel" + "fsite06" pede o cron reels-fsite06
 BONUS_VIZINHO = 0.4  # fração da nota de cada um dos 3 primeiros que passa ao vizinho (relação forte) do tipo pedido
 
 
@@ -95,7 +92,7 @@ def tokens(texto):
             continue
         t = SINONIMO.get(_singular(t), _singular(t))
         out.append(t)
-        if re.search(r"[._-]", t):  # "cliente-c", "SUPABASE_URL": também as partes, para "supabase" achar o nome ("reels-fsite05" acha "reel")
+        if re.search(r"[._-]", t):  # "cliente-c", "SUPABASE_URL": também as partes, para "supabase" achar o nome ("reels-fsite06" acha "reel")
             out += [_singular(p) for p in re.split(r"[._-]+", t) if len(p) > 2 and p not in STOP]
     return out
 
@@ -381,22 +378,9 @@ def remontar(db=None, log=print):
 
 # ---- embeddings ----
 
-def _chave():
-    return chave_openrouter()
-
-
 def embeddar(textos, timeout=60):
-    k = _chave()
-    if not k:
-        raise RuntimeError("sem OPENROUTER_API_KEY")
-    corpo = json.dumps({"model": MODELO, "input": [t[:6000] or " " for t in textos], "dimensions": DIM}).encode()
-    req = urllib.request.Request(URL, data=corpo, method="POST", headers={"Authorization": f"Bearer {k}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        d = json.loads(r.read())
-    itens = sorted(d["data"], key=lambda i: i["index"])
-    if len(itens) != len(textos) or any(len(i["embedding"]) != DIM for i in itens):
-        raise RuntimeError("resposta de embeddings fora do formato")
-    return [i["embedding"] for i in itens]
+    """Desligado: a OpenRouter fica só no WhatsApp; quem chama já cai em BM25."""
+    raise RuntimeError("embeddings desligados: OpenRouter só serve o WhatsApp (KRN-1445); a busca segue em BM25")
 
 
 def _blob(v):

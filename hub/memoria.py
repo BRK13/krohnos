@@ -4,7 +4,8 @@ A servidor_hub caiu por OOM em 17/10 (19:49 UTC): 5 vagas × 4 contas × 6G prom
 `maquina_folgada()` só olhava MemAvailable na hora de abrir a vaga (5 builds começando juntos passavam todos).
 
 - Orçamento: a soma das `MemoryMax` das sessões vivas (campo `memoria_max` do registro `rodando*.json`) mais a da nova
-  tem de caber em ORCAMENTO (o `MemoryHigh` do slice do claude, 16G). Sem espaço, a vaga não abre (agenda.py).
+  tem de caber em ORCAMENTO (32G: reserva contábil, as sessões usam bem menos; o freio físico é o `MemoryHigh` do slice, 16G). Sem espaço, a vaga não abre (agenda.py).
+  O comando vivo da fila `pesado` (scope próprio, 8G) também desconta: `reserva_pesado`.
 - Vigia (cron a cada minuto, root): MemAvailable abaixo de 2G por 2 min avisa o orquestrador e pausa as vagas extras
   por 15 min (renovado enquanto a memória seguir baixa).
 
@@ -22,10 +23,11 @@ import sys
 from hub import conta
 
 UTC = dt.timezone.utc
-ORCAMENTO = os.environ.get("HUB_MEMORIA_ORCAMENTO", "16G")
+ORCAMENTO = os.environ.get("HUB_MEMORIA_ORCAMENTO", "32G")  # reserva contábil: 4 sessões vivas usavam 1,4G juntas (19/10); o freio real é o MemoryHigh do slice + vigia
 LIMITE_LIVRE = 2 * 1024 ** 3  # MemAvailable abaixo disso começa a contar
 ESPERA_ALERTA = dt.timedelta(minutes=2)
 PAUSA = dt.timedelta(minutes=15)
+RESERVA_PESADO = "/tmp/nimbus-pesado.reserva"  # mesmo caminho de hub.pesado.RESERVA (pesado não importa memoria)
 _UNIDADES = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
 
 
@@ -42,9 +44,22 @@ def reservado(registros, padrao):
     return sum(int(r.get("memoria_max") or padrao) for r in registros)
 
 
-def cabe(registros, novo, padrao, orcamento=None):
-    """A sessão nova (MemoryMax `novo`, bytes) cabe no orçamento junto com as vivas?"""
-    return reservado(registros, padrao) + novo <= bytes_de(orcamento or ORCAMENTO)
+def reserva_pesado(arq=RESERVA_PESADO):
+    """Bytes que o comando vivo da fila `pesado` reservou (scope próprio); 0 sem comando vivo."""
+    try:
+        with open(arq, encoding="utf-8") as f:
+            r = json.load(f)
+        os.kill(int(r["pid"]), 0)
+        return int(r["memoria_max"] if isinstance(r["memoria_max"], int) else bytes_de(r["memoria_max"]))
+    except PermissionError:  # o processo existe (de outro usuário)
+        return bytes_de(r["memoria_max"]) if isinstance(r["memoria_max"], str) else int(r["memoria_max"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return 0
+
+
+def cabe(registros, novo, padrao, orcamento=None, extra=0):
+    """A sessão nova (MemoryMax `novo`, bytes) cabe no orçamento junto com as vivas e o `extra` (pesado vivo)?"""
+    return reservado(registros, padrao) + extra + novo <= bytes_de(orcamento or ORCAMENTO)
 
 
 def _pasta(base_dados=None):

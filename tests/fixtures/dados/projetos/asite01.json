@@ -5,21 +5,21 @@
   ],
   "ativo": true,
   "nome": "Cliente C",
-  "dominio": "clientec-com.example",
+  "dominio": "site-a.exemplo.com",
   "hosts_alternativos": [
-    "www.clientec-com.example"
+    "www.site-a.exemplo.com"
   ],
   "hosts_citacao": [
-    "app.clientec-com.example"
+    "app.site-a.exemplo.com"
   ],
   "repo": {
-    "github": "example-org/cliente-c",
+    "github": "acme/cliente-c",
     "base": "develop",
     "pacotes": "yarn",
     "deploy": "dokploy"
   },
   "ids": {
-    "gsc": "sc-domain:clientec-com.example",
+    "gsc": "sc-domain:site-a.exemplo.com",
     "ga4": "100000001",
     "ga4_medicao": "G-TESTE00001",
     "clarity": "clarity0001",
@@ -35,7 +35,7 @@
     "nome_generico": false
   },
   "conselho": null,
-  "contexto": "Cliente C (clientec-com.example): cadastro de teste, texto fictício. Recomende páginas em clientec-com.example.",
+  "contexto": "Cliente C (site-a.exemplo.com): cadastro de teste, texto fictício. Recomende páginas em site-a.exemplo.com.",
   "frase_canonica": null,
   "meta": null,
   "concorrentes": [
@@ -99,7 +99,7 @@
     "indexnow": {
       "chave": "0123456789abcdef0123456789abcdef",
       "aviso": "publicacao",
-      "onde": "example-org/exemplo scripts/blog.mts"
+      "onde": "acme/exemplo scripts/blog.mts"
     },
     "cookie_nao_medir": "asite01_nao_medir"
   },

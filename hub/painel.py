@@ -1,4 +1,4 @@
-"""Painel web do hub: https://nimbus.clientec-com.example → Traefik → aqui (só leitura).
+"""Painel web do hub: o domínio do painel (painel.dominio) → Traefik → aqui (só leitura).
 
 Mostra o que as rotinas já gravam em HUB_DATA: verificador, Search Console, GA4, AI Overview, propostas, uso do Claude
 e saúde da VPS. Lê só caminhos montados aqui dentro (nunca um caminho vindo da URL) e não mostra credencial nenhuma
@@ -27,8 +27,8 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from hub import comecar, config, config_telas, faltou, data as hub_data, limite, linear_uso, plugins, ui, usuarios
-from hub import rastreio_tela, portao_done, roteamento, acoes, agenda, biblioteca_tela, cerebro, grafo_tela, metas_tela, seomator_tela, cockpit, conta as C, dataforseo as DFS, propostas as P, monitor, resumo, sites as S, uso_contas as U
+from hub import comecar, config, config_telas, faltou, fila_issues, data as hub_data, limite, linear_uso, plugins, ui, usuarios
+from hub import rastreio_tela, portao_done, roteamento, acoes, agenda, biblioteca_tela, cerebro, grafo_tela, metas_tela, seomator_tela, cockpit, in_review, conta as C, dataforseo as DFS, propostas as P, monitor, resumo, sites as S, uso_contas as U
 
 # Telas do negócio nosso (BI dos nossos bancos, virais, lições, RUM dos nossos sites) ficam fora do snapshot público
 #: sem o módulo, a rota cai no 404 e o item some do menu. Na main todas existem e nada muda.
@@ -44,6 +44,12 @@ except ImportError as _e:
     if not faltou(_e, "hub.erros_tela"):
         raise
     erros_tela = None
+try:
+    import hub.backlinks_tela as backlinks_tela
+except ImportError as _e:
+    if not faltou(_e, "hub.backlinks_tela"):
+        raise
+    backlinks_tela = None
 try:
     import hub.evals.tela as avaliacoes_tela
 except ImportError as _e:
@@ -87,6 +93,12 @@ except ImportError as _e:
         raise
     concorrentes_tela = None
 try:
+    import hub.moedor_tela as moedor_tela
+except ImportError as _e:
+    if not (faltou(_e, "hub.moedor_tela") or faltou(_e, "hub.moedor")):
+        raise
+    moedor_tela = None
+try:
     import hub.provas_tela as provas_tela
 except ImportError as _e:
     if not faltou(_e, "hub.provas_tela"):
@@ -98,10 +110,11 @@ except ImportError as _e:
     if not faltou(_e, "hub.redteam"):
         raise
     redteam_tela = None
-_SEM_TELA = {c for mod, cs in ((bi_painel, ("/bi", "/bi/comparar")), (virais_tela, ("/virais",)), (erros_tela, ("/erros",)), (avaliacoes_tela, ("/avaliacoes",)),
+_SEM_TELA = {c for mod, cs in ((bi_painel, ("/bi", "/bi/comparar")), (virais_tela, ("/virais",)), (erros_tela, ("/erros",)), (backlinks_tela, ("/backlinks",)), (avaliacoes_tela, ("/avaliacoes",)),
                                (velocidade_campo_tela, ("/velocidade",)), (destaques_tela, ("/destaques",)), (portfolio_tela, ("/portfolio",)),
                                (fabrica_tela, ("/fabrica",)),
-                               (provas_tela, ("/provas",)), (redteam_tela, ("/redteam",)), (concorrentes_tela, ("/concorrentes",))) if mod is None for c in cs}
+                               (provas_tela, ("/provas",)), (redteam_tela, ("/redteam",)), (concorrentes_tela, ("/concorrentes",)),
+                               (moedor_tela, ("/moedor",))) if mod is None for c in cs}
 if _SEM_TELA:
     ui.MENU[:] = [(g, ic, [i for i in itens if i[0] not in _SEM_TELA]) for g, ic, itens in ui.MENU
                   if any(i[0] not in _SEM_TELA for i in itens)]
@@ -486,15 +499,25 @@ def usuarios_tela():
     if s:
         with _LINKS_TRAVA:
             link = _LINKS.pop(s["email"], "")
-    sel = lambda atual: ('<select name="papel" aria-label="Papel">' + "".join(
-        f'<option value="{p}"{" selected" if p == atual else ""}>{p}</option>' for p in usuarios.PAPEIS) + "</select>")
+    # cliente só nasce por convite com site (usuarios.trocar_papel recusa): fora do seletor de troca, salvo para quem já é
+    sel = lambda atual, cliente=False: ('<select name="papel" aria-label="Papel">' + "".join(
+        f'<option value="{p}"{" selected" if p == atual else ""}>{p}</option>' for p in usuarios.PAPEIS
+        if p != "cliente" or cliente or atual == "cliente") + "</select>")
+    try:
+        ids_sites = [s["id"] for s in S.carregar()]
+    except Exception:  # noqa: BLE001  (cadastro ilegível: o convite de cliente fica sem opção, o resto da tela abre)
+        ids_sites = []
+    sel_site = ('<select name="site" aria-label="Site do cliente (só vale para o papel cliente)">'
+                '<option value="">Site (só para cliente)</option>'
+                + "".join(f'<option value="{e(i)}">{e(i)}</option>' for i in ids_sites) + "</select>")
     linhas = []
     for u in usuarios.listar():
         oculto = f'<input type="hidden" name="email" value="{e(u["email"])}">'
         mexer = _form("papel", oculto + sel(u["papel"]), [("Trocar papel", "neutro", None, "")])
         if u["ativo"]:
             mexer += _form("desativar", oculto, [("Desativar", "perigo", None, "")])
-        linhas.append([ui.td(u["email"]), ui.td(u["papel"]), ui.td(ui.quando(u["criado"])), "sim" if u["ativo"] else "não",
+        papel_txt = u["papel"] + (": " + ", ".join(u["sites"]) if u["sites"] else "")
+        linhas.append([ui.td(u["email"]), ui.td(papel_txt), ui.td(ui.quando(u["criado"])), "sim" if u["ativo"] else "não",
                        ui.td(mexer, html_=True)])
     corpo = ""
     if link:
@@ -504,7 +527,7 @@ def usuarios_tela():
                      direita='<a href="/config/auditoria">Auditoria</a>')
     corpo += ui.card("Convidar", _form(
         "convidar", '<input name="email" type="text" required maxlength="320" autocapitalize="none" placeholder="E-mail"'
-        ' aria-label="E-mail">' + sel("leitura"), [("Convidar", "prim", None, "")]))
+        ' aria-label="E-mail">' + sel("leitura", cliente=True) + sel_site, [("Convidar", "prim", None, "")]))
     return pagina("Usuários", corpo, "/config/usuarios", olho="Config",
                   sub="Quem entra no painel e o que cada papel pode: leitura vê, operador age, dono configura.")
 
@@ -828,6 +851,9 @@ def _cartao_saldos(est):
             det = f'saldo {usd(s["saldo"])}' if s.get("saldo") is not None else e(s.get("erro") or "—")
             if s.get("gasto_hoje") is not None:
                 det += f' · gasto hoje {usd(s["gasto_hoje"])}'
+            ch = s.get("chave") or {}
+            if k == "openrouter" and ch:  # chave do WhatsApp, a única da OpenRouter
+                det += f' · dia {usd(ch["dia"])}' + (f' de {usd(ch["limite"])}' if ch.get("limite") else " (sem teto!)") + f' · semana {usd(ch["semana"])}'
         linhas.append(f'<p>{ui.selo(texto, tom)} <strong>{e(rot)}</strong> <span class="mu">{det}</span></p>')
     return ui.card("Saldos", "".join(linhas) + f'<p class="mu">Lido {ui.ha(est.get("em")) or "—"}.</p>')
 
@@ -900,6 +926,10 @@ def linear_tela():
     corpo = ui.kpis(ui.kpi("Em andamento", ui.num(por_estado.get("In Progress", 0)), quente=True),
                     ui.kpi("Em revisão", ui.num(por_estado.get("In Review", 0))),
                     ui.kpi("Travadas", ui.num(travadas), tom="ruim" if travadas else None))
+    ir = in_review.estado()  # In Review parada > 2 h e contas ociosas (hub/in_review.py mede a cada 10 min)
+    if ir:
+        corpo += ui.kpis(ui.kpi("Em revisão parada > 2 h", ui.num(ir.get("paradas")), tom="ruim" if (ir.get("paradas") or 0) > in_review.P1_LIMITE else None),
+                         ui.kpi("Contas ociosas", ui.num(ir.get("ociosas")), tom="ruim" if ir.get("ociosas") and ir.get("paradas") else None))
     corpo += _linear_uso_card()
     por_proj = collections.defaultdict(list)
     for i in lr.get("issues") or []:
@@ -919,6 +949,78 @@ def linear_tela():
         corpo += ui.card("Planos", "".join(ui.barra(p.get("label", ""), p.get("feitas", 0), p.get("total", 0) or 1, plano=True,
                                                     texto=f'{p.get("feitas", 0)}/{p.get("total", 0)}') for p in planos))
     return pagina("Linear", corpo + _pedir_dialogo(), "/linear", olho="Operação", sub=sub, acoes=_pedir_acao())
+
+
+# ---------- fila local de issues ----------
+PRIORIDADE_PT = {1: "Urgente", 2: "Alta", 3: "Média", 4: "Baixa"}
+RE_ISSUE = re.compile(r"[A-Za-z]{1,12}-\d{1,9}")
+RE_ANEXO = re.compile(r"[0-9a-f]{12}-[\w.-]+")
+POR_COLUNA = 30  # Done e Canceled crescem sem teto: o quadro mostra as mais recentes de cada coluna
+INLINE_ANEXO = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+                ".webp": "image/webp", ".pdf": "application/pdf"}
+
+
+def _cartao_issue(i):
+    proj = (i.get("project") or {}).get("name") or ""
+    prio = PRIORIDADE_PT.get(i.get("priority"), "")
+    meta = " · ".join(x for x in (e(proj), e(prio), e(ui.ha(i.get("updatedAt")))) if x)
+    return (f'<div class="cartao-issue"><a href="/issues/{e(i["identifier"])}"><strong>{e(i["identifier"])}</strong></a> '
+            f'{e(i.get("title") or "")}<p class="mu">{meta}</p></div>')
+
+
+def issues_tela():
+    """Quadro da fila local: uma coluna por estado (ordem de fila_issues.ESTADOS), as mais mexidas primeiro."""
+    todas = sorted(fila_issues.listar(), key=lambda i: i["updatedAt"], reverse=True)
+    colunas = ""
+    for estado in fila_issues.ESTADOS:
+        doeste = [i for i in todas if i["state"]["name"] == estado]
+        corpo = "".join(_cartao_issue(i) for i in doeste[:POR_COLUNA]) or ui.vazio("Nada aqui.")
+        if len(doeste) > POR_COLUNA:
+            corpo += f'<p class="mu">Mostrando as {POR_COLUNA} mais recentes de {len(doeste)}.</p>'
+        colunas += ui.card(estado, corpo, conta=len(doeste))
+    corpo = f'<div class="grade n{len(fila_issues.ESTADOS)}">{colunas}</div>'
+    return pagina("Issues", corpo + _pedir_dialogo(), "/issues", olho="Operação", acoes=_pedir_acao(),
+                  sub="A fila de tarefas do hub: o que espera, o que os Claudes estão fazendo e o que já foi entregue.")
+
+
+def issue_tela(ident):
+    """Issue da fila local com descrição, conversa, comentar e mover; None se não existe (a rota responde 404)."""
+    if not RE_ISSUE.fullmatch(ident or ""):
+        return None
+    i = fila_issues.item_por_ident(ident)
+    if not i:
+        return None
+    est = i["state"]["name"]
+    selos = ui.selo(*ESTADO_PT.get(est, (est, "neutro")))
+    proj = (i.get("project") or {}).get("name")
+    if proj:
+        selos += " " + ui.selo(proj)
+    if PRIORIDADE_PT.get(i.get("priority")):
+        selos += " " + ui.selo(PRIORIDADE_PT[i["priority"]])
+    conversa = "".join(
+        f'<div class="fala"><p class="mu"><strong>{e(c["user"]["name"])}</strong>{" (Claude)" if c["user"]["app"] and c["user"]["name"] != "Claude" else ""}'
+        f' · {e(ui.ha(c["createdAt"]))}</p>{ui.md(c["body"])}</div>' for c in i["comments"]["nodes"]
+    ) or ui.vazio("Sem conversa ainda.")
+    opcoes = "".join(f'<option value="{e(n)}"{" selected" if n == est else ""}>{e(n)}</option>' for n in fila_issues.ESTADOS)
+    oculto = f'<input type="hidden" name="issue" value="{e(i["identifier"])}">'
+    forms = _form("comentar", oculto + '<textarea class="largo" name="texto" required maxlength="5000" '
+                  'placeholder="Escreva para o Claude…" aria-label="Comentar"></textarea>', [("Comentar", "prim", None, "")])
+    forms += _form("mover-issue", oculto + f'<select name="estado" aria-label="Estado">{opcoes}</select>',
+                   [("Mover", "prim", None, "")])
+    corpo = (ui.card(i["title"], f'<p>{selos}</p>{ui.md(i.get("description") or "")}')
+             + ui.card("Conversa", conversa, conta=len(i["comments"]["nodes"]))
+             + ui.card("Responder ou mover", forms or ui.vazio("Seu papel só vê esta issue.")))
+    return pagina(f'{i["identifier"]} {i["title"]}'[:120], corpo, "/issues", olho="Operação",
+                  sub=f'{e(i["identifier"])} · criada {ui.ha(i.get("createdAt"))}')
+
+
+def anexo_issue(nome):
+    """Arquivo de <dados>/issues/anexos para o nome pedido, ou None (só <12 hex>-<nome>, dentro da pasta, arquivo comum)."""
+    if not RE_ANEXO.fullmatch(nome or ""):
+        return None
+    pasta = (fila_issues._pasta() / "anexos").resolve()
+    arq = (pasta / nome).resolve()
+    return arq if arq.parent == pasta and arq.is_file() else None
 
 
 def _pendencias_fulano():
@@ -1859,6 +1961,10 @@ def relatorio_publico(token):
 _SCRYPT = threading.BoundedSemaphore(4)  # scrypt do /entrar em paralelo (cada um ~16 MB e um núcleo)
 SEM_REFERER = {"Referrer-Policy": "no-referrer"}  # /convite: o token da URL não sai em Referer
 RE_PUBLICA = re.compile(r"/r/[A-Za-z0-9_-]{20,100}")
+RE_CLIENTE = re.compile(r"/cliente/([a-z0-9]+(?:-[a-z0-9]+)*)")  # tela do cliente; o id é o de hub/sites.py
+NAO_ACHEI_CLIENTE = ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="robots" content="noindex">'
+                     '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Não achei</title></head>'
+                     '<body><p style="font:16px/1.5 system-ui,sans-serif;margin:2rem 1rem">Essa página não existe.</p></body></html>')
 RE_LICITACAO = re.compile(r"/l/([A-Za-z0-9._-]{1,80})/(entrar|passar)")  # link assinado do e-mail das licitações: o token é a senha
 # Arquivos da marca, públicos (a tela de entrada e o favicon aparecem antes da senha). Lista fechada: o caminho pedido só
 # serve de chave, nunca vira caminho de disco, então "..", nome fora da lista e subpasta dão 404.
@@ -1904,7 +2010,7 @@ def _rota(caminho, usuario="dono"):
             linhas, cotas_ = github_api.resumo(), github_api.cotas()
         except (sqlite3.Error, OSError):  # medição é melhor-esforço: banco ilegível não derruba a tela
             linhas, cotas_ = [], []
-        corpo = '<p>Cobertura: gh e REST do hub medidos; local-ci das VPS, app da fsite05 e deploy ainda não.</p>'
+        corpo = '<p>Cobertura: gh e REST do hub medidos; local-ci das VPS, app da fsite06 e deploy ainda não.</p>'
         corpo += '<h2>Cota por credencial</h2><table><tr><th>Credencial</th><th>Restante</th><th>Limite</th><th>Reset</th></tr>'
         for ident_, rotulo, restante, limite, reset in cotas_:
             reset_txt = time.strftime("%H:%M", time.localtime(reset)) if reset else ""
@@ -1938,6 +2044,9 @@ def _rota(caminho, usuario="dono"):
         return 200, metas_pagina()
     if partes == ["provas"] and provas_tela:
         return 200, provas_pagina(urllib.parse.parse_qs(u.query).get("produto", [""])[0][:40])
+    if partes == ["moedor"] and moedor_tela:  # (F5 do moedor)
+        return 200, pagina("Moedor", moedor_tela.tela(), "/moedor", olho="Operação",
+                           sub="Referências conferidas de fonte aberta por projeto: buscas, leituras, aceitas por dia, recusas com o motivo e o gasto, que fica em 0.")
     if partes == ["confiabilidade"]:  # (F2)
         from hub import confiabilidade
         return 200, pagina("Confiabilidade", confiabilidade.tela(), "/confiabilidade", olho="Operação",
@@ -1962,6 +2071,9 @@ def _rota(caminho, usuario="dono"):
     if partes == ["erros"] and erros_tela:
         return 200, pagina("Erros", erros_tela.tela(), "/erros", olho="Operação",
                            sub="Os erros que o sistema repete: classes, tendência por semana, o que voltou depois do conserto e o que falta.")
+    if partes == ["backlinks"] and backlinks_tela:
+        return 200, pagina("Backlinks", backlinks_tela.tela(), "/backlinks", olho="Operação",
+                           sub="Captação de links por site: prospectos, envios, respostas, links no ar, pausas, custo e saldo da DeepSeek.")
     if partes == ["biblioteca"]:
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         return 200, pagina("Biblioteca", biblioteca_tela.tela(q.get("q", "")[:200], q.get("tema", ""), q.get("projeto", ""), q.get("vista", "")),
@@ -2034,6 +2146,11 @@ def _rota(caminho, usuario="dono"):
         return 200, agentes_tela()
     if partes == ["linear"]:
         return 200, linear_tela()
+    if partes == ["issues"]:
+        return 200, issues_tela()
+    if len(partes) == 2 and partes[0] == "issues":
+        r = issue_tela(urllib.parse.unquote(partes[1]))
+        return (200, r) if r else (404, pagina("Não achei", NAO_ACHEI))
     if partes == ["pendencias"]:
         return 200, pendencias_tela()
     if partes == ["agora.fragmento"]:
@@ -2167,6 +2284,8 @@ class Painel(BaseHTTPRequestHandler):
             t = (urllib.parse.parse_qs(u.query).get("t") or [""])[0]
             return self._html(200, ui.convite(t) if usuarios.ver_convite(t) else ui.convite_invalido(), SEM_REFERER)
         _, sessao = self._sessao()
+        if sessao and (sessao["papel"] == "cliente" or RE_CLIENTE.fullmatch(caminho)):
+            return self._cliente_get(caminho, sessao)  # portão do cliente: antes de qualquer outra rota (default-deny)
         if sessao and not usuarios.pode(sessao["papel"], usuarios.permissao_get(caminho)):
             return self._sem_permissao(sessao)
         if self._comecar(caminho, sessao):
@@ -2184,6 +2303,8 @@ class Painel(BaseHTTPRequestHandler):
             return self._html(200, ui.sair(sessao["csrf"]), {})
         if caminho.startswith("/video-arquivo/"):  # já com sessão e o papel conferido ("ver")
             return self._arquivo(plugins.arquivo(caminho))
+        if caminho.startswith("/issues/anexo/"):  # já com sessão e o papel conferido ("ver")
+            return self._anexo_issue(caminho[len("/issues/anexo/"):])
         _pedido.sessao = sessao
         try:
             status, corpo, *cab = rota(self.path, sessao["email"] if sessao else "")
@@ -2192,6 +2313,33 @@ class Painel(BaseHTTPRequestHandler):
         finally:
             _pedido.sessao = None
         self._html(status, corpo, cab[0] if cab else {})
+
+    def _nao_achei(self):
+        """404 do portão do cliente: sempre a mesma página mínima, sem menu nem nome de tela, exista a rota ou não."""
+        self._html(404, NAO_ACHEI_CLIENTE, {})
+
+    def _cliente_get(self, caminho, sessao):
+        """o cliente só passa pela lista de permissão abaixo; o resto é 404 igual (existe ou não). Quem não é
+        cliente também recebe 404 em /cliente/<id> (a tela é só do papel). Nada daqui chega a rota() nem a config_telas."""
+        cliente = sessao["papel"] == "cliente"
+        if cliente and caminho == "/entrar":
+            return self._fim(303, "/")
+        if cliente and caminho == "/sair":
+            return self._html(200, ui.sair(sessao["csrf"]), {})
+        sites = sessao.get("sites") or []
+        if cliente and caminho == "/":
+            return self._fim(303, f"/cliente/{sites[0]}") if sites else self._nao_achei()
+        m = RE_CLIENTE.fullmatch(caminho)
+        if not (cliente and m and m[1] in sites):
+            return self._nao_achei()
+        try:
+            from hub import cliente_tela
+        except ImportError as _e:  # fora do snapshot público (importa telas do negócio nosso): a rota cai no 404
+            if not faltou(_e, "hub.cliente_tela"):
+                raise
+            return self._nao_achei()
+        corpo = cliente_tela.pagina(m[1])
+        return self._html(200, corpo, {}) if corpo else self._nao_achei()
 
     def _sem_permissao(self, sessao):
         """403 com a casca do painel (o menu do papel dele); nada vindo do pedido entra na página."""
@@ -2256,6 +2404,24 @@ class Painel(BaseHTTPRequestHandler):
                     break
                 self.wfile.write(bloco)
                 restante -= len(bloco)
+
+    def _anexo_issue(self, nome):
+        """Anexo da fila local. Imagem e PDF abrem na aba; o resto baixa. Nunca é interpretado como página."""
+        arq = anexo_issue(nome)
+        if not arq:
+            return self._fim(404)
+        b = arq.read_bytes()
+        tipo = INLINE_ANEXO.get(arq.suffix.lower())
+        self.send_response(200)
+        self.send_header("Content-Type", tipo or "application/octet-stream")
+        self.send_header("Content-Disposition", ("inline" if tipo else "attachment") + f'; filename="{urllib.parse.quote(nome)}"')
+        self.send_header("Content-Length", str(len(b)))
+        self.send_header("Cache-Control", "private, no-store")
+        self.send_header("Content-Security-Policy", "default-src 'none'; sandbox; frame-ancestors 'none'")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Robots-Tag", "noindex")
+        self.end_headers()
+        self.wfile.write(b)
 
     def _html(self, status, corpo, cab):
         # Sem a trava de moldura, outra página poderia embutir o painel (sessão aberta no navegador) e levar o dono a clicar
@@ -2396,10 +2562,12 @@ class Painel(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         _pedido.sessao = None
         caminho = urllib.parse.urlsplit(self.path).path
+        token, sessao = self._sessao()
+        if sessao and sessao["papel"] == "cliente" and caminho not in ("/entrar", "/convite", "/sair"):
+            return self._nao_achei()  # portão do cliente: POST só no login, convite e sair
         lic = RE_LICITACAO.fullmatch(caminho)
         if lic:  # link assinado do e-mail: o token do formulário é a credencial, sem sessão
             return self._licitacao_post(lic)
-        token, sessao = self._sessao()
         if caminho == "/comecar":
             return self._comecar_post(sessao)
         if caminho == "/entrar":

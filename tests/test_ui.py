@@ -143,8 +143,8 @@ class ComponentesTest(unittest.TestCase):
         self.assertIn(".filtro [aria-current]", ui.JS)
 
     def test_filtro_mantem_query(self):
-        h = ui.filtro("periodo", {"7": "7 dias", "28": "28 dias"}, "28", base="/bi/fsite05?comparar=ano")
-        self.assertIn('href="/bi/fsite05?comparar=ano&amp;periodo=7"', h)
+        h = ui.filtro("periodo", {"7": "7 dias", "28": "28 dias"}, "28", base="/bi/fsite06?comparar=ano")
+        self.assertIn('href="/bi/fsite06?comparar=ano&amp;periodo=7"', h)
         self.assertIn('aria-current=true>28 dias', h)
 
     def test_grafico_lacuna_e_vazio(self):

@@ -34,14 +34,21 @@ SECOES = {
     "github": {"org": "", "base_padrao": "main"},
     "bi": {"negocios": {}},  # id do armazém → nome curto; independente do cadastro SEO
     "whatsapp": {"remetentes": {}},  # {id: "crm"|"numero"}: quem é dono de número nas propostas (projetos/<id>.json pode somar)
-    "linear": {"time": "", "projeto_padrao": ""},
+    "linear": {"time": "", "projeto_padrao": "", "workspace": ""},  # workspace: o da URL linear.app/<workspace>/issue/... (vazio = sem link)
+    # Cérebro: o desenho vem daqui e do cadastro, nunca do código. Vazio = sem o nó (e sem a leitura dele).
+    # sites: {id: rótulo} é a lista fechada do mapa (sem ela, todos os ativos do cadastro).
+    "cerebro": {"sites": {}, "versao": [], "servidor": "", "servidor_rotulo": "Servidor", "servidor_deploys": "",
+                "repos": {}, "projetos": {}, "codex": False, "codex_revisoes": "", "gpu_estacao": "", "pc_rotulo": "PC · GPU",
+                "ci": False, "debugger": False},
+    "issues": {"provedor": "", "prefixo": "KRO"},  # provedor: "local" (fila SQLite própria) | "linear"; vazio = linear se há segredo do Linear, senão local
     "painel": {"dominio": "", "porta": 8787, "proxies": []},  # proxies vazio = loopback e rede privada
-    "rotinas": {"horarios": {}, "cron": "", "desligadas": []},  # {nome da rotina de plugin: "m h dom mon dow" em UTC}; a agenda do contêiner dispara; desligadas: nomes (rotina ou tarefa) que não disparam sozinhos (tela Rotinas)
+    "rotinas": {"horarios": {}, "cron": "", "desligadas": [], "padroes": {}},  # {nome da rotina de plugin: "m h dom mon dow" em UTC}; a agenda do contêiner dispara; desligadas: nomes (rotina ou tarefa) que não disparam sozinhos (tela Rotinas) | padroes: {VARIÁVEL: valor} que os scripts de deploy usam quando o .env do app não define (remetentes, URLs); lidos por `python3 -m hub.config get rotinas.padroes <VARIÁVEL>`
     "mcp": {"url": "http://localhost:4181/mcp"},
     "agentes": {"contas": ["1"], "faixas": {"1": "construtor"}, "modelos": {}, "limite_usd_dia": 0,
                 "limites": {}},  # limites: {conta: usd/dia}; a conta sem entrada usa limite_usd_dia (0 = sem limite)
     "plugins": {"caminho": "", "ligados": []},
-    "nucleo": {"tag": "", "repo": "https://github.com/BRK13/krohnos"},  # núcleo aberto numa tag fixa (hub/nucleo.py); tag vazia = embutido
+    "nucleo": {"tag": "", "repo": ""},  # núcleo aberto numa tag fixa (hub/nucleo.py); tag vazia = embutido
+    "marcas": {"dominios": {}, "emails": {}},  # {id do negócio: domínio} e {papel: endereço} dos negócios do dono (o código só cita o id/papel)
     "produto": {"nome": "Krohnos", "cli": "krohnos", "site": ""},  # marca: só aqui
 }
 
@@ -58,13 +65,26 @@ APELIDOS = {
 }
 
 # Valores da nossa VPS: valem só sem env nem toml e só na VPS (pasta do código existe). `migrar` os grava no toml.
-LEGADO_VALOR = {"bi.negocios": {"asite01": "asite01", "clientej": "ClienteJ", "fsite05": "Cliente A",
-                                  "clientei": "ClienteI", "psite13": "Cliente G", "clientee": "ClienteE"},
-                "produto.nome": "Krohnos", "dono.nome": "Fulano", "github.org": "example-org",
-                "whatsapp.remetentes": {"fsite05": "crm", "asite01": "numero"},
+LEGADO_VALOR = {"bi.negocios": {"asite01": "asite01", "clientej": "ClienteJ", "fsite06": "Cliente A",
+                                  "clientei": "ClienteI", "psite15": "Cliente G", "clientee": "ClienteE"},
+                "produto.nome": "Krohnos", "dono.nome": "Fulano",
+                "whatsapp.remetentes": {"fsite06": "crm", "asite01": "numero"},
                 "plugins.caminho": "/opt/nimbus/privado/plugins", "plugins.ligados": ["*"],
                 # a VPS roda o crontab do repositório: sem [rotinas] cron no toml, a tela Rotinas lê o mesmo arquivo (= o que raiz.rotinas() lê)
                 "rotinas.cron": str(Path(__file__).resolve().parent.parent / "deploy" / "nimbus.cron")}  # "*" = todos os encontrados
+
+
+def _legado_privado():
+    """Valores da nossa VPS que são identidade (org do GitHub, domínio do painel, URL do Dokploy): ficam em privado/legado-vps.json,
+    arquivo FORA do snapshot público (publico.permitidos não o nomeia). Sem o arquivo (snapshot, instalação de terceiro) não há legado."""
+    try:
+        dados = json.loads((Path(__file__).resolve().parent.parent / "privado" / "legado-vps.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+LEGADO_VALOR.update(_legado_privado())
 
 PROIBIDAS = ("senha", "token", "secret", "segredo", "password", "api_key", "apikey")
 PERMITIDAS = ("caminhos.segredos",)  # só o caminho da pasta de segredos, nunca um valor
@@ -226,6 +246,27 @@ def definido(chave):
         if var and os.environ.get(var):
             return _converter(os.environ[var], padrao)
     return _carregado().get(secao, {}).get(nome)
+
+
+def legado(chave):
+    """Valor legado da nossa VPS para `chave` (também as que não são chave do toml, ex. dokploy.url); None fora da VPS."""
+    return LEGADO_VALOR.get(chave) if Path(LEGADO["caminhos.codigo"]).is_dir() else None
+
+
+def painel_url():
+    """`https://<painel.dominio>` ou "" sem domínio configurado (na nossa VPS vem do legado)."""
+    dominio = (get("painel.dominio") or "").strip()
+    return f"https://{dominio}" if dominio else ""
+
+
+def dominio(negocio, padrao=""):
+    """Domínio do negócio (marcas.dominios) ou `padrao`; na nossa VPS vem do legado."""
+    return (get("marcas.dominios") or {}).get(negocio) or padrao
+
+
+def email(papel, padrao=""):
+    """Endereço do papel (marcas.emails: remetente, contato da pesquisa...) ou `padrao`; na nossa VPS vem do legado."""
+    return (get("marcas.emails") or {}).get(papel) or padrao
 
 
 def get(chave):
@@ -448,7 +489,7 @@ def migrar(saida, hub_json=None, painel_env=None):
     dados = {"caminhos": {"dados": str(hub.data()), "cofre": str(hub.home())}}
     if os.environ.get("CLAUDE_HOME"):
         dados["caminhos"]["home_agentes"] = os.environ["CLAUDE_HOME"]
-    dados["dono"], dados["github"] = {"nome": LEGADO_VALOR["dono.nome"]}, {"org": LEGADO_VALOR["github.org"]}
+    dados["dono"], dados["github"] = {"nome": LEGADO_VALOR["dono.nome"]}, {"org": LEGADO_VALOR.get("github.org", "")}
     dados["produto"] = {"nome": get("produto.nome"), "cli": get("produto.cli")}
     dados["bi"] = {"negocios": get("bi.negocios")}
     dados["whatsapp"] = {"remetentes": LEGADO_VALOR["whatsapp.remetentes"]}
@@ -495,7 +536,19 @@ def main(argv=None):
     m.add_argument("--hub-json")
     m.add_argument("--painel-env", default=None)
     sub.add_parser("validar", help="valida o krohnos.toml em uso")
+    g = sub.add_parser("get", help="imprime o valor da chave (texto puro; dict com subchave); vazio se não houver (usado pelos scripts de deploy)")
+    g.add_argument("chave")
+    g.add_argument("subchave", nargs="?")
     a = ap.parse_args(argv)
+    if a.cmd == "get":
+        try:
+            v = get(a.chave)
+        except (KeyError, ValueError, ConfigError):
+            return 0
+        if a.subchave is not None:
+            v = v.get(a.subchave, "") if isinstance(v, dict) else ""
+        print("" if v is None else (v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)))
+        return 0
     try:
         if a.cmd == "migrar":
             import hub

@@ -149,7 +149,7 @@ def cancelar(app_name, deployment_id, application_id):
         subprocess.run(["docker", "exec", ctr, "pkill", sinal, "-f", "--", padrao], capture_output=True, timeout=30)
         time.sleep(espera)
         if not any(d["deploymentId"] == deployment_id and d.get("status") == "running"
-                   for d in raiz._dokploy(f"deployment.all?applicationId={application_id}", chave=_chave())):
+                   for d in _dk(raiz._dokploy, f"deployment.all?applicationId={application_id}", chave=_chave())):
             return
     raise RuntimeError(f"{app_name}: deploy {deployment_id} continua em running depois do KILL")
 
@@ -158,8 +158,27 @@ def _chave():
     return raiz.ler_env(raiz.ENV_AGENTE).get("DOKPLOY_API_KEY")
 
 
+class ErroHttp(RuntimeError):
+    """HTTP que falhou, com quem (Dokploy ou GitHub) e a URL (o 401 de 22/10 não dizia de qual dos dois era)."""
+
+
+def _http(origem, e):
+    url = getattr(e, "url", None) or getattr(e, "filename", None) or "?"
+    return ErroHttp(f"{origem} {url}: HTTP {e.code} {e.reason}"
+                    + (" (DOKPLOY_API_KEY de /etc/agente-fsite06.env não vale para este Dokploy)"
+                       if origem == "Dokploy" and e.code == 401 else ""))
+
+
+def _dk(fn, *args, **kw):
+    """Chamada ao Dokploy (raiz._dokploy, raiz.apps_dokploy): HTTPError vira ErroHttp com a URL."""
+    try:
+        return fn(*args, **kw)
+    except urllib.error.HTTPError as e:
+        raise _http("Dokploy", e) from None
+
+
 def refazer(application_id):
-    raiz._dokploy("application.deploy", {"applicationId": application_id}, _chave())
+    _dk(raiz._dokploy, "application.deploy", {"applicationId": application_id}, _chave())
 
 
 def abrir_issue(app, d):
@@ -188,7 +207,7 @@ def abrir_issue(app, d):
             return json.loads(r.read())["html_url"]
     except urllib.error.HTTPError as e:
         status = e.code
-        raise
+        raise _http("GitHub", e) from None
     finally:
         github_api.registrar_http("vigia_deploy", token, status)
 
@@ -211,9 +230,14 @@ def rodar(simular=False, base_dados=None, agora=None):
         por_app = {}
         feitos.append({"em": agora.isoformat(), "acao": "sitemap", "erro": f"sites: {str(e)[:300]}"})
     enviados = estado.setdefault("_sitemap", {})  # separado: estado[nome] é sobrescrito pelo decidir
-    for a in raiz.apps_dokploy(chave):
+    try:
+        apps = _dk(raiz.apps_dokploy, chave)
+    except ErroHttp as e:  # sem a lista de apps o vigia não vê nada: falha com a URL na última linha (rotina_falhas)
+        print(f"vigia-deploy: {e}", file=sys.stderr)
+        return 1
+    for a in apps:
         try:
-            deploys = sorted(raiz._dokploy(f"deployment.all?applicationId={a['applicationId']}", chave=chave) or [],
+            deploys = sorted(_dk(raiz._dokploy, f"deployment.all?applicationId={a['applicationId']}", chave=chave) or [],
                              key=lambda d: d["createdAt"], reverse=True)
             nome = a.get("appName") or a["name"]
             lim = com_carga(limite(nome, deploys), carga, nucleos)
@@ -245,7 +269,7 @@ def rodar(simular=False, base_dados=None, agora=None):
             if acao == "lento":  # só anota no jsonl; não é conserto, não vai ao diário
                 feitos.append(ev)
                 continue
-            app = {**a, **(raiz._dokploy(f"application.one?applicationId={a['applicationId']}", chave=chave) or {})}
+            app = {**a, **(_dk(raiz._dokploy, f"application.one?applicationId={a['applicationId']}", chave=chave) or {})}
             if acao.startswith("cancelar"):
                 cancelar(nome, d["deploymentId"], a["applicationId"])
             if acao in ("cancelar_refazer", "refazer"):

@@ -17,13 +17,13 @@ agentes. A fila, as regras, os portões e a memória que fazem vários agentes e
 ## O que faz
 
 ```
-Você (WhatsApp / painel / Linear)
+Você (WhatsApp / painel; Linear opcional)
    │  pedido em linguagem comum
    ▼
 Orquestrador ──► contrato da tarefa (resultado, escopo, o que não pode mudar, prova de pronto)
    │
    ▼
-Fila (Linear) ──► 4 contas de agente, uma worktree git cada (faixas construtor / operador)
+Fila (própria; Linear opcional) ──► 4 contas de agente, uma worktree git cada (faixas construtor / operador)
    │
    ▼
 Portões: testes (CI local) ─► revisão por segundo modelo (Codex) ─► merge ─► deploy ─► "está no ar?"
@@ -90,6 +90,31 @@ Capturas do painel com os dados da demonstração (tema escuro e claro):
 ![Metas, tema claro](docs/img/painel-metas-claro.png)
 ![Propostas, tema escuro](docs/img/painel-propostas-escuro.png)
 ![Propostas, tema claro](docs/img/painel-propostas-claro.png)
+
+## Contas necessárias
+
+| Conta | Precisa? | Para quê |
+|---|---|---|
+| Claude Code (1 a 4 contas) | Obrigatória | Os agentes que fazem o trabalho |
+| GitHub | Opcional | Pull requests, portões de revisão e merge |
+| Linear | **Opcional** | Fila de issues hospedada. Sem ele as tarefas ficam na fila própria do hub (painel, Issues) |
+| Codex | Opcional | O revisor de segundo modelo |
+
+## Fila de issues
+
+O hub tem a própria fila de issues (SQLite, na pasta de dados), então o ciclo inteiro (pedido, issue, agenda, PR, Done)
+roda sem pagar nem depender de serviço externo. É o padrão de uma instalação nova (`[issues] provedor = "local"` no
+`krohnos.toml`; os ids são `KRO-1`, definidos por `[issues] prefixo`). O painel mostra em **Issues** (quadro por estado,
+conversa, mover).
+
+- **Usar o Linear:** salve a chave de API do Linear no assistente de primeiro acesso (ou em `linear.env`) e ponha
+  `[issues] provedor = "linear"`. Para os agentes nada muda.
+- **Migrar do Linear para a fila própria:** `python3 -m hub.fila_issues importar-linear` mostra o que seria copiado
+  (só as abertas; `--todas` inclui Done e Canceled); com `--confirmar` grava. Mantém o id (``), estado, labels,
+  prioridade, projeto e repo, comentários e datas, e rodar duas vezes não duplica nada. Depois ponha
+  `[issues] provedor = "local"`.
+- **O que só existe no Linear:** a sessão de agente ao vivo na issue, os updates de projeto e as frentes de plano por
+  label `plano-`. Com a fila local o hub avisa que não estão disponíveis, sem quebrar.
 
 ## O que tem dentro
 

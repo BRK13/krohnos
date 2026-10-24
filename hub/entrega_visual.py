@@ -11,41 +11,127 @@ para issue visual concluída depois de ENTRA_EM, o arquivo `$HUB_DATA/claude/olh
 O que `gerar` mede de verdade (sem modelo julgando): imagem (largura, altura, em branco, hash), vídeo e áudio (ffprobe: duração,
 trilhas; loudnorm: LUFS) e, no `medidas.json` ({"nome": {"esperado": 100, "obtido": 101}}), a tolerância pedida ("±2%").
 O que o pedido exige vira requisito objetivo: larguras de tela ("desktop e celular", "1440 e 390"), "antes e depois", "-14 LUFS",
-"±N%". Sem a evidência, o recibo reabre a issue com o motivo. Ferramentas: `inspect.mjs` (design-taste) e `earshot` geram
+"±N%". Exceção de largura: só na lista versionada `hub/entrega_visual_excecoes.json` (issue, lado, largura aceita,
+quem aprovou, motivo; vale só para aquela issue e lado, o motivo vai para o recibo). Sem a evidência, o recibo reabre a issue com o motivo. Ferramentas: `inspect.mjs` (design-taste) e `earshot` geram
 os prints e as medidas; o verificador só exige que existam e batam com o pedido."""
 import argparse
 import datetime as dt
 import hashlib
 import json
+import os
+import pwd
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from hub import conta, data
+from hub import conta, config, data
 
+EXCECOES = Path(__file__).with_name("entrega_visual_excecoes.json")
 ENTRA_EM = dt.datetime(2026, 10, 18, tzinfo=dt.timezone.utc)  # só issue concluída depois disto: nada do passado reabre
 LARGURA_MIN = 300
 OBS_MIN = 15
 IMG, VID, AUD = (".png", ".jpg", ".jpeg", ".webp", ".gif"), (".mp4", ".mov", ".webm"), (".mp3", ".wav", ".m4a", ".ogg")
-RE_VISUAL = re.compile(r"\bprints?\b|screenshots?|antes e depois|antes/depois|\bdesktop\b|\bcelular\b|\b1440\b|\bmp4\b|\bmp3\b|"
+RE_VISUAL = re.compile(r"\bprints?\b|screenshots?|\bdesktop\b|\bcelular\b|\b1440\b|\bmp4\b|\bmp3\b|"
                        r"v[íi]deo|[áa]udio|render|\bplantas?\b|\bfolhas?\b|\b3d\b|protótipo", re.I)
 RE_LUFS = re.compile(r"(-?\d+(?:[.,]\d+)?)\s*LUFS", re.I)
 RE_TOL = re.compile(r"[±+/-]{1,3}\s*(\d+(?:[.,]\d+)?)\s*%")
 RE_LARGURAS = re.compile(r"\b(\d{3,4})\s*(?:e|,|/|x)\s*(\d{3,4})\b")
 RE_TELAS = re.compile(r"desktop e (?:celular|mobile)|celular e desktop|mobile e desktop", re.I)
 RE_ANTES_DEPOIS = re.compile(r"antes e depois|antes/depois|antes → depois|antes → depois", re.I)
+# "antes/depois" só vira par de prints quando a mesma linha fala de tela ("comparar agenda antes/depois" é dado)
+RE_TELA = re.compile(r"\bprints?\b|screenshots?|captura|\btelas?\b|\bdesktop\b|\bcelular\b|\bmobile\b|\b1440\b|\b390\b|"
+                     r"\bhome\b|\bp[áa]gina\b|layout|visual|imagens?|protótipo", re.I)
+# dispensa explícita do portão visual: só do dono ou do orquestrador (repasse), nunca da própria execução
+RE_DISPENSA = re.compile(r"gate visual dispensado\s*(?:[:\-—]\s*(?P<motivo>[^\n]*))?", re.I)
 
 
 def arquivo(ident, base_dados=None):
     return conta.pasta(base_dados) / "olhei" / f"{ident.upper()}.olhei.json"
 
 
+def pasta_arquivos(ident, base_dados=None):
+    return conta.pasta(base_dados) / "olhei" / "arquivos" / ident.upper()
+
+
+def _liberar_leitura(destino):
+    """a ACL herdada dava ao `orch` `rw-` sem `x`: ele não atravessava a pasta e o portão lia "sumiu". Melhor esforço."""
+    if shutil.which("setfacl"):
+        for modo in (["-m"], ["-d", "-m"]):
+            try:
+                subprocess.run(["setfacl", *modo, "u:orch:rwx" if modo == ["-d", "-m"] else "u:orch:rwX", str(destino)],
+                               capture_output=True, timeout=30, check=False)
+            except (OSError, subprocess.SubprocessError):
+                continue
+
+
+def guardar(ident, arquivos, base_dados=None):
+    """Copia cada artefato para a pasta fixa da issue e devolve os novos caminhos: o original costuma estar no
+    worktree, que some depois do merge, e o portão de Done reprovava com "o arquivo sumiu depois de `gerar`".
+    Arquivo ilegível segue com o caminho de origem: `medir` registra o erro."""
+    destino = pasta_arquivos(ident, base_dados)
+    destino.mkdir(parents=True, exist_ok=True)
+    _liberar_leitura(destino)
+    # origens que já estão na pasta fixa ficam reservadas: copiar outro "p.png" por cima as perderia
+    saida, usados = [], {Path(a).resolve() for a in arquivos if Path(a).resolve().parent == destino.resolve()}
+    for a in arquivos:
+        origem = Path(a)
+        alvo = destino / origem.name
+        n = 1
+        while alvo.resolve() in usados and alvo.resolve() != origem.resolve():  # dois artefatos com o mesmo nome em pastas diferentes
+            n += 1
+            alvo = destino / f"{origem.stem}-{n}{origem.suffix}"
+        usados.add(alvo.resolve())
+        try:
+            if origem.resolve() != alvo.resolve():
+                shutil.copy2(origem, alvo)
+        except OSError:
+            saida.append(str(origem))
+            continue
+        saida.append(str(alvo))
+    return saida
+
+
 def exige_olhei(titulo, pronto, concluida=None):
     """Issue visual (o pedido fala em print, vídeo, áudio, render, planta, antes e depois...) concluída depois de ENTRA_EM."""
     if concluida and conta.de_iso(concluida) < ENTRA_EM:
         return False
-    return bool(RE_VISUAL.search(f"{titulo or ''}\n{pronto or ''}"))
+    texto = f"{titulo or ''}\n{pronto or ''}"
+    return bool(RE_VISUAL.search(texto)) or _pede_par_de_tela(texto)  # "antes e depois da home" segue visual
+
+
+def _pede_par_de_tela(texto):
+    """O pedido de antes e depois é de tela: a linha com a expressão também fala de print/tela/larguras, ou o pedido tem
+    larguras de tela. Palavra solta em pedido de dado não conta."""
+    if not RE_ANTES_DEPOIS.search(texto):
+        return False
+    if RE_TELAS.search(texto) or any(RE_ANTES_DEPOIS.search(l) and RE_TELA.search(l) for l in texto.splitlines()):
+        return True
+    return any((m := RE_LARGURAS.search(l)) and max(int(x) for x in m.groups()) >= 1000 for l in texto.splitlines())
+
+
+def _eh_dono(user):
+    """Comentário humano é do dono: o nome do usuário do Linear começa com `dono.nome` da config."""
+    dono = (config.get("dono.nome") or "").strip().lower()
+    return bool(dono) and (user.get("name") or "").strip().lower().startswith(dono)
+
+
+def dispensa(issue):
+    """Motivo da dispensa explícita do gate visual (comentário do dono ou repasse do orquestrador com "gate visual
+    dispensado"), ou None. Comentário da execução da própria issue não dispensa: ela não se libera sozinha."""
+    from hub import linear
+    for c in sorted((issue.get("comments") or {}).get("nodes") or [], key=lambda c: c.get("createdAt") or "", reverse=True):
+        corpo = c.get("body") or ""
+        u = c.get("user") or {}
+        if linear._eh_repasse(c):  # sai com o token do dono (app False) ou pelo usuário-app; humano com nome tem de ser o dono
+            if u.get("name") and not u.get("app") and not _eh_dono(u):
+                continue
+        elif u.get("app") or not _eh_dono(u):  # execução da issue ou outro participante não dispensa
+            continue
+        if m := RE_DISPENSA.search(corpo):
+            return (m.group("motivo") or "").strip(" *_.") or "sem motivo escrito"
+    return None
 
 
 def requisitos(titulo, pronto):
@@ -58,7 +144,7 @@ def requisitos(titulo, pronto):
         a, b = sorted(int(x) for x in m.groups())[::-1]
         if a >= 1000 and 300 <= b <= 500:
             reqs.append({"id": "telas", "tipo": "larguras", "larguras": [a, b], "texto": f"prints em {a} e {b}"})
-    if RE_ANTES_DEPOIS.search(texto):
+    if _pede_par_de_tela(texto):
         reqs.append({"id": "antes_depois", "tipo": "antes_depois", "texto": "o antes e o depois anexados"})
     if m := RE_LUFS.search(texto):
         reqs.append({"id": "lufs", "tipo": "lufs", "alvo": float(m.group(1).replace(",", ".")), "tolerancia": 1.5,
@@ -149,14 +235,28 @@ def _norm(t):
     return " ".join(str(t or "").lower().split())
 
 
+def _usuario():
+    try:
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except KeyError:
+        return str(os.geteuid())
+
+
+def _sem_arquivo(motivo):
+    """Motivo de `_mudou` em que o arquivo local não vale mais (sumiu ou este usuário não lê): o anexo do Linear cobre."""
+    return motivo.startswith(("o arquivo sumiu", "sem leitura para"))
+
+
 def _mudou(m):
     """O arquivo medido ainda existe e tem o mesmo conteúdo? Senão a evidência é de outra entrega."""
     if not m.get("caminho"):
         return "evidência sem o caminho do arquivo: rode `gerar` de novo"
     try:
         corpo = Path(m["caminho"]).read_bytes()
-    except OSError:
+    except FileNotFoundError:
         return "o arquivo sumiu depois de `gerar`: rode `gerar` de novo"
+    except OSError as e:  # pasta sem `x` ou fora do sandbox para este usuário não é arquivo sumido
+        return f"sem leitura para {_usuario()}: {e}"
     if hashlib.sha256(corpo).hexdigest()[:16] != m.get("sha256"):
         return "o arquivo mudou depois de `gerar` (hash diferente): rode `gerar` de novo"
     return ""
@@ -167,15 +267,44 @@ def _lado(m):
     return "antes" if "antes" in n and "depois" not in n else "depois" if "depois" in n and "antes" not in n else ""
 
 
-def faltas(ev, titulo, pronto):
-    """O que falta na evidência para o recibo liberar (lista vazia = ok). `ev` é o conteúdo do `.olhei.json` (ou None)."""
+def _no_linear(m, anexados):
+    """o arquivo apagado pela faxina segue provado se o mesmo nome (ou o mesmo hash) está anexado no Linear."""
+    nome = str(m.get("arquivo") or "").lower()
+    return bool(nome) and any(nome in a.lower() or (m.get("sha256") and m["sha256"] in a) for a in anexados or ())
+
+
+def excecoes(ident, arquivo_excecoes=None):
+    """Exceções de largura da issue, da lista versionada no repo (não do `.olhei.json`, que o agente edita).
+    Entrada sem issue, lado antes/depois, largura, `aprovou` ou `motivo` é ignorada: exceção sem registro não vale."""
+    try:
+        lista = json.loads((arquivo_excecoes or EXCECOES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    out = []
+    for e in lista if isinstance(lista, list) else []:
+        if (isinstance(e, dict) and str(e.get("issue", "")).upper() == str(ident or "").upper() and e.get("lado") in ("antes", "depois")
+                and isinstance(e.get("largura"), int) and str(e.get("aprovou", "")).strip() and str(e.get("motivo", "")).strip()):
+            out.append(e)
+    return out
+
+
+def faltas(ev, titulo, pronto, ident=None, notas=None, arquivo_excecoes=None, anexados=()):
+    """O que falta na evidência para o recibo liberar (lista vazia = ok). `ev` é o conteúdo do `.olhei.json` (ou None).
+    `ident` (o do recibo; senão o do `ev`) busca as exceções de largura; cada uma usada é anotada em `notas` (vai ao recibo).
+    `anexados`: textos (nome, link, hash) do que está anexado na issue; cobre o arquivo local que sumiu."""
     if not ev:
         return ["falta a evidência de que a entrega foi olhada: rode `python3 -m hub.entrega_visual gerar <ISSUE> <arquivos>`, "
                 "confira cada item do checklist e marque `olhei` com a `observacao` do que viu"]
     out, arts = [], []
+    exc = excecoes(ident or ev.get("ident"), arquivo_excecoes)
     if not ev.get("artefatos"):
         out.append("a evidência não lista nenhum artefato (print, vídeo ou áudio)")
     for m in ev.get("artefatos") or []:
+        if _sem_arquivo(_mudou(m)) and _no_linear(m, anexados):
+            if motivo := problema_objetivo(m):  # a medida é a do `gerar`: o arquivo já não existe para medir de novo
+                out.append(f"{m.get('arquivo', '?')}: {motivo}")
+            arts.append(m)
+            continue
         if motivo := _mudou(m):
             out.append(f"{m.get('arquivo', '?')}: {motivo}")
             arts.append(m)
@@ -196,6 +325,12 @@ def faltas(ev, titulo, pronto):
                 tem = {int(m.get("largura") or 0) for m in g}
                 for w in r["larguras"]:
                     if not any(abs(t - w) <= max(20, w * 0.05) for t in tem):
+                        if e := next((e for e in exc if e["lado"] == lado and e["largura"] in tem
+                                      and w == min(r["larguras"], key=lambda x: abs(x - e["largura"]))), None):  # só a largura mais próxima
+                            if notas is not None:
+                                notas.append(f"exceção de largura aceita ({e['issue'].upper()}, {lado}, {e['largura']} px no lugar de ~{w}): "
+                                             f"{e['motivo'].strip()} (aprovou {e['aprovou'].strip()})")
+                            continue
                         out.append(f"falta print {lado + ' ' if lado else ''}com largura ~{w} px ({r['texto']})")
         elif r["tipo"] == "antes_depois":
             nomes = [str(m.get("arquivo", "")).lower() for m in arts]  # um arquivo com os dois nomes não prova o "antes"
@@ -260,7 +395,7 @@ def main(argv=None):
                 isinstance(v, dict) and all(isinstance(v.get(k), (int, float)) for k in ("esperado", "obtido")) for v in med.values())):
             print("medidas.json inválido: use {nome: {\"esperado\": número, \"obtido\": número}}", file=sys.stderr)
             return 2
-        ev = montar(a.ident, i["title"], pronto, a.arquivos, med)
+        ev = montar(a.ident, i["title"], pronto, guardar(a.ident, a.arquivos), med)
         destino = arquivo(a.ident)
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(json.dumps(ev, ensure_ascii=False, indent=2), encoding="utf-8")

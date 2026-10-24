@@ -44,7 +44,7 @@ for (const site of sites) {
         const aiHosts=['chatgpt.com','chat.openai.com','perplexity.ai','gemini.google.com','claude.ai','copilot.microsoft.com'];
         status.aiReferrals=(value.rows||[]).filter(r=>aiHosts.some(h=>r.dimensionValues[0].value===h || r.dimensionValues[0].value.endsWith('.'+h))).map(r=>({source:r.dimensionValues[0].value,sessions:Number(r.metricValues[0].value),engagedSessions:Number(r.metricValues[1].value),keyEvents:Number(r.metricValues[2].value)}));
       }
-    } catch(e) {status.checks[name]={ok:false,error:'Coleta falhou; verificar permissão, quota ou conectividade',exitCode:e.status??null};}
+    } catch(e) {status.checks[name]={ok:false,error:'Coleta falhou; verificar permissão, quota ou conectividade',exitCode:e.status??null,detalhe:String(e.stdout||e.stderr||e.message||'').replace(/\s+/g,' ').slice(0,300)};}
   }
   summary.projects.push(status);
 }

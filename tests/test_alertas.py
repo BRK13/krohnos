@@ -12,7 +12,7 @@ from hub.alertas import (achados_clientes, achados_contas, achados_deploys, acha
 UTC = dt.timezone.utc
 T = dt.datetime(2026, 10, 13, 13, 0, tzinfo=UTC)  # terça 10:00 BRT
 SITE = {"chave": "site:x.com", "tipo": "site", "item": "x.com", "texto": "Site x.com fora do ar (erro 502)", "orch": True}
-CONTA = {"chave": "conta:1", "tipo": "conta", "item": "1", "texto": "Conta Claude 1 em 90% do limite da semana", "orch": False}
+CONTA = {"chave": "conta:1", "tipo": "conta", "item": "1", "texto": "Conta Claude 1 em 90% da janela de 5 h", "orch": False}
 
 
 def m(n):
@@ -84,12 +84,12 @@ class RegrasTest(unittest.TestCase):
         self.assertTrue(all(x["orch"] for x in a))
 
     def test_deploys(self):
-        d = lambda st, mins: {"app": "site", "appName": "fsite05-abc", "projeto": "fsite05", "status": st,  # noqa: E731
+        d = lambda st, mins: {"app": "site", "appName": "fsite06-abc", "projeto": "fsite06", "status": st,  # noqa: E731
                               "em": (T - dt.timedelta(minutes=mins)).isoformat().replace("+00:00", "Z")}
         foto = lambda mins, *ds: {"deploys_em": m(-mins).isoformat(), "deploys": list(ds)}  # noqa: E731
         a = achados_deploys(foto(0, d("running", 40)), T)  # foto viu rodando 40 min depois do início
-        self.assertEqual(a[0]["chave"], "deploy:fsite05-abc")
-        self.assertEqual(a[0]["texto"], "Deploy do fsite05/site travado (rodando há 40 min)")
+        self.assertEqual(a[0]["chave"], "deploy:fsite06-abc")
+        self.assertEqual(a[0]["texto"], "Deploy do fsite06/site travado (rodando há 40 min)")
         self.assertEqual(achados_deploys(foto(0, d("running", 10), d("done", 90)), T), [])
         # foto tirada 2 min depois do início, lida 32 min depois: deploy normal, não travado
         self.assertEqual(achados_deploys(foto(30, d("running", 32)), T), [])
@@ -107,10 +107,10 @@ class RegrasTest(unittest.TestCase):
 
     def test_clientes(self):
         a = achados_clientes([{"ultima_em": "2026-10-13T10:30:00+00:00"}, {"ultima_em": "2026-10-13T09:05:00Z"}], T)
-        self.assertEqual(a[0]["texto"], "fsite05: 2 cliente(s) esperando resposta no WhatsApp há mais de 2 h "
+        self.assertEqual(a[0]["texto"], "fsite06: 2 cliente(s) esperando resposta no WhatsApp há mais de 2 h "
                                         "(o mais antigo desde 06:05)")
         self.assertIn("desde 16:05 de 12/10)", achados_clientes([{"ultima_em": "2026-10-12T19:05:00Z"}], T)[0]["texto"])
-        self.assertEqual((a[0]["chave"], a[0]["orch"]), ("cliente:fsite05", False))
+        self.assertEqual((a[0]["chave"], a[0]["orch"]), ("cliente:fsite06", False))
         self.assertEqual(achados_clientes([], T), [])
 
     def test_cliente_consulta_no_maximo_a_cada_10_min(self):
@@ -125,14 +125,11 @@ class RegrasTest(unittest.TestCase):
         self.assertEqual(len(chamadas), 2)
         self.assertEqual(alertas._cliente({}, dt.datetime(2026, 10, 10, 16, 0, tzinfo=UTC), crm), [])
 
-    def test_contas(self):
-        uso = {"contas": {"1": {"semana": {"pct": 86.4, "reset": "2026-10-15T15:00:00+00:00"}},
-                          "2": {"semana": {"pct": None, "reset": None}}, "3": {"semana": {"pct": 80.0}}},
+    def test_contas_sem_achado_mesmo_com_semana_cheia(self):
+        # conta Claude não tem limite semanal: "semana" 99 num JSON antigo não vira alerta
+        uso = {"contas": {"1": {"cinco_horas": {"pct": 100.0}, "semana": {"pct": 99.0, "reset": "2026-10-15T15:00:00+00:00"}}},
                "orquestrador": {"semana": {"pct": 99.0, "reset": None}}}
-        a = achados_contas(uso)
-        self.assertEqual([x["texto"] for x in a], ["Conta Claude 1 em 86% do limite da semana (volta 15/10 12:00)",
-                                                  "Conta Claude orquestrador em 99% do limite da semana"])
-        self.assertEqual(a[1]["chave"], "conta:orquestrador")
+        self.assertEqual(achados_contas(uso), [])
 
 
 class ExecucaoTest(unittest.TestCase):
@@ -150,13 +147,12 @@ class ExecucaoTest(unittest.TestCase):
         self.assertEqual(len(salvos), 2)
 
     def test_aviso_que_falha_tenta_de_novo(self):
-        acoes, est = decidir([CONTA], {}, T)
+        acoes, est = decidir([CONTA], {}, T)  # CONTA é só fixture do formato (sem espera, sem orch)
 
         def falha(*_):
             raise OSError("caixa cheia")
         self.assertEqual(executar(acoes, est, T, lambda e: None, avisar=falha), 1)
         self.assertEqual(decidir([CONTA], est, m(2))[0], [("avisar", "conta:1")])
-
     def test_falha_qualquer_desfaz_a_marca_e_segue(self):
         _, est = decidir([SITE], {}, T)
         acoes, est = decidir([SITE, CONTA], est, m(6))
@@ -165,11 +161,11 @@ class ExecucaoTest(unittest.TestCase):
         codigo = executar(acoes, est, m(6), lambda e: None, chamar_orq=lambda p: 1 / 0,
                           avisar=lambda t, u: msgs.append((t, u)))
         self.assertEqual(codigo, 1)
-        self.assertEqual(msgs, [("Conta Claude 1 em 90% do limite da semana, desde 10:06.", False)])  # conta não é urgente
+        self.assertEqual(msgs, [("Conta Claude 1 em 90% da janela de 5 h, desde 10:06.", False)])  # conta não é urgente
         self.assertEqual(decidir([SITE, CONTA], est, m(8))[0], [("orch", "site:x.com")])
 
     def test_morte_no_meio_nao_marca_aviso_nao_enviado(self):
-        conta2 = {**CONTA, "chave": "conta:2", "item": "2", "texto": "Conta Claude 2 em 95% do limite da semana"}
+        conta2 = {**CONTA, "chave": "conta:2", "item": "2", "texto": "Conta Claude 2 em 95% da janela de 5 h"}
         acoes, est = decidir([SITE, CONTA, conta2], {"itens": {"site:x.com": {"desde": m(-6).isoformat()}}}, T)
         self.assertEqual(acoes, [("orch", "site:x.com"), ("avisar", "conta:1"), ("avisar", "conta:2")])
         ordem, salvos = [], []
@@ -188,8 +184,7 @@ class ExecucaoTest(unittest.TestCase):
     def test_rodar_orq_morto_avisos_ja_entregues(self):
         with tempfile.TemporaryDirectory() as base:
             (Path(base) / "claude").mkdir()
-            (Path(base) / "claude" / "uso-contas.json").write_text(json.dumps(
-                {"contas": {"1": {"semana": {"pct": 90.0, "reset": None}}}}))
+            (Path(base) / "claude" / "uso-contas.json").write_text(json.dumps({"contas": {}}))
             alertas.salvar_estado(Path(base) / "alertas" / "estado.json", {"itens": {"site:x.com": {
                 "tipo": "site", "item": "x.com", "texto": "t", "desde": m(-6).isoformat()}}})
             ordem = []
@@ -198,7 +193,8 @@ class ExecucaoTest(unittest.TestCase):
                 ordem.append("orch")
                 raise KeyboardInterrupt
             with mock.patch.object(alertas.sites, "ativos", return_value=[{"dominio": "x.com"}]), \
-                    mock.patch.object(alertas.saude, "ler", return_value=None), self.assertRaises(KeyboardInterrupt):
+                    mock.patch.object(alertas.saude, "ler", return_value=None), \
+                    mock.patch.object(alertas, "achados_contas", return_value=[CONTA]), self.assertRaises(KeyboardInterrupt):
                 alertas.rodar(base, T, http_get=lambda u: 502, consultar_crm=lambda a: [], chamar_orq=orch,
                               avisar=lambda t, u: ordem.append("avisar"))
             est = json.loads((Path(base) / "alertas" / "estado.json").read_text())
@@ -226,15 +222,15 @@ class ExecucaoTest(unittest.TestCase):
     def test_rodar_grava_estado_no_formato(self):
         with tempfile.TemporaryDirectory() as base:
             (Path(base) / "claude").mkdir()
-            (Path(base) / "claude" / "uso-contas.json").write_text(json.dumps(
-                {"contas": {"1": {"semana": {"pct": 90.0, "reset": None}}}}))
+            (Path(base) / "claude" / "uso-contas.json").write_text(json.dumps({"contas": {}}))
             msgs = []
             with mock.patch.object(alertas.sites, "ativos", return_value=[{"dominio": "x.com"}]), \
-                    mock.patch.object(alertas.saude, "ler", return_value=None):
+                    mock.patch.object(alertas.saude, "ler", return_value=None), \
+                    mock.patch.object(alertas, "achados_contas", return_value=[CONTA]):  # fixture do formato; achados_contas real devolve []
                 codigo = alertas.rodar(base, T, http_get=lambda u: 503, consultar_crm=lambda a: 1 / 0,
                                        chamar_orq=lambda p: self.fail("cedo demais"), avisar=lambda t, u: msgs.append(t))
             self.assertEqual(codigo, 0)
-            self.assertEqual(msgs, ["Conta Claude 1 em 90% do limite da semana, desde 10:00."])
+            self.assertEqual(msgs, ["Conta Claude 1 em 90% da janela de 5 h, desde 10:00."])
             est = json.loads((Path(base) / "alertas" / "estado.json").read_text())
             self.assertEqual(est["cliente_checado_em"], None)  # CRM falhou: tenta de novo
             self.assertEqual(set(est["itens"]), {"site:x.com", "conta:1"})

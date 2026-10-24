@@ -1,6 +1,6 @@
 """Metas do hub: objetivo + como medir + esforço. Uma meta = um JSON em $HUB_DATA/claude/metas/<id>.json.
 
-    python3 -m hub.metas criar --objetivo "..." [--site fsite05] [--url U --metrica lcp_ms | --como "..."] [--alvo N]
+    python3 -m hub.metas criar --objetivo "..." [--site fsite06] [--url U --metrica lcp_ms | --como "..."] [--alvo N]
     python3 -m hub.metas definir <id> ... | medir <id> [--registrar "mudança"] | registrar <id> <valor> --mudanca "..."
     python3 -m hub.metas listar
 """
@@ -24,7 +24,7 @@ ESFORCOS = {"baixo": 3, "medio": 5, "alto": 10}
 TETO = 50
 DIRECOES = ("menor", "maior")
 REPO_HUB = config.repo("repo-privado")
-URL_KROHNOS = "https://nimbus.clientec-com.example/metas"
+URL_KROHNOS = f"{config.painel_url()}/metas"
 
 PROTOCOLO = """**Meta:** {objetivo}
 **Como medir:** {medida}. **Alvo:** {alvo}. **Esforço:** {esforco} ({k} rodadas por sessão).

@@ -24,6 +24,14 @@ CAMPOS = ("entrada", "cache_leitura", "cache_escrita", "saida")
 
 # motivo da fila (agenda.enfileirar) → tipo; o primeiro que casar vale
 _TIPOS = (
+    (r"^treino F4 previsto para 14h BRT$", "manual"),  # INC-316: disparo operacional de
+    (r"^primeira$", "primeira"),  # INC-267: motivo explícito da primeira execução na fila
+    (r"^orquestrador: fora do fantasma OAuth$", "manual"),  # INC-210: reenvio após falha OAuth
+
+    (r"^orquestrador: caiu por OAuth de outra instalação \(\d+ min\); fila local sem sessão$", "manual"),  # INC-207
+    (r"^orquestrador: proposta aprovada(?:\s|$)", "proposta"),  # INC-200: execução autorizada pelo orquestrador
+    (r"^orquestrador: reenfileirada direto(?:\s|$)", "manual"),  # INC-198: reenvio operacional após falha de sessão
+    (r"^codex-revisor-merge: correção necessária", "conferencia"),  # INC-152: devolução pelo revisor
     (r"^voltou da espera do CI", "espera_ci"),
     (r"^volta: conferência", "conferencia"),
     (r"^volta: promessa", "promessa"),
@@ -32,6 +40,8 @@ _TIPOS = (
     (r"^voltou de Done", "recibo"),
     (r"^merge mecânico", "merge"),
     (r"^alarme de tarefa parada", "parada"),
+    (r"^In Review parada há \d+ h com conta ociosa \(KRN-1600\)$", "parada"),  # INC-317
+
     (r"^voltou para a fila: limite", "limite"),
     (r"^voltou para a fila", "interrompida"),
     (r"^proposta ", "proposta"),
@@ -46,7 +56,7 @@ _TIPOS = (
 # o conjunto fechado de tipos. Toda execução grava um deles; o que não casa vira "outro" (e incidente em
 # `retomada.exigir_tipo`), nunca vazio. Retomada = a execução que acordou uma issue já iniciada (não a primeira nem a fala).
 TIPOS_RETOMADA = frozenset({"espera_ci", "espera_deploy", "conferencia", "promessa", "fala_durante", "recibo", "merge",
-                            "parada", "disjuntor", "interrompida", "limite"})
+                            "parada", "disjuntor", "interrompida", "limite", "portao"})
 TIPOS = TIPOS_RETOMADA | frozenset({"primeira", "fala", "proposta", "debugger", "meta", "agendada", "manual", "outro"})
 
 
@@ -66,8 +76,16 @@ def _tipo_execucao(motivo, item=None):
     if motivo.startswith("linear ") or (item and not motivo):
         # já respondeu antes nesta issue: é volta por fala (do dono, repasse ou sessão); senão, a primeira
         ja = any(str(c).startswith("Claude: ") for c in (item or {}).get("comentarios") or [])
-        return "fala" if ja else "primeira"
+        return ("portao" if _acordou_pelo_portao(item) else "fala") if ja else "primeira"
     return "manual" if motivo.startswith("manual") else ("outro" if motivo else "agendada")
+
+
+def _acordou_pelo_portao(item):
+    """o portão de Done comenta pela chave do dono e acorda a issue, mas não é gente falando:
+    a volta é do hub (`portao`), conta no teto por estado como laço, ao contrário da volta por fala de pessoa."""
+    from hub import linear
+    ultimo = next((str(c) for c in reversed((item or {}).get("comentarios") or []) if not str(c).startswith("Linear: ")), "")
+    return bool(linear.RE_DO_HUB.search(ultimo.partition(": ")[2]))
 
 
 def _tok(r, k):

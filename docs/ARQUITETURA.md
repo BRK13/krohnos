@@ -18,11 +18,11 @@ changes the harness (`incidentes`). Both are described below.
 
 ## 1. Contract (issue or task)
 
-Work enters as an issue in the tracker (Linear) or as a scheduled task file (`tarefas/<name>.md`, a small
+Work enters as an issue in the hub's own queue (`hub/fila_issues.py`; Linear is an optional tracker, `[issues] provedor`) or as a scheduled task file (`tarefas/<name>.md`, a small
 frontmatter plus the prompt). Either way it carries the outcome, the scope, what must not change and the proof of
 done. The prompt every agent receives is the source of its behaviour.
 
-Files: `hub/tarefas.py` (task file contract), `hub/linear.py` (the tracker bridge and the `COMO` prompt),
+Files: `hub/tarefas.py` (task file contract), `hub/linear.py` (the tracker facade, local or Linear, and the `COMO` prompt),
 `hub/propostas.py` (what an agent may do alone versus what needs a go-ahead).
 
 ## 2. Queue (`agenda`)

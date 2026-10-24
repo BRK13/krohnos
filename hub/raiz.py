@@ -25,6 +25,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import signal
 import stat
 import subprocess
@@ -33,6 +34,7 @@ import time
 from pathlib import Path
 
 from hub import config, RAIZ, data, home, home_agentes
+from hub.destino_execucao import ALIAS as ALIAS_HOST, HOST_PADRAO
 from hub.comum.datas import BRT
 from hub.comum import env as comum_env
 
@@ -44,15 +46,20 @@ PEDIDOS_BOT = Path(os.environ.get("PEDIDOS_BOT", "/opt/asite01-wpp/data/pedidos.
 FEITOS_AGENTE = Path(os.environ.get("FEITOS_AGENTE", "/opt/asite01-wpp/data/agente/feitos"))
 FILA_AGENTE = Path(os.environ.get("FILA_AGENTE", "/opt/asite01-wpp/data/agente/fila"))
 LOG_ROOT = Path(os.environ.get("ROOT_FILA_LOG", "/var/log/nimbus/root-fila"))
-ENV_AGENTE = Path("/etc/agente-fsite05.env")
+ENV_AGENTE = Path("/etc/agente-fsite06.env")
 TOKEN_CLAUDE = home_agentes() / ".claude-token.env"
 RUNNER = Path("/opt/bot/bot_whatsapp")
-DOKPLOY = os.environ.get("DOKPLOY_URL", "https://painel.clientec-com.example")
+DOKPLOY = os.environ.get("DOKPLOY_URL") or config.legado("dokploy.url") or ""
 RE_ALVO = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 RE_PID = re.compile(r"^[0-9]{8}-[0-9]{6}-[a-z0-9-]{1,40}-[0-9a-f]{4}$")
 RE_HASH = re.compile(r"^[0-9a-f]{64}$")
 # Derrubar estes derruba tudo ou perde dado em voo: só com "faz N" (tipo vps).
 PROTEGIDOS = re.compile(r"dokploy|traefik|postgres|banco|redis|mysql|mariadb|mongo", re.I)
+ATRASO_INCIDENTE_S = 2 * 3600  # hub instalado atrás da main por mais que isso abre o incidente hub_quebrado_em_producao
+RE_SHA_ATUALIZAR = re.compile(r"^ATUALIZAR_SHA=([0-9a-f]{40})\s*$", re.M)  # impresso por deploy/atualizar.sh logo depois do pull
+RE_TESTES_REPROVADOS = re.compile(r"^ATUALIZAR_TESTES_REPROVADOS\s*$", re.M)
+RE_TESTE_FALHO = re.compile(r"^(?:FAIL|ERROR): (\S+) \(([\w.]+)", re.M)
+RE_FORCAR = re.compile(r"\[for[cç]ar\]", re.I)
 ENV_PADRAO = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "HOME": "/root", "LANG": "C.UTF-8"}
 
 # acao: (precisa de alvo, timeout em segundos, descrição para o prompt)
@@ -244,9 +251,9 @@ for s in {RUNNER}/vps/agente/*.service; do
   d=/etc/systemd/system/$(basename "$s")
   cmp -s "$s" "$d" || {{ install -m 644 "$s" "$d"; systemctl daemon-reload; systemctl enable -q "$(basename "$s")"; }}
 done
-systemctl restart agente-fsite05
+systemctl restart agente-fsite06
 sleep 3
-systemctl is-active agente-fsite05
+systemctl is-active agente-fsite06
 echo "runner $antes -> $depois"
 """
 
@@ -277,7 +284,7 @@ def _site_do_alvo(alvo):
 
 
 def _alvo_do_site(alvo):
-    """'fsite05', 'cliente-a', 'cliente-a-site' ou o nome do repo (cliente-a-v2) viram o applicationId de sites/*.json."""
+    """'fsite06', 'cliente-a', 'cliente-a-site' ou o nome do repo (cliente-a-v2) viram o applicationId de sites/*.json."""
     s = _site_do_alvo(alvo)
     return (s["ids"].get("dokploy_app") if s else None) or alvo
 
@@ -285,7 +292,7 @@ def _alvo_do_site(alvo):
 def _deploy_app(alvo):
     chave = ler_env(ENV_AGENTE).get("DOKPLOY_API_KEY")
     if not chave:
-        return 1, "sem DOKPLOY_API_KEY em /etc/agente-fsite05.env"
+        return 1, "sem DOKPLOY_API_KEY em /etc/agente-fsite06.env"
     apps = apps_dokploy(chave)
     achados = _apps_do_alvo(apps, alvo) or _apps_do_alvo(apps, _alvo_do_site(alvo))
     apps = achados
@@ -318,9 +325,89 @@ def _deploy_rodando(application_id, chave, agora=None):
     return max(recentes) if recentes else None
 
 
-def executar_pedido(arq, base_dados=None, rodar=None):
+def _sha_main():
+    """SHA da main no GitHub (git ls-remote, como o atualizar.sh usa o remoto do root); None se não deu: a trava não recusa no escuro."""
+    codigo, saida = _rodar(["git", "-C", str(RAIZ), "ls-remote", "origin", "refs/heads/main"], 30)
+    m = re.match(r"([0-9a-f]{40})\s", saida or "")
+    return m.group(1) if codigo == 0 and m else None
+
+
+def _arq_estado_atualizar(base_dados=None):
+    return pasta(base_dados) / "atualizar-hub-estado.json"
+
+
+def estado_atualizar(base_dados=None):
+    """Último resultado do atualizar-hub: {instalado_sha, instalado_em, reprovada: {sha, em, testes}, falha_desde, incidente}."""
+    try:
+        e = json.loads(_arq_estado_atualizar(base_dados).read_text(encoding="utf-8"))
+        return e if isinstance(e, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _recusar_mesma_head(base_dados, motivo, sha):
+    """a main que acabou de reprovar nos testes não roda a suíte (~11 min de CPU) de novo. `[forcar]` no motivo libera
+    (teste instável); `sha` None (sem rede) também."""
+    rep = estado_atualizar(base_dados).get("reprovada") or {}
+    if not (sha and rep.get("sha") == sha) or RE_FORCAR.search(motivo or ""):
+        return
+    # a frase vem primeiro: o resultado guarda só os últimos 1500 caracteres, e a lista longa cortaria o começo
+    lista = rep.get("testes") or []
+    testes = ", ".join(lista[:5]) + (f" (+{len(lista) - 5})" if len(lista) > 5 else "")
+    raise ValueError(f"mesma HEAD já reprovada: conserte os testes antes ({sha[:7]}"
+                     f"{'; ' + testes if testes else ''}). Com teste instável, `[forcar]` no motivo roda de novo")
+
+
+def _vigiar_atraso(base_dados=None, agora=None):
+    """hub instalado mais de 2 h atrás da main = um incidente hub_quebrado_em_producao, com a lista dos testes."""
+    est = estado_atualizar(base_dados)
+    desde = est.get("falha_desde")
+    agora = agora or dt.datetime.now(UTC)
+    try:
+        atraso = (agora - dt.datetime.fromisoformat(desde)).total_seconds() if desde else 0
+    except ValueError:
+        return None
+    if atraso < ATRASO_INCIDENTE_S or est.get("incidente"):
+        return None
+    from hub import incidentes
+    rep = est.get("reprovada") or {}
+    testes = ", ".join(rep.get("testes") or []) or "sem teste identificado (ver o resultado do pedido)"
+    inc = incidentes.registrar(f"hub instalado {atraso / 3600:.1f} h atrás da main: atualizar-hub falha desde {desde}"
+                               f" (HEAD {str(rep.get('sha') or '?')[:7]}); testes: {testes}",
+                               "hub_quebrado_em_producao", "deploy/atualizar.sh", chave="hub-atrasado-main", prioridade=1,
+                               base_dados=base_dados, agora=agora)
+    est["incidente"] = inc["id"]
+    _gravar(_arq_estado_atualizar(base_dados), est)
+    return inc
+
+
+def _guardar_resultado_atualizar(base_dados, codigo, saida, sha, agora=None):
+    """Grava o que o atualizar-hub deu na HEAD `sha`: sucesso zera o atraso e fecha o incidente; falha dos testes grava a HEAD reprovada."""
+    agora = agora or dt.datetime.now(UTC)
+    est = estado_atualizar(base_dados)
+    if codigo == 0:
+        inc = est.get("incidente")
+        est = {"instalado_sha": sha, "instalado_em": agora.isoformat()}
+        if inc:
+            try:
+                from hub import incidentes
+                incidentes.marcar(inc, "feito", "sem mudança de código: o atualizar-hub voltou rc=0 e o hub alcançou a main",
+                                  base_dados=base_dados, agora=agora)
+            except Exception:  # noqa: BLE001 - o estado da instalação não pode depender do incidente
+                pass
+    elif codigo != ADIADO:
+        est.setdefault("falha_desde", agora.isoformat())
+        if sha and RE_TESTES_REPROVADOS.search(saida or ""):
+            est["reprovada"] = {"sha": sha, "em": agora.isoformat(), "testes": [n if "." in n else f"{c}.{n}" for n, c in RE_TESTE_FALHO.findall(saida)][:20]}
+    else:
+        return
+    _gravar(_arq_estado_atualizar(base_dados), est)
+
+
+def executar_pedido(arq, base_dados=None, rodar=None, sha_main=None):
     """Um arquivo da pasta de pedidos → resultado gravado e registrado. Apaga o pedido sempre."""
     rodar = rodar or _rodar
+    sha_main = sha_main or _sha_main
     nome = arq.name
     try:
         if arq.is_symlink() or not arq.is_file():
@@ -345,6 +432,11 @@ def executar_pedido(arq, base_dados=None, rodar=None):
         if ACOES[acao][0] and not (isinstance(alvo, str) and RE_ALVO.match(alvo)):
             raise ValueError(f"{acao} precisa de alvo válido")
         cmd = comando_da_acao(acao, alvo)
+        if acao == "atualizar-hub":
+            atual = sha_main()
+            if atual:
+                reg["sha"] = atual  # o resultado sempre mostra a HEAD; a que o script imprime depois do pull vale mais
+            _recusar_mesma_head(base_dados, motivo, atual)
         if cmd[0] == "dokploy-deploy":
             codigo, saida = _deploy_app(alvo)
             if codigo == ADIADO:  # o deploy rodando pode ter clonado antes do commit pedido: dispara de novo depois
@@ -352,6 +444,9 @@ def executar_pedido(arq, base_dados=None, rodar=None):
                 codigo = 0
         else:
             codigo, saida = rodar(cmd, ACOES[acao][1])
+            if acao == "atualizar-hub" and codigo == ADIADO and por == "cron":  # o cron tenta de novo em 5 min
+                reg.update(codigo=ADIADO, ok=False, adiado=True, saida=(saida or "")[-1500:])
+                return reg
             if acao == "atualizar-hub" and codigo == ADIADO:  # outra atualização tem o trava: sem resultado, roda depois (adiados/)
                 _gravar(pasta(base_dados) / "adiados" / f"{pid}.json", {"id": pid, "acao": acao, "alvo": alvo, "motivo": motivo, "por": por})
                 reg.update(codigo=ADIADO, ok=False, adiado=True, saida=(saida or "")[-1500:])
@@ -361,10 +456,32 @@ def executar_pedido(arq, base_dados=None, rodar=None):
         codigo, saida = 2, f"recusado: {e}"
     except Exception as e:  # noqa: BLE001 - o resultado tem que sair sempre
         codigo, saida = 1, f"{type(e).__name__}: {e}"
+    if acao == "atualizar-hub":  # o SHA da HEAD testada vai no resultado; o estado guarda a reprovada e o atraso
+        m = RE_SHA_ATUALIZAR.search(saida or "")
+        if m:
+            reg["sha"] = m.group(1)
+        try:  # o estado e o incidente não podem impedir o resultado do pedido
+            if not str(saida or "").startswith("recusado:"):
+                _guardar_resultado_atualizar(base_dados, codigo, saida, reg.get("sha"))
+            _vigiar_atraso(base_dados)
+        except Exception as e:  # noqa: BLE001
+            print(f"aviso: estado do atualizar-hub não gravado: {type(e).__name__}: {e}", file=sys.stderr)
     reg.update(codigo=codigo, ok=codigo == 0, duracao_s=round(time.monotonic() - inicio, 1), saida=(saida or "")[-1500:])
     _registrar(reg, base_dados)
     _gravar(pasta(base_dados) / "resultados" / f"{pid}.json", reg)
     return reg
+
+
+def atualizar_cron(base_dados=None, rodar=None, sha_main=None):
+    """o cron de 5 min passa pelo mesmo caminho do pedido (a mesma HEAD reprovada não roda a suíte de novo a cada 5 min;
+    o estado e o incidente de atraso valem para as duas portas). Devolve (código, texto)."""
+    try:
+        _recusar_mesma_head(base_dados, "", (sha_main or _sha_main)())
+    except ValueError as e:
+        return 0, f"{agora_iso()} recusado: {e}"  # quieto: 0 não vira alarme de cron
+    pid = pedir("atualizar-hub", motivo="cron: main andou", por="cron", base_dados=base_dados)
+    reg = executar_pedido(pasta(base_dados) / "pedidos" / f"{pid}.json", base_dados, rodar=rodar, sha_main=sha_main)
+    return (0 if reg.get("ok") or reg.get("adiado") else 1), f"{reg['em']} sha={reg.get('sha', '?')} código {reg['codigo']}\n{reg.get('saida', '')}"
 
 
 def resultado(pid, base_dados=None, esperar=0):
@@ -384,6 +501,32 @@ def resultado(pid, base_dados=None, esperar=0):
 
 def hash_comandos(comandos):
     return hashlib.sha256(comandos.encode("utf-8")).hexdigest()
+
+
+HOSTS_PERMITIDOS = (HOST_PADRAO, "vps-servidor_b")  # vps-servidor_a (o dedicado, desde 22/10) é apelido de HOST_PADRAO
+
+
+def host_do_pedido(plano):
+    """`dados.host` do plano guardado pelo bot (o claude não escreve lá) → servidor_hub (local; vps-servidor_a é apelido) ou vps-servidor_b;
+    outro valor, ValueError."""
+    dados = (plano or {}).get("dados")
+    bruto = dados.get("host") if isinstance(dados, dict) else None
+    if bruto is None or (isinstance(bruto, str) and not bruto.strip()):
+        return HOST_PADRAO
+    host = ALIAS_HOST.get(str(bruto).strip(), str(bruto).strip()) if isinstance(bruto, str) else None
+    if host not in HOSTS_PERMITIDOS:
+        raise ValueError(f"host {bruto!r} não permitido (só {', '.join(HOSTS_PERMITIDOS)})")
+    return host
+
+
+def comando_execucao(job):
+    """O que o root roda: bash local na servidor_hub, ou o mesmo bash por ssh na máquina do Pedido."""
+    base = ["bash", "-e", "-o", "pipefail", "-c", job["comandos"]]
+    if job.get("host", HOST_PADRAO) == HOST_PADRAO:
+        return base
+    # sem PTY o bash remoto sobrevive ao ssh morto: o timeout também roda lá (grupo próprio, um pouco antes do local)
+    remoto = max(job["timeout_min"] * 60 - 15, 30)
+    return ["ssh", "-o", "BatchMode=yes", job["host"], shlex.join(["timeout", "-k", "5", str(remoto)] + base)]
 
 
 def conferir_aprovado(arq, pedidos_bot=None, exigir_root=True):
@@ -410,7 +553,8 @@ def conferir_aprovado(arq, pedidos_bot=None, exigir_root=True):
         raise ValueError(f"pedido {n} do bot não tem esse hash (não foi o que o {config.dono()} aprovou)")
     if p.get("estado") not in ("executando", "aguardando"):
         raise ValueError(f"pedido {n} está {p.get('estado')}, não aprovado")
-    return {"n": n, "comandos": comandos, "hash": h, "timeout_min": t, "proposta": job.get("proposta")}
+    host = host_do_pedido(p.get("plano"))
+    return {"n": n, "comandos": comandos, "hash": h, "timeout_min": t, "proposta": job.get("proposta"), "host": host}
 
 
 def tres_linhas(saida):
@@ -436,14 +580,14 @@ def executar_aprovado(arq, base_dados=None, rodar=None, feitos=None, pedidos_bot
         return reg
     Path(arq).unlink(missing_ok=True)
     inicio = time.monotonic()
-    codigo, saida = rodar(["bash", "-e", "-o", "pipefail", "-c", job["comandos"]], job["timeout_min"] * 60,
+    codigo, saida = rodar(comando_execucao(job), job["timeout_min"] * 60,
                           dict(ENV_PADRAO, HUB_DATA=str(base_dados or data()), NIMBUS_HOME=str(home())), "/root" if Path("/root").is_dir() else "/")
     dur = round(time.monotonic() - inicio, 1)
     log_dir = Path(log_dir or LOG_ROOT)
     try:
         log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         (log_dir / f"{job['n']:05d}-{job['hash'][:12]}.log").write_text(
-            f"# pedido {job['n']} · {agora_iso()} · código {codigo} · {dur}s\n# comandos:\n{job['comandos']}\n# saída:\n{saida}",
+            f"# pedido {job['n']} · {agora_iso()} · código {codigo} · {dur}s · {job['host']}\n# comandos:\n{job['comandos']}\n# saída:\n{saida}",
             encoding="utf-8")
     except OSError:
         pass
@@ -477,16 +621,52 @@ def _limpar_temporarios(d, idade_s=600):
             pass
 
 
-def processar(base_dados=None, fila_root=None, trava=None):
-    """Uma execução por vez (o systemd.path e o cron de 10 min podem chegar juntos)."""
+ESPERA_TRAVA_S = 30  # trava ocupada (saude/atualizar segurando): espera antes de sair, para o .path não girar em laço
+UNIDADE_PATH = "nimbus-raiz.path"
+
+
+def _esperar_trava(fd, fcntl, espera_s):
+    """True se pegou o trava dentro de espera_s; tenta de 1 em 1 s."""
+    fim = time.monotonic() + espera_s
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            if time.monotonic() >= fim:
+                return False
+            time.sleep(1)
+
+
+def religar_path(rodar=None):
+    """O .path nunca fica em failed: se não está active, limpa o start-limit e liga de novo. Devolve True se religou."""
+    if rodar is None:
+        if not hasattr(os, "geteuid") or os.geteuid() != 0:  # só o root liga unidade do systemd
+            return False
+        rodar = lambda cmd: subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    try:
+        if rodar(["systemctl", "is-active", UNIDADE_PATH]).stdout.strip() == "active":
+            return False
+        rodar(["systemctl", "reset-failed", UNIDADE_PATH])
+        rodar(["systemctl", "start", UNIDADE_PATH])
+        return True
+    except (OSError, subprocess.SubprocessError):  # sem systemctl (testes, Windows): nada a religar
+        return False
+
+
+def processar(base_dados=None, fila_root=None, trava=None, espera_s=None):
+    """Uma execução por vez (o systemd.path e o cron de 10 min podem chegar juntos).
+
+    Trava ocupada: espera até espera_s e sai sem processar (a pasta continua cheia e o path dispara de novo, já
+    espaçado pela espera; o start-limit das unidades está desligado). No fim, religa o .path se tiver caído."""
     trava = trava or os.environ.get("RAIZ_TRAVA", "/var/lock/nimbus-raiz.lock")
+    espera_s = ESPERA_TRAVA_S if espera_s is None else espera_s
     try:
         import fcntl
         fd = os.open(trava, os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not _esperar_trava(fd, fcntl, espera_s):
             os.close(fd)
+            religar_path()
             return []
     except (ImportError, OSError):  # Windows (testes) ou sem /var/lock: segue sem trava
         fd = None
@@ -495,6 +675,7 @@ def processar(base_dados=None, fila_root=None, trava=None):
     finally:
         if fd is not None:
             os.close(fd)
+        religar_path()
 
 
 COLAPSAVEIS = ("atualizar-hub", "atualizar-runner")  # repetidos: uma execução depois do pedido cobre os anteriores
@@ -590,6 +771,7 @@ def main(argv=None):
     r.add_argument("id")
     r.add_argument("--esperar", type=int, default=0, help="segundos esperando o root")
     sub.add_parser("processar", help="(root) executa as duas filas")
+    sub.add_parser("atualizar-cron", help="(root, cron de 5 min) atualizar-hub com a trava da mesma HEAD reprovada")
     sub.add_parser("acoes", help="lista as ações e as rotinas")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
@@ -603,6 +785,10 @@ def main(argv=None):
                 return 3
             print(json.dumps(reg, ensure_ascii=False, indent=2))
             return 0 if reg.get("ok") else 1
+        elif args.cmd == "atualizar-cron":
+            codigo, texto = atualizar_cron()
+            print(texto)
+            return codigo
         elif args.cmd == "processar":
             for reg in processar():
                 print(f"{reg['em']} {reg.get('acao')} {reg.get('alvo') or reg.get('pedido') or ''}: código {reg['codigo']}")

@@ -13,6 +13,7 @@ import datetime as dt
 import glob
 import hashlib
 import hmac
+import importlib.util
 import grp
 import json
 import os
@@ -45,7 +46,15 @@ RE_OCULTAR = [re.compile(r"(?i)(" + CHAVE + SEP + r")(?:\"[^\"\n]*\"|'[^'\n]*')"
               re.compile(r"(\w+://[^:/\s]+:)[^@\s]+(@)"),
               re.compile(r"(?<![\w/.+=-])(?=[\w+=-]*\d)(?=[\w+=-]*[A-Za-z])[\w+=-]{40,}")]
 
-VPS = {"vps-servidor_a": "192.0.2.1", "vps-servidor_b": "192.0.2.2"}
+def _maquinas():  # em `python3 -I` o pacote hub não é importável: carrega o módulo (só stdlib) pelo caminho
+    spec = importlib.util.spec_from_file_location("maquinas", Path(__file__).resolve().parent / "comum" / "maquinas.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+maquinas = _maquinas()
+VPS = {"vps-servidor_a": maquinas.ip("servidor_a"), "vps-servidor_b": maquinas.ip("servidor_b")}
 CHAVES_SSH = ["/root/.ssh/clientek", "/home/usuario/.ssh/clientek"]
 
 # roda na VPS remota (só leitura). Nomes de .env: o sed corta antes do "="; cron: só horário, usuário e caminhos;

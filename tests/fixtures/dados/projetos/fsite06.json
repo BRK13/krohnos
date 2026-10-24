@@ -1,51 +1,144 @@
 {
   "id": "fsite06",
   "ids_antigos": [
-    "fsite06"
+    "cliente-a"
   ],
-  "ativo": false,
-  "nome": "Cliente A Corporativo",
-  "dominio": "corporativo.clientea-com.example",
-  "hosts_alternativos": [],
+  "ativo": true,
+  "nome": "Cliente A",
+  "dominio": "site-b.exemplo.com",
+  "hosts_alternativos": [
+    "www.site-b.exemplo.com"
+  ],
   "hosts_citacao": [],
   "repo": {
-    "github": "example-org/fsite06",
+    "github": "acme/cliente-a-v2",
     "base": "master",
     "pacotes": "npm",
     "deploy": "dokploy"
   },
   "ids": {
-    "gsc": null,
-    "ga4": null,
-    "ga4_medicao": null,
-    "clarity": "clarity0003",
-    "dokploy_app": null
+    "gsc": "sc-domain:site-b.exemplo.com",
+    "ga4": "100000004",
+    "ga4_medicao": "G-TESTE00004",
+    "clarity": "clarity0004",
+    "gmb_cid": "900000000000000004",
+    "dokploy_app": "dokploy-app-fsite06"
   },
   "marca": {
     "nome": "Cliente A",
     "aliases": [
-      "ClienteA"
+      "ClienteA",
+      "Método ClienteM"
     ],
     "identificador": null,
     "nome_generico": false
   },
   "conselho": "COFFITO",
-  "contexto": "Cliente A Corporativo (corporativo.clientea-com.example): cadastro de teste, texto fictício. Recomende páginas em corporativo.clientea-com.example.",
+  "contexto": "Cliente A (site-b.exemplo.com): cadastro de teste, texto fictício. Recomende páginas em site-b.exemplo.com.",
   "frase_canonica": null,
   "meta": null,
-  "concorrentes": [],
-  "monitor": null,
-  "padrao": {
-    "fora_do_google": true,
-    "noindex_permitido": [
-      "/*"
+  "concorrentes": [
+    "ClienteR",
+    "Orthophysio",
+    "Concorrente A",
+    "Pró Physis",
+    "ClienteS",
+    "Clínica Mecânica Humana",
+    "Bendita Coluna",
+    "Posture",
+    "Espaço fsite06",
+    "ClienteT"
+  ],
+  "monitor": {
+    "buscas": [
+      "buscas 1 fsite06",
+      "buscas 2 fsite06",
+      "buscas 3 fsite06",
+      "buscas 4 fsite06",
+      "buscas 5 fsite06",
+      "buscas 6 fsite06",
+      "buscas 7 fsite06",
+      "buscas 8 fsite06",
+      "buscas 9 fsite06",
+      "buscas 10 fsite06"
     ],
+    "painel": [
+      "painel 1 fsite06",
+      "painel 2 fsite06",
+      "painel 3 fsite06",
+      "painel 4 fsite06",
+      "painel 5 fsite06",
+      "painel 6 fsite06",
+      "painel 7 fsite06",
+      "painel 8 fsite06",
+      "painel 9 fsite06",
+      "painel 10 fsite06",
+      "painel 11 fsite06",
+      "painel 12 fsite06"
+    ],
+    "locais": [
+      1001541
+    ],
+    "max_buscas": 15,
+    "max_prompts_painel": 14,
+    "repeticoes_sem_nome": 1,
+    "termos_gsc": [
+      "termos_gsc 1 fsite06",
+      "termos_gsc 2 fsite06",
+      "termos_gsc 3 fsite06",
+      "termos_gsc 4 fsite06",
+      "termos_gsc 5 fsite06",
+      "termos_gsc 6 fsite06",
+      "termos_gsc 7 fsite06",
+      "termos_gsc 8 fsite06",
+      "termos_gsc 9 fsite06"
+    ]
+  },
+  "padrao": {
+    "fora_do_google": false,
+    "noindex_permitido": [],
     "treino_ia": null,
-    "tipo_negocio": null,
+    "tipo_negocio": "MedicalClinic",
     "paginas_amostra": [
       "/"
     ],
-    "indexnow": null
+    "indexnow": {
+      "chave": "0123456789abcdef0123456789abcdef",
+      "aviso": "publicacao",
+      "onde": "acme/exemplo scripts/blog.mts"
+    }
   },
-  "ranking": null
+  "ranking": {
+    "palavras": [
+      "palavras 1 fsite06",
+      "palavras 2 fsite06",
+      "palavras 3 fsite06",
+      "palavras 4 fsite06",
+      "palavras 5 fsite06",
+      "palavras 6 fsite06",
+      "palavras 7 fsite06",
+      "palavras 8 fsite06",
+      "palavras 9 fsite06",
+      "palavras 10 fsite06",
+      "palavras 11 fsite06",
+      "palavras 12 fsite06",
+      "palavras 13 fsite06",
+      "palavras 14 fsite06",
+      "palavras 15 fsite06",
+      "palavras 16 fsite06",
+      "palavras 17 fsite06",
+      "palavras 18 fsite06",
+      "palavras 19 fsite06",
+      "palavras 20 fsite06",
+      "palavras 21 fsite06",
+      "palavras 22 fsite06",
+      "palavras 23 fsite06",
+      "palavras 24 fsite06",
+      "palavras 25 fsite06"
+    ],
+    "local": 1001541,
+    "idioma": "pt",
+    "dispositivo": "mobile",
+    "profundidade": 40
+  }
 }

@@ -50,6 +50,7 @@ class AgentesTest(Base):
         self.assertEqual({x["faixa"] for x in a}, {"construtor"})
         self.assertIsNone(a[0]["tarefa"])
         self.assertEqual((a[1]["issue"], a[1]["minutos"], a[1]["cinco_horas"]), ("KRN-16", 30, 40))
+        self.assertNotIn("semana", a[1])
         self.assertEqual(a[1]["ultimos_passos"], ["[Bash] npm test"])
 
     def test_quatro_contas_quando_a_4_tem_login(self):
@@ -58,12 +59,12 @@ class AgentesTest(Base):
             (self.home / ".claude-4").mkdir()
             self.assertEqual([x["conta"] for x in cockpit.agentes(d, AGORA)], ["1", "2", "3"])  # pasta sem login
             (self.home / ".claude-4" / ".credentials.json").write_text("{}")
-            (Path(d, "claude") / "rodando-4.json").write_text(json.dumps({"nome": "aio-fsite05", "conta": "4", "pid": os.getpid(),
+            (Path(d, "claude") / "rodando-4.json").write_text(json.dumps({"nome": "aio-fsite06", "conta": "4", "pid": os.getpid(),
                                                                          "inicio": "2026-10-09T11:50:00+00:00"}))
             a = cockpit.agentes(d, AGORA)
         self.assertEqual([(x["conta"], x["faixa"]) for x in a],
                          [("1", "construtor"), ("2", "construtor"), ("3", "construtor"), ("4", "operador")])
-        self.assertEqual((a[3]["tarefa"], a[3]["minutos"]), ("aio-fsite05", 10))
+        self.assertEqual((a[3]["tarefa"], a[3]["minutos"]), ("aio-fsite06", 10))
 
     def test_passos_sem_credencial(self):
         cmd = "export DATABASE_URL=postgres://clienteh:bru18@127.0.0.1:55499/clienteh"
@@ -111,7 +112,7 @@ class AgentesTest(Base):
         for cru, limpo in casos.items():
             self.assertEqual(cockpit._sem_segredo(cru), limpo, cru)
         for inofensivo in ("[Bash] npm test", "[Read] /home/nimbus/hub/keys.py", "[Bash] git push origin main",
-                           "[Bash] git clone https://github.com/example-org/x.git", "[Edit] hub/painel.py", "[Bash] ssh-keygen -t ed25519",
+                           "[Bash] git clone https://github.com/acme/x.git", "[Edit] hub/painel.py", "[Bash] ssh-keygen -t ed25519",
                            "author: Fulano", "[Bash] git log --author=Fulano", "[Bash] mysql -p db", "[Bash] ls -p dir",
                            "[Bash] sort -u lista", "echo user2@example.com https://site-com.example/x"):
             self.assertEqual(cockpit._sem_segredo(inofensivo), inofensivo)
@@ -210,6 +211,14 @@ class TravadasTest(Base):
         self.assertEqual([x["identifier"] for x in r["travadas"]], ["B1", "P1"])
         self.assertIn("3 h", r["travadas"][1]["motivo"])
         self.assertIn("falhou", r["travadas"][0]["motivo"])
+
+    def test_estacionada_pelo_orquestrador_depois_da_falha_nao_e_travada(self):
+        f = {"body": "Falhou (conta 2): x", "createdAt": "2026-10-22T10:00:00Z"}
+        e = {"body": "Estacionada pelo orquestrador (não é falha): espera as filhas", "createdAt": "2026-10-22T12:00:00Z"}
+        self.assertFalse(cockpit.falhou_sem_estacionar([f, e]))
+        self.assertTrue(cockpit.falhou_sem_estacionar([e, {**f, "createdAt": "2026-10-22T13:00:00Z"}]))  # falhou de novo depois
+        self.assertTrue(cockpit.falhou_sem_estacionar([f]))
+        self.assertFalse(cockpit.falhou_sem_estacionar([e]))
 
     def test_em_andamento_com_execucao_rodando_ou_na_fila_nao_e_travada(self):
         no = lambda i: {"id": i, "identifier": i, "title": "t", "url": "u", "updatedAt": "2026-10-09T05:00:00Z",  # noqa: E731

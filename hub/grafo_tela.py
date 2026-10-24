@@ -11,7 +11,7 @@ from hub.grafo_saude import projetos, auditar
 
 COR = {"projeto": "#B0976A", "repo": "#8EA382", "dominio": "#C4AD82", "app": "#C98E4E", "vps": "#D07F6E", "banco": "#D07F6E",
        "cron": "#8A8378", "servico": "#8A8378", "segredo": "#A88BA0", "pessoa": "#F5F1E7", "decisao": "#D9D2C3", "issue": "#BDB6A8",
-       "pr": "#BDB6A8", "receita": "#8EA382", "pagina": "#E3C98F", "documento": "#8F897D", "memoria": "#A88BA0", "relatorio": "#8F897D", "tarefa": "#8A8378"}
+       "pr": "#BDB6A8", "receita": "#8EA382", "referencia": "#9DB08F", "pagina": "#E3C98F", "documento": "#8F897D", "memoria": "#A88BA0", "relatorio": "#8F897D", "tarefa": "#8A8378"}
 MAX_NOS = 18
 
 
@@ -61,7 +61,7 @@ def tela(q="", tipo=""):
     tipo = tipo if tipo in G.TIPOS else ""
     busca = (f'<form class="form" method="get" action="/mapa" role="search">'
              f'<input class="largo" type="search" name="q" value="{e(q)}" maxlength="200" '
-             f'placeholder="Pergunte (ex.: onde está a credencial do Supabase, qual repo serve clientea-com.example)" aria-label="Pergunta">'
+             f'placeholder="Pergunte (ex.: onde está a credencial do Supabase, qual repo serve o site de um projeto)" aria-label="Pergunta">'
              + (f'<input type="hidden" name="tipo" value="{e(tipo)}">' if tipo else "")
              + '<button class="prim" type="submit">Buscar</button></form>')
     filtros = ui.filtro("tipo", [("", "Todos")] + [(t, f"{t} ({n})") for t, n in sorted(st["tipos"].items())], tipo, rotulo="Tipo",

@@ -8,7 +8,8 @@ import re
 import time
 from pathlib import Path
 
-from hub import agenda, data, faltou, linear, metas, tarefas, usuarios
+from hub import agenda, data, faltou, fila_issues, linear, metas, tarefas, usuarios
+from hub import sites as _sites
 
 try:  # o cofre de provas de clientes é nosso: fora do snapshot público, a ação responde que não existe
     import hub.provas as provas
@@ -21,12 +22,12 @@ except ImportError as _e:
 PROJETOS = ("Cliente C", "ClienteJ", "Cliente A", "Cliente F", "Cliente G", "Nimbus",
             "Triagem WhatsApp", "Infra VPS")
 # Registro único das ações: o que não está aqui é recusado. Quem pode cada uma: usuarios.PODE / usuarios.SO_DONO.
-ACOES = ("criar-issue", "comentar", "pedido", "criar-meta", "clonar-viral", "convidar", "papel", "desativar",
+ACOES = ("criar-issue", "comentar", "mover-issue", "pedido", "criar-meta", "clonar-viral", "convidar", "papel", "desativar",
          "autorizar-prova", "revogar-prova", "replay")
 
 
 # Alvo da linha de auditoria: o identificador principal do campo, nunca o texto livre (comentário, descrição) nem token.
-ALVO = {"criar-issue": "titulo", "comentar": "issue", "pedido": "n", "criar-meta": "objetivo", "clonar-viral": "viral",
+ALVO = {"criar-issue": "titulo", "comentar": "issue", "mover-issue": "issue", "pedido": "n", "criar-meta": "objetivo", "clonar-viral": "viral",
         "autorizar-prova": "id", "revogar-prova": "id", "convidar": "email", "papel": "email", "desativar": "email", "replay": "ref"}
 
 
@@ -57,7 +58,8 @@ def _executar(acao, campos, agora, quem=None):
         return _usuario(acao, campos, agora)
     if acao == "criar-issue":
         projeto, titulo = campos.get("projeto", ""), (campos.get("titulo") or "").strip()
-        if projeto not in PROJETOS or not titulo:
+        validos = [p["name"] for p in fila_issues.projetos()] if fila_issues.local() else PROJETOS
+        if projeto not in validos or not titulo:
             return False, "Escolha o projeto e escreva o que você quer."
         r = linear.criar_issue(projeto, titulo[:200], (campos.get("descricao") or "").strip(), "Todo", [], 3)
         return True, f"Criado: {r.split()[0]}. Um Claude pega em até 1 minuto."
@@ -65,8 +67,16 @@ def _executar(acao, campos, agora, quem=None):
         issue, texto = campos.get("issue", ""), (campos.get("texto") or "").strip()
         if not re.fullmatch(r"[A-Z]+-\d+", issue) or not texto:
             return False, "Escreva o comentário."
-        linear.comentar(issue, texto[:5000])
+        if fila_issues.local():  # o painel é o dono falando: comentário de usuário (não do Claude) que acorda a agenda
+            try:
+                fila_issues.comentar(issue, texto[:5000], app=False)
+            except LookupError:
+                return False, f"A issue {issue} não existe."
+        else:
+            linear.comentar(issue, texto[:5000])
         return True, f"Enviado em {issue}."
+    if acao == "mover-issue":
+        return _mover_issue(campos)
     if acao == "pedido":
         n, decisao = campos.get("n", ""), campos.get("decisao", "")
         if not re.fullmatch(r"\d{1,5}", n) or decisao not in ("faz", "nao"):
@@ -113,12 +123,43 @@ def _executar(acao, campos, agora, quem=None):
     return False, "Ação desconhecida."
 
 
+def _mover_issue(campos):
+    """Move uma issue da fila local. Done passa pelo portão (PR aberto, prova de dado) como no CLI; barrado vira (False, motivo)."""
+    issue, estado = (campos.get("issue") or "").strip(), (campos.get("estado") or "").strip()
+    if not fila_issues.local():
+        return False, "Mover pelo painel vale só na fila própria; no Linear, mova lá."
+    if not re.fullmatch(r"[A-Za-z]+-\d+", issue) or estado.lower() not in {n.lower() for n in fila_issues.ESTADOS}:
+        return False, "Escolha a issue e o estado."
+    if not fila_issues.item_por_ident(issue):
+        return False, f"A issue {issue} não existe."
+    try:
+        if estado.lower() == "done":
+            linear.mover_por_nome(issue.upper(), "Done", None, portao_fn=linear._portao_done)
+        else:
+            fila_issues.mover(issue, estado)
+    except SystemExit as ex:  # o portão e o recibo falam por SystemExit com o motivo
+        return False, str(ex.code) if ex.code not in (None, 0, 1) else "Não consegui mover."
+    except ValueError as ex:
+        return False, str(ex)
+    return True, f"{issue.upper()} movida para {next(n for n in fila_issues.ESTADOS if n.lower() == estado.lower())}."
+
+
 def _usuario(acao, campos, agora):
     """Ações de dono sobre usuários (convidar, papel, desativar); ValueError vira a mensagem."""
     email = (campos.get("email") or "").strip()
     try:
         if acao == "convidar":
-            return True, "Convite criado.", {"convite": usuarios.convidar(email, campos.get("papel", ""), agora)}
+            papel, sites = campos.get("papel", ""), None
+            if papel == "cliente":  # o site tem que existir no cadastro (hub/sites.py); nos outros papéis o campo é ignorado
+                site = (campos.get("site") or "").strip()
+                try:
+                    existe = site in {s["id"] for s in _sites.carregar()}
+                except _sites.SiteInvalido:
+                    existe = False
+                if not existe:
+                    return False, "Escolha um site do cadastro para o cliente."
+                sites = [site]
+            return True, "Convite criado.", {"convite": usuarios.convidar(email, papel, agora, sites=sites)}
         if acao == "papel":
             usuarios.trocar_papel(email, campos.get("papel", ""))
             return True, "Papel trocado."

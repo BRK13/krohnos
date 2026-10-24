@@ -95,7 +95,7 @@ class ResumoTest(unittest.TestCase):
 class McpESubagentesTest(unittest.TestCase):
     def test_mcp_so_sob_demanda(self):
         self.assertEqual(S.mcp_da_tarefa("Corrigir o teto do disjuntor"), [])
-        self.assertEqual(S.mcp_da_tarefa("Trilha do vídeo da fsite05"), ["earshot"])
+        self.assertEqual(S.mcp_da_tarefa("Trilha do vídeo da fsite06"), ["earshot"])
         self.assertEqual(S.mcp_da_tarefa("Engenharia reversa do app", ["openseo"]), ["openseo", "rea"])
         self.assertIn("openseo", S.mcp_da_tarefa("Artigo novo no blog"))
 
@@ -155,11 +155,11 @@ class RetomadaTest(unittest.TestCase):
         self.assertTrue(saida[-1].startswith("Claude: estado final"))
 
     def test_prompt_lista_os_prs_citados(self):
-        c = ["Claude: abri https://github.com/example-org/x/pull/1\n" + "x" * linear.CONVERSA_MAX, "Fulano: e?",
-             "Claude: PR https://github.com/example-org/x/pull/2 no CI", "Claude: fim"]
+        c = ["Claude: abri https://github.com/acme/x/pull/1\n" + "x" * linear.CONVERSA_MAX, "Fulano: e?",
+             "Claude: PR https://github.com/acme/x/pull/2 no CI", "Claude: fim"]
         texto = linear.tarefa({"identifier": "KRN-9", "titulo": "t", "url": "u", "descricao": "d", "repos": [],
                                "modelo": "sonnet", "comentarios": c}).prompt
-        self.assertIn("PRs citados na conversa: https://github.com/example-org/x/pull/1, https://github.com/example-org/x/pull/2", texto)
+        self.assertIn("PRs citados na conversa: https://github.com/acme/x/pull/1, https://github.com/acme/x/pull/2", texto)
 
 
 class VoltaSemIaTest(unittest.TestCase):

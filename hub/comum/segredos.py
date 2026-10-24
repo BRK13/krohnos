@@ -27,7 +27,7 @@ def hash8(valor):
 def _arquivo(p):
     try:
         v = Path(p).read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     return v or None
 

@@ -32,6 +32,10 @@ GRANDE_MIN, GRANDE_USD = 90, 20  # tarefa grande: somou 90 min de execução ou 
 HISTORICO = dt.timedelta(days=30)
 SUFIXO = "execuções desde a última fala"
 PR_RECENTE = dt.timedelta(days=7)  # PR fundido há mais que isso, citado no texto, é referência e não o PR da tarefa
+# Medido em 19-21/10 (48 h): 362 sessões de conferência (30% de todas as sessões ok, US$ 92); 179 vieram logo depois de uma
+# retomada de espera (espera_deploy 132, espera_ci 40, parada 4, recibo 2, conferencia 1), cuja entrega já passou pela
+# conferência na sessão que abriu o PR. Conferir de novo só gasta uma sessão Sonnet; o Done continua no portão.
+SEM_CONFERENCIA_APOS = frozenset({"espera_ci", "espera_deploy", "parada", "recibo", "conferencia", "merge"})
 
 
 def _arq(base_dados=None):
@@ -61,9 +65,9 @@ def exigir_tipo(tipo, nome="", base_dados=None, agora=None, registrar=None):
         if registrar is None:
             from hub import incidentes
             registrar = incidentes.registrar
-        registrar(f"execução de {nome or '?'} sem tipo conhecido ({tipo!r})", "outra", "hub/retomada.py (exigir_tipo)",
+        registrar(f"execução de {nome or '?'} sem tipo conhecido ({tipo!r})", "execucao_sem_tipo", "hub/retomada.py (exigir_tipo)",
                   nome.removeprefix("linear-").upper() if nome.startswith("linear-") else "",
-                  chave=f"sem-tipo:{nome}:{(agora or conta.agora()):%Y%m%d%H}", base_dados=base_dados, agora=agora)
+                  chave=f"sem-tipo:{(agora or conta.agora()):%Y%m%d%H}", base_dados=base_dados, agora=agora)
     return "outro"
 
 
@@ -158,6 +162,11 @@ def gancho_mecanico(ident, texto, gravar=None, gh=None, base_dados=None, agora=N
     if pr.get("state") == "closed":
         return None
     return gravar(ident, f"https://github.com/{repo}/pull/{n}", chamar=gh, base_dados=base_dados, agora=agora)
+
+
+def pular_conferencia(tipo):
+    """A sessão que acabou foi uma retomada de espera (ou a própria conferência): não abre outra sessão só para conferir."""
+    return tipo in SEM_CONFERENCIA_APOS
 
 
 def conferir_mecanica(item, texto, issue=None, avaliar=None, gancho=None):

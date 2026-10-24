@@ -1,0 +1,51 @@
+{
+  "id": "fsite07",
+  "ids_antigos": [
+    "fsite07"
+  ],
+  "ativo": false,
+  "nome": "Cliente A Corporativo",
+  "dominio": "corporativo.site-b.exemplo.com",
+  "hosts_alternativos": [],
+  "hosts_citacao": [],
+  "repo": {
+    "github": "acme/fsite07",
+    "base": "master",
+    "pacotes": "npm",
+    "deploy": "dokploy"
+  },
+  "ids": {
+    "gsc": null,
+    "ga4": null,
+    "ga4_medicao": null,
+    "clarity": "clarity0003",
+    "dokploy_app": null
+  },
+  "marca": {
+    "nome": "Cliente A",
+    "aliases": [
+      "ClienteA"
+    ],
+    "identificador": null,
+    "nome_generico": false
+  },
+  "conselho": "COFFITO",
+  "contexto": "Cliente A Corporativo (corporativo.site-b.exemplo.com): cadastro de teste, texto fictício. Recomende páginas em corporativo.site-b.exemplo.com.",
+  "frase_canonica": null,
+  "meta": null,
+  "concorrentes": [],
+  "monitor": null,
+  "padrao": {
+    "fora_do_google": true,
+    "noindex_permitido": [
+      "/*"
+    ],
+    "treino_ia": null,
+    "tipo_negocio": null,
+    "paginas_amostra": [
+      "/"
+    ],
+    "indexnow": null
+  },
+  "ranking": null
+}

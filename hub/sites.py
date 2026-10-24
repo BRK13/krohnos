@@ -20,7 +20,7 @@ from hub import RAIZ, codigo, config, data
 PASTA = config.projetos()
 CONSELHOS = ("CFP", "COFFITO", "OAB")
 # Onde as buscas do AI Overview são feitas (códigos de local da DataForSEO). O Brasil fica sem sufixo de pasta.
-# Cidade serve para negócio local (a fsite05 busca como quem está em Brasília).
+# Cidade serve para negócio local (a fsite06 busca como quem está em Brasília).
 LOCAIS = {2076: "brasil", 1001541: "brasilia", 2620: "portugal", 2840: "eua", 2372: "irlanda", 2826: "reino-unido", 2124: "canada",
           2276: "alemanha", 2380: "italia", 2724: "espanha", 2392: "japao", 2036: "australia"}
 
@@ -33,6 +33,7 @@ RE_MEDICAO = re.compile(r"^G-[A-Z0-9]{6,14}$")
 RE_CLARITY = re.compile(r"^[a-z0-9]{6,14}$")
 RE_GMB_CID = re.compile(r"^(\d{5,25}|sem_perfil)$")  # sem_perfil: conferido que o negócio não tem Perfil da Empresa no Google
 RE_CHAVE_INDEXNOW = re.compile(r"^[a-zA-Z0-9-]{8,128}$")
+RE_REGRA = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")  # id de regra do SEOmator, ex.: security-csp-xss
 
 
 class SiteInvalido(ValueError):
@@ -203,6 +204,10 @@ def validar(s, origem="site"):
             err(f"{origem}: 'padrao.indexnow.chave' inválida")
         if inx.get("aviso") not in (None, "publicacao", "agendado", "manual"):
             err(f"{origem}: 'padrao.indexnow.aviso' tem que ser publicacao, agendado, manual ou null")
+    exc = p.get("excecoes")  # opcional: {regra do SEOmator: motivo}; a regra não gera issue nem reabre (PADRAO-SEO.md)
+    if exc is not None and not (isinstance(exc, dict) and all(RE_REGRA.match(k) and isinstance(v, str) and v.strip()
+                                                              for k, v in exc.items())):
+        err(f"{origem}: 'padrao.excecoes' tem que ser {{regra: motivo}}, regra em minúsculas e motivo não vazio")
     if s["ativo"] and p.get("fora_do_google"):
         err(f"{origem}: site fora do Google não pode ser ativo (o verificador e o AI Overview não rodam nele)")
     return erros

@@ -53,6 +53,59 @@ class Incidentes(unittest.TestCase):
         self.assertEqual(a["id"], b["id"])
         self.assertEqual(1, len(incidentes.listar(base_dados=self.dados, agora=T0)))
 
+    def test_mesma_issue_classe_e_falha_com_chaves_diferentes_vira_um_incidente(self):
+        a = incidentes.registrar("URL com crase  dá 404", "pronto_sem_recibo", "p", issue="KRN-521",
+                                 chave="recibo:KRN-521:1", base_dados=self.dados, agora=T0)
+        b = incidentes.registrar("url com crase dá 404", "pronto_sem_recibo", "p", issue="KRN-521",
+                                 chave="recibo:KRN-521:2", base_dados=self.dados, agora=T0 + dt.timedelta(hours=1))
+        self.assertEqual(a["id"], b["id"])
+        self.assertEqual(2, b["ocorrencias"])
+        itens = incidentes.listar(base_dados=self.dados, agora=T0)
+        self.assertEqual(1, len(itens))
+        self.assertEqual(2, itens[0]["ocorrencias"])
+
+    def test_texto_ou_issue_diferente_gera_outro_incidente(self):
+        incidentes.registrar("falta A", "pronto_sem_recibo", "p", issue="KRN-521", chave="a", base_dados=self.dados, agora=T0)
+        incidentes.registrar("falta B", "pronto_sem_recibo", "p", issue="KRN-521", chave="b", base_dados=self.dados, agora=T0)
+        incidentes.registrar("falta A", "pronto_sem_recibo", "outra peça", issue="KRN-738", chave="c", base_dados=self.dados, agora=T0)
+        self.assertEqual(3, len(incidentes.listar(base_dados=self.dados, agora=T0)))
+
+    def test_incidente_feito_nao_absorve_nova_ocorrencia(self):
+        a = incidentes.registrar("falta A", "pronto_sem_recibo", "p", issue="KRN-521", chave="a", base_dados=self.dados, agora=T0)
+        incidentes.marcar(a["id"], nota="sem mudança de código", base_dados=self.dados, agora=T0)
+        b = incidentes.registrar("falta A", "pronto_sem_recibo", "p", issue="KRN-521", chave="b", base_dados=self.dados, agora=T0)
+        self.assertNotEqual(a["id"], b["id"])
+
+    def test_mesma_classe_e_peca_em_issues_diferentes_vira_um_incidente(self):
+        for n, issue in enumerate(["KRN-1097", "KRN-1528", "KRN-997", "KRN-1136", "KRN-1000"]):
+            inc = incidentes.registrar(f"execução de linear-{issue.lower()} sem tipo", "execucao_sem_tipo", "hub/retomada.py",
+                                       issue, chave=f"sem-tipo:{n}", base_dados=self.dados, agora=T0)
+        itens = incidentes.listar(base_dados=self.dados, agora=T0)
+        self.assertEqual(1, len(itens))
+        self.assertEqual(5, itens[0]["ocorrencias"])
+        self.assertEqual(["KRN-1097", "KRN-1528", "KRN-997", "KRN-1136", "KRN-1000"], itens[0]["issues"])
+        self.assertEqual(itens[0]["id"], inc["id"])
+        self.assertIn("×5", incidentes.texto_retro(24, base_dados=self.dados, agora=T0))
+
+    def test_registro_depois_do_feito_abre_outro_e_conserto_cobre_os_anteriores(self):
+        a = incidentes.registrar("x", "execucao_sem_tipo", "p", issue="KRN-1", base_dados=self.dados, agora=T0)
+        incidentes.marcar(a["id"], "feito", "tests/test_retomada.py", base_dados=self.dados, agora=T0 + dt.timedelta(hours=1),
+                          gh=lambda caminho: {"state": "closed", "merged": True})
+        b = incidentes.registrar("y", "execucao_sem_tipo", "p", issue="KRN-2", base_dados=self.dados, agora=T0 + dt.timedelta(hours=2))
+        self.assertNotEqual(a["id"], b["id"])
+        self.assertEqual(1, b["ocorrencias"] if "ocorrencias" in b else 1)
+
+    def test_feito_com_conserto_fecha_pendentes_antigos_da_mesma_causa(self):
+        a = incidentes.registrar("x", "outra", "p", base_dados=self.dados, agora=T0)
+        b = incidentes.registrar("z", "outra", "p", base_dados=self.dados, agora=T0 + dt.timedelta(minutes=5))
+        c = incidentes.registrar("w", "outra", "outra peça", base_dados=self.dados, agora=T0)
+        incidentes.marcar(a["id"], "feito", "tests/test_x.py", base_dados=self.dados, agora=T0 + dt.timedelta(hours=1),
+                          gh=lambda caminho: {"state": "closed", "merged": True})
+        pend = [i["id"] for i in incidentes.listar(so_pendentes=True, base_dados=self.dados, agora=T0)]
+        self.assertEqual([c["id"]], pend)
+        nota = {i["id"]: i.get("nota") for i in incidentes.listar(base_dados=self.dados, agora=T0)}
+        self.assertEqual(f"coberto por {a['id']}", nota[b["id"]])
+
     def test_registros_simultaneos_tem_ids_distintos(self):
         # sem a trava, duas leituras do mesmo tamanho dão o mesmo INC-N e o listar funde os dois
         import threading

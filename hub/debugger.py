@@ -1,4 +1,5 @@
 """Faixa de conserto reativa. Estado persistido, uma tarefa por repo, sem WhatsApp."""
+import concurrent.futures
 import datetime as dt
 import hashlib
 import json
@@ -8,8 +9,10 @@ import subprocess
 from pathlib import Path
 
 from hub import config, conta, consertos, data, esperas, incidentes, tarefas
+from hub.harness import portao_entrega
 
 
+PARALELO = 12  # repos coletados ao mesmo tempo (só leitura no GitHub); em série a coleta levava ~89 s
 RE_PR_URL = re.compile(r'github\.com/([\w.-]+/[\w.-]+)/pull/(\d+)')
 RE_PR_NUM = re.compile(r'(?:\bPRs?\s*#?|(?<![\w/&])#)(\d+)', re.I)
 RE_INC = re.compile(r'\bINC-\d+\b')
@@ -126,10 +129,14 @@ def coletar(base=None, gh=None, agora=None, repos=None):
     itens = []
     from hub import sites
     ativos = {config.repo(r) for r in consertos.REPOS_ATIVOS} | {(s.get('repo') or {}).get('github') for s in sites.ativos()}
-    for nome in repos if repos is not None else sorted(r for r in ativos if r):
-        repo = nome if '/' in nome else config.repo(nome)
+    nomes = repos if repos is not None else sorted(r for r in ativos if r)
+    alvos = [nome if '/' in nome else config.repo(nome) for nome in nomes]
+    # um repo por thread (vários GETs cada, só leitura); a saída segue a ordem de `nomes`
+    with concurrent.futures.ThreadPoolExecutor(max_workers=PARALELO, thread_name_prefix='debugger') as pool:
+        futuros = [pool.submit(coletar_repo, repo, gh, agora, base) for repo in alvos]
+    for repo, f in zip(alvos, futuros):
         try:
-            itens += coletar_repo(repo, gh, agora, base)
+            itens += f.result()
         except Exception:  # fonte fora: mantém o vermelho anterior, nunca inventa verde
             itens += [i for i in ler(base)['itens'].values() if i['repo'] == repo and i['tipo'] == 'ci' and not i.get('resolvido_em')]
     for p in (conta.pasta(base) / 'main-vermelho').glob('*.json'):
@@ -148,7 +155,7 @@ def coletar(base=None, gh=None, agora=None, repos=None):
             for i in itens:
                 if i['repo'] == repo and not i['alvo'].startswith('pr:'):
                     i['issue'] = a['issue']
-    for pasta, repo in ((base / 'alertas' / 'fsite05', config.repo("cliente-a-v2")),
+    for pasta, repo in ((base / 'alertas' / 'fsite06', config.repo("cliente-a-v2")),
                         (base / 'vigia-clientej', config.repo("clienteh"))):
         for p in pasta.glob('*.json'):
             a = _fonte(p, itens, base)
@@ -227,6 +234,7 @@ Erro: {i['erro']}. Desde {i['desde']}. Issue dona: {i.get('issue') or 'descubra 
 URL: {i.get('url', '')}. Fonte do alerta: {i.get('fonte', '')}. Chave: {chave(i)}.
 Use worktree própria; nunca edite a worktree da issue dona. PR: conserte na MESMA branch remota {i.get('branch', '')}.
 Main/master/develop: crie branch codex/ e PR de conserto contra {i.get('branch', '')}.
+Antes de abrir PR: gh pr list --repo {i['repo']} --state open --search "<INC ou issue dona>" e leia os candidatos; se já houver PR aberto que cite o mesmo INC ou a mesma issue, continue nele (push na branch dele) e não abra outro.
 Leia AGENTS.md e CLAUDE.md. Leia o log abaixo antes de alterar código; não rode build nem ci-local à mão.
 Rode testes focados. Faça commit, push e PR quando necessário. O resultado final será comentado na issue dona.
 Alerta: investigue e só após tratar execute python3 -m hub.debugger tratar {chave(i)} --nota "causa, conserto e prova". Não altere arquivos de outro usuário. Incidente: hub.linear incidente feito.
@@ -245,6 +253,28 @@ Log do local-ci:\n{esperas.trecho_log(i.get('sha', '')) if i.get('sha') else ''}
     return t
 
 
+COLETA_INTERVALO = dt.timedelta(minutes=3)  # a coleta (7 repos, ~70 s de gh em série) não roda todo minuto
+
+
+def _foto(base, agora, coletar_fn):
+    """A foto dos vermelhos/alertas. Sem `coletar_fn` (produção), reaproveita a última por COLETA_INTERVALO: o resto do
+    `vigiar` é barato e idempotente sobre a mesma foto, a coleta é a que enchia a coordenação de chamadas ao GitHub."""
+    if coletar_fn:
+        return coletar_fn(base=base, agora=agora)
+    arq = arquivo(base).with_name('debugger-foto.json')
+    try:
+        antiga = json.loads(arq.read_text(encoding='utf-8'))
+        if dt.timedelta(0) <= agora - conta.de_iso(antiga['em']) < COLETA_INTERVALO:
+            return antiga['foto']
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    foto = coletar(base=base, agora=agora)
+    tmp = arq.with_suffix('.tmp')
+    tmp.write_text(json.dumps({'em': conta.iso(agora), 'foto': foto}), encoding='utf-8')
+    os.replace(tmp, arq)
+    return foto
+
+
 def vigiar(base=None, agora=None, coletar_fn=None):
     from hub import agenda
     agora = agora or conta.agora()
@@ -261,7 +291,7 @@ def vigiar(base=None, agora=None, coletar_fn=None):
                 anterior['tentativas'] = anterior.get('tentativas', 0) + existente.get('tentativas', 0)
                 migrados[k] = anterior
         estado['itens'] = migrados
-        foto = (coletar_fn or coletar)(base=base, agora=agora)
+        foto = _foto(base, agora, coletar_fn)
         atuais = {chave(i): i for i in foto if not (estado['itens'].get(chave(i), {}).get('tratado') and
                   estado['itens'][chave(i)]['desde'] == i['desde'])}
         ocupados = {r['nome'] for r in agenda.rodando_todas(base).values()} | {i['nome'] for i in agenda.fila(base)}
@@ -382,6 +412,8 @@ def tratar(id_, nota, base=None, agora=None, gh=None):
         i = estado['itens'][id_]
         if i['tipo'] != 'alerta' or not nota.strip():
             raise ValueError('exige alerta e nota do tratamento')
+        if RE_INC.fullmatch(i['alvo']):
+            portao_entrega.exigir(nota, i['alvo'])  # tentativa de INC só fecha com PR/commit ou laudo com causa e prova
         if not SEM_CODIGO.search(nota):
             exigir_pr_fechado(nota, i['repo'], gh)
         i['tratado'] = {'em': conta.iso(agora or conta.agora()), 'por': 'debugger', 'o_que': nota.strip()}

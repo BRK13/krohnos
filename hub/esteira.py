@@ -18,20 +18,9 @@ from pathlib import Path
 from hub import config, conta, data, roteamento
 
 TETO_CINCO_HORAS = 70
-FOLGA_SEMANA = 10
 
 
-def _ritmo(reset_semana, agora):
-    """Quanto da semana já devia ter sido gasto (em %), mais a folga: ritmo linear até o reset semanal."""
-    try:
-        restam = (conta.de_iso(reset_semana) - agora).total_seconds() / 3600
-    except (AttributeError, TypeError, ValueError):
-        return 100.0
-    passadas = min(max(168 - restam, 0), 168)
-    return 100 * passadas / 168 + FOLGA_SEMANA
-
-
-def folga(uso, agora, ocupadas, contas_ativas=None):
+def folga(uso, ocupadas, contas_ativas=None):
     """{conta: tem folga?}, só das contas com login (conta sem login não pega trabalho). Sem dado de uso de nenhuma
     conta: só com fila e rodando vazios."""
     contas = (uso or {}).get("contas") or {}
@@ -43,10 +32,7 @@ def folga(uso, agora, ocupadas, contas_ativas=None):
             saida[n] = ocupadas == 0
             continue
         cinco = (c.get("cinco_horas") or {}).get("pct")
-        sem = (c.get("semana") or {}).get("pct")
-        ok_cinco = cinco is None or cinco < TETO_CINCO_HORAS
-        ok_sem = sem is None or sem < _ritmo((c.get("semana") or {}).get("reset"), agora)
-        saida[n] = ok_cinco and ok_sem
+        saida[n] = cinco is None or cinco < TETO_CINCO_HORAS  # conta Claude não tem limite semanal
     return saida
 
 
@@ -218,7 +204,7 @@ def despachar(base_dados=None, agora=None, gql=None, mover=None, livres_codex=No
     ocupadas = (sum(1 for x in agenda.fila(base_dados) if not agenda._eh_codex(x))
                 + sum(1 for n in agenda.rodando_todas(base_dados) if not n.startswith("rodando-codex")))
     livres_codex = vagas_codex(base_dados) if livres_codex is None else livres_codex
-    folgas = folga(uso, agora, ocupadas)
+    folgas = folga(uso, ocupadas)
     est = estado(base_dados)
     limite = conta.iso(agora - dt.timedelta(days=7))
     est["despachadas"] = [x for x in est.get("despachadas", []) if x["em"] >= limite]

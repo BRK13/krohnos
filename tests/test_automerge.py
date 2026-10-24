@@ -4,10 +4,11 @@ import tempfile
 import unittest
 import unittest.mock
 
-from hub import automerge, conta, esperas, memorias
+from hub import automerge, config, conta, esperas, memorias
 
 SHA = "392907284aeecef990cf13655d6441a2a2f719a8"
-PR = "https://github.com/example-org/clienteh/pull/524"
+ORG = config.repo("x").split("/")[0]  # a org da config (nos testes, a fictícia; na VPS, a do legado)
+PR = f"https://github.com/{ORG}/clienteh/pull/524"
 LIMPA = {"body": f"**Revisão do Codex** (commit `{SHA[:8]}`)\n\nSem achados sérios.", "created_at": "2026-10-12T12:30:00Z"}
 
 
@@ -66,9 +67,9 @@ class AutomergeTest(unittest.TestCase):
         (i, fala, repasse), = self.falas
         self.assertEqual((i, repasse), ("uuid-6", True))
         self.assertIn(f"PR {PR} (commit {SHA[:8]}): local-ci verde", fala)
-        self.assertIn(f"gh pr merge 524 -R example-org/clienteh --squash --match-head-commit {SHA}", fala)
+        self.assertIn(f"gh pr merge 524 -R {ORG}/clienteh --squash --match-head-commit {SHA}", fala)
         self.assertIn(f"voltar-quando KRN-6 --pr {PR} --no-ar", fala)
-        self.assertEqual(self.estado(), {f"KRN-6 example-org/clienteh#524": SHA})
+        self.assertEqual(self.estado(), {f"KRN-6 {ORG}/clienteh#524": SHA})
 
     # test_pr_que_contraria_decisao_do_dono_nao_vai e test_renomeacao_pura_para_workflow_barra moram em
     # tests/test_automerge_decisoes.py (leem as decisões do dono, hub/memorias_decisoes.json, fora do snapshot público)
@@ -187,7 +188,7 @@ class AutomergeTest(unittest.TestCase):
         self.assertFalse((conta.pasta(self.dados) / "automerge.json").exists())
 
     def test_dois_prs_na_mesma_issue_um_envio_cada(self):
-        pr2 = "https://github.com/example-org/clienteh/pull/525"
+        pr2 = f"https://github.com/{ORG}/clienteh/pull/525"
         i = issue()
         i["attachments"]["nodes"].append({"url": pr2})
         gh = GitHubFalso()
@@ -205,7 +206,7 @@ class AutomergeTest(unittest.TestCase):
         self.rodar()
         gh = GitHubFalso()
         self.assertEqual(self.rodar(gh=gh), [])
-        self.assertEqual(gh.chamadas, ["repos/example-org/clienteh/pulls/524"])
+        self.assertEqual(gh.chamadas, [f"repos/{ORG}/clienteh/pulls/524"])
 
     def test_erro_de_rede_loga_e_segue(self):
         self.nada(gh=GitHubFalso(erro=True))

@@ -2,6 +2,7 @@ import contextlib
 import datetime as dt
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,10 @@ from hub import agenda, conta, tarefas as T
 
 BRT = T.BRT
 _SEM_REDE = []
+_CANCELADA_REAL = agenda._cancelada
+
+
+_CANCELADA_REAL = agenda._cancelada
 
 
 def setUpModule():
@@ -18,8 +23,13 @@ def setUpModule():
     e na): gql sem mock quebra o teste, o app fica sem token e o aviso do zap vai para o vazio."""
     def proibido(*a, **k):
         raise AssertionError("teste tentou falar com o Linear de verdade: faça mock de linear.gql")
-    _SEM_REDE.extend([mock.patch("hub.debugger.vigiar"), mock.patch("hub.linear.gql", proibido), mock.patch("hub.linear.token_app", lambda **k: None),
-                      mock.patch("hub.conta.avisar", lambda *a, **k: None)])
+    # o tick chamava `gh api.../pulls` de verdade (121 chamadas por rodada da suíte): as varreduras de PR viram dublê
+    _SEM_REDE.extend([mock.patch("hub.agenda._cancelada", return_value=False), mock.patch("hub.debugger.vigiar"), mock.patch("hub.linear.gql", proibido), mock.patch("hub.linear.token_app", lambda **k: None),
+                      mock.patch("hub.conta.avisar", lambda *a, **k: None),
+                      mock.patch("hub.automerge.vigiar", return_value=[]), mock.patch("hub.automerge.vigiar_debugger", return_value=[]),
+                      mock.patch("hub.automerge.fechar_incidentes", return_value=[]), mock.patch("hub.automerge.vigiar_moedor", return_value=[]),
+                      mock.patch("hub.main_vermelho.vigiar_no_tick", return_value=None),
+                      mock.patch("hub.gh.executar", lambda *a, **k: subprocess.CompletedProcess(a[0], 1, "", ""))])
     for p in _SEM_REDE:
         p.start()
 
@@ -207,12 +217,12 @@ class ExecutarTest(unittest.TestCase):
         from hub import telemetria
         reg = {"inicio": "2026-10-17T12:00:00+00:00", "fim": "2026-10-17T12:05:00+00:00", "conta": "2", "nome": "linear-krn-7",
                "ok": True, "custo_usd": 0.5, "tipo": "conferencia", "duracao_s": 300.0,
-               "motivo_volta": "voltou da espera do CI (https://github.com/example-org/x/pull/9)"}
+               "motivo_volta": "voltou da espera do CI (https://github.com/acme/x/pull/9)"}
         agenda._rodar_e_concluir(tarefa("resumo"), self.dados, lambda t, base_dados=None: reg)
         con = telemetria.conectar(self.dados)
         linha = con.execute("SELECT issue, resultado, pr, retrabalho, custo_usd FROM execucao").fetchall()
         con.close()
-        self.assertEqual(linha, [("KRN-7", "ok", "https://github.com/example-org/x/pull/9", 1, 0.5)])
+        self.assertEqual(linha, [("KRN-7", "ok", "https://github.com/acme/x/pull/9", 1, 0.5)])
         with mock.patch("hub.telemetria.registrar", side_effect=RuntimeError("disco")):  # nunca derruba a entrega
             agenda._rodar_e_concluir(tarefa("resumo"), self.dados, lambda t, base_dados=None: reg)
 
@@ -259,12 +269,12 @@ class InterrompidaTest(ExecutarTest):
 
 class PromptTest(unittest.TestCase):
     def test_prompt_tem_repos_propostas_e_sites(self):
-        t = T.parse("---\nquando: manual\nprioridade: 2\nmodelo: sonnet\ntimeout: 1h\nrepos: example-org/x\nexterno: true\n"
+        t = T.parse("---\nquando: manual\nprioridade: 2\nmodelo: sonnet\ntimeout: 1h\nrepos: acme/x\nexterno: true\n"
                     "descricao: d\n---\nCorpo.\n", "teste")
         with tempfile.TemporaryDirectory() as d:
             p = agenda.montar_prompt(t, d)
         self.assertTrue(p.startswith("Corpo."))
-        self.assertIn("example-org/x", p)
+        self.assertIn("acme/x", p)
         self.assertIn("hub.propostas criar --tarefa teste", p)
         self.assertIn("terceiros", p)
         self.assertIn("## Sites do hub", p)
@@ -313,7 +323,7 @@ class PautaTest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.dados, self.saida = tmp.name, os.path.join(tmp.name, "saida")
         self.t = T.parse("---\nquando: 30 10 * * *\nprioridade: 2\nmodelo: sonnet\ntimeout: 30m\nexterno: false\n"
-                         "descricao: post GMB\npauta: fsite05 fsite05-gmb\n---\nEscreva o post.\n", "fsite05-gmb")
+                         "descricao: post GMB\npauta: fsite06 fsite06-gmb\n---\nEscreva o post.\n", "fsite06-gmb")
         self.chamadas, self.avisos = [], []
 
     def rodar(self, pauta_fn):
@@ -325,10 +335,10 @@ class PautaTest(unittest.TestCase):
                                    avisar_fn=lambda texto, agora_=False: self.avisos.append(texto))
 
     def test_contrato_aceita_pauta_e_recusa_formato_ruim(self):
-        self.assertEqual(self.t.pauta, ("fsite05", "fsite05-gmb"))
+        self.assertEqual(self.t.pauta, ("fsite06", "fsite06-gmb"))
         with self.assertRaises(T.TarefaInvalida):
             T.parse("---\nquando: manual\nprioridade: 2\nmodelo: haiku\ntimeout: 5m\nexterno: false\n"
-                    "descricao: x\npauta: fsite05\n---\nx\n", "x")
+                    "descricao: x\npauta: fsite06\n---\nx\n", "x")
 
     def test_sem_pauta_nao_acorda_o_claude(self):
         self.assertIsNone(self.rodar(lambda t, pasta, inicio: (None, None)))
@@ -340,7 +350,7 @@ class PautaTest(unittest.TestCase):
         self.assertTrue(reg["ok"])
         [prompt] = self.chamadas
         self.assertIn("p.json", prompt)
-        self.assertIn("app.sh fsite05 entrega fsite05-gmb", prompt)
+        self.assertIn("app.sh fsite06 entrega fsite06-gmb", prompt)
 
     def test_app_falhou_registra_falha_sem_chamar(self):
         reg = self.rodar(lambda t, pasta, inicio: (None, "HTTP 503"))
@@ -367,11 +377,11 @@ class VariasContasTest(unittest.TestCase):
         self.agente.mkdir()
         (self.agente / "00001-pedido.json").write_text("{}")  # WhatsApp ocupado
         from hub import linear
-        # pedidos do Linear (prioridade 2 para a regra do WhatsApp valer): "a" e "b" no asite01, "c" na fsite05
+        # pedidos do Linear (prioridade 2 para a regra do WhatsApp valer): "a" e "b" no asite01, "c" na fsite06
         mk = lambda nome, repo: linear.tarefa({"tipo": "issue", "id": nome, "identifier": f"KRN-{nome}", "titulo": "t",  # noqa: E731
                                                "descricao": "", "url": "x", "modelo": "haiku", "repos": [repo],
                                                "comentarios": [], "estados": {}})
-        self.tarefas = {t.nome: t for t in (mk("a", "example-org/asite01"), mk("b", "example-org/asite01"), mk("c", "example-org/fsite05"))}
+        self.tarefas = {t.nome: t for t in (mk("a", "acme/asite01"), mk("b", "acme/asite01"), mk("c", "acme/fsite06"))}
         for t in self.tarefas.values():
             agenda.enfileirar(t, "teste", self.dados, dt.datetime(2026, 10, 8, 10, 0, tzinfo=BRT))
         self.dia = dt.datetime(2026, 10, 8, 10, 0, tzinfo=BRT)
@@ -382,7 +392,7 @@ class VariasContasTest(unittest.TestCase):
         with mock.patch.object(agenda.linear, "tarefa", lambda it: next(t for t in self.tarefas.values() if t.linear["id"] == it["id"])):
             # a conta 1 está rodando um pedido no repo do asite01
             agenda._gravar_json(Path(self.dados, "claude", "rodando.json"),
-                                {"nome": "linear-krn-z", "inicio": "", "pid": os.getpid(), "repos": ["example-org/asite01"]})
+                                {"nome": "linear-krn-z", "inicio": "", "pid": os.getpid(), "repos": ["acme/asite01"]})
             with mock.patch.dict(os.environ, {"CLAUDE_CONTA": "2"}):
                 self.assertEqual(conta.caminho_trava(), "/var/lock/claude-conta-2.lock")
                 # mesmo repo que a conta 1 está usando: roda junto (cada tarefa na sua worktree); ordem não importa
@@ -396,13 +406,13 @@ class VariasContasTest(unittest.TestCase):
 
     def test_rotina_de_fundo_nao_trava_pedido_do_linear(self):
         self.assertEqual(agenda._repos_de(T.parse("---\nquando: manual\nprioridade: 2\nmodelo: haiku\ntimeout: 10m\n"
-                                                  "repos: example-org/asite01\nexterno: false\ndescricao: t\n---\nx\n", "g")), [])
+                                                  "repos: acme/asite01\nexterno: false\ndescricao: t\n---\nx\n", "g")), [])
 
 
 class LinearTest(unittest.TestCase):
     ISSUE = {"id": "u1", "identifier": "KRN-7", "title": "Arrumar rodapé", "description": "O rodapé quebra no celular.",
              "url": "https://linear.app/x/issue/KRN-7", "labels": {"nodes": [{"name": "opus"}]},
-             "project": {"name": "asite01", "description": "SaaS dos cartórios\nrepo: example-org/cliente-c"},
+             "project": {"name": "asite01", "description": "SaaS dos cartórios\nrepo: acme/cliente-c"},
              "comments": {"nodes": [{"body": "use o tema novo", "createdAt": "2026-10-08T10:00:00Z", "user": {"name": "Ana"}}]},
              "team": {"states": {"nodes": [{"id": s, "name": s} for s in ("Todo", "In Progress", "In Review", "Backlog")]}}}
 
@@ -414,19 +424,19 @@ class LinearTest(unittest.TestCase):
 
     def test_criar_por_repo(self):
         from hub import linear
-        projetos = {"projects": {"nodes": [{"name": "Cliente C", "description": "x\nrepo: example-org/cliente-c"},
-                                           {"name": "Cliente A", "description": "repo: example-org/cliente-a-v2"}]}}
+        projetos = {"projects": {"nodes": [{"name": "Cliente C", "description": "x\nrepo: acme/cliente-c"},
+                                           {"name": "Cliente A", "description": "repo: acme/cliente-a-v2"}]}}
         criadas = []
         with mock.patch.object(linear, "gql", lambda q, app=False, **v: projetos), \
-                mock.patch.object(linear, "criar_issue", lambda *a: criadas.append(a) or "KRN-9 u"), \
+                mock.patch.object(linear, "criar_issue", lambda *a, **k: criadas.append((a, k)) or "KRN-9 u"), \
                 mock.patch("sys.stdin", mock.Mock(buffer=mock.Mock(read=lambda: "desc".encode()))), \
                 mock.patch("sys.stdout", mock.Mock()):
             self.assertEqual(linear.projeto_do_repo("cliente-a-v2"), "Cliente A")
-            self.assertEqual(linear.projeto_do_repo("example-org/Cliente-C"), "Cliente C")
+            self.assertEqual(linear.projeto_do_repo("acme/Cliente-C"), "Cliente C")
             with self.assertRaises(SystemExit):
-                linear.projeto_do_repo("example-org/nada")
-            linear.main(["criar", "--repo", "example-org/cliente-c", "--titulo", "T", "--estado", "Todo", "--prioridade", "1"])
-        self.assertEqual(criadas, [("Cliente C", "T", "desc", "Todo", [], 1)])
+                linear.projeto_do_repo("acme/nada")
+            linear.main(["criar", "--repo", "acme/cliente-c", "--titulo", "T", "--estado", "Todo", "--prioridade", "1"])
+        self.assertEqual(criadas, [(("Cliente C", "T", "desc", "Todo", [], 1), {"repo": "acme/cliente-c", "deduplicar": True})])
 
     def test_sem_app_issue_vira_tarefa_por_comentario(self):
         from hub import linear
@@ -434,11 +444,11 @@ class LinearTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d,                 mock.patch.object(linear, "chave", lambda: "k"), mock.patch.object(linear, "sessoes_ok", lambda: False),                 mock.patch.object(linear, "gql", lambda q, app=False, **v: {"issues": {"nodes": [self.ISSUE]}, "projectUpdates": {"nodes": []}}),                 mock.patch.object(linear, "comentar", lambda i, txt, campo="issueId": comentarios.append(txt)),                 mock.patch.object(linear, "mover", lambda i, s, c=None: movidas.append((s, c))), mock.patch.object(linear, "conferir", lambda *a, **k: ""):
             self.assertEqual(agenda.puxar_linear({}, d), ["linear-krn-7"])
             t = agenda.da_fila(d)["linear-krn-7"]  # remontada só do item da fila
-            self.assertEqual((t.modelo, t.repos, t.prioridade), ("opus", ["example-org/cliente-c"], 1))
+            self.assertEqual((t.modelo, t.repos, t.prioridade), ("opus", ["acme/cliente-c"], 1))
             self.assertIn("use o tema novo", t.prompt)
             self.assertIn("Fixes KRN-7", t.prompt)
             saida = Path(d, "r.md")
-            saida.write_text("PR aberto: https://github.com/example-org/cliente-c/pull/9", encoding="utf-8")
+            saida.write_text("PR aberto: https://github.com/acme/cliente-c/pull/9", encoding="utf-8")
             linear.concluir(t, {"ok": True, "saida": str(saida), "conta": "2", "duracao_s": 600})
             linear.concluir(t, {"ok": False, "limite": True})  # limite: não mexe
             linear.concluir(t, {"ok": False, "saida": None, "erro": "boom", "duracao_s": 60})
@@ -534,37 +544,67 @@ class LinearTest(unittest.TestCase):
     def _runs(self, d, n, desde_h=10, **extra):
         for i in range(n):
             conta.registrar({"inicio": conta.iso(conta.agora() - dt.timedelta(minutes=desde_h * 60 - i * 5)),
-                             "nome": "linear-krn-9", "custo_usd": 0.1, "ok": True, **extra}, d)
+                             "nome": "linear-krn-9", "custo_usd": 0.1, "ok": True,
+                             "tipo": "conferencia", **extra}, d)  # volta do hub; falas não contam no teto
 
     def _h(self, horas):
         return conta.iso(conta.agora() - dt.timedelta(hours=horas))
+
+    # (falha do conserto): históricos reais de uso.jsonl de 18-19/10 (tipo, horas desde a fala), voltas ~2,5 h afastadas
+    HISTORICOS_ESPERA = {
+        "KRN-1196": ["espera_ci"] * 7,
+        "KRN-1203": ["espera_ci"] * 7,
+        "KRN-1200": ["espera_ci", "espera_deploy", "conferencia", "espera_deploy", "espera_deploy", "espera_ci", "espera_deploy"],
+        "KRN-1181": ["proposta", "conferencia", "espera_ci", "proposta", "conferencia", "proposta", "conferencia", "espera_ci"],
+    }
+
+    def _historico(self, d, tipos, passo_h=2.5):
+        for i, tipo in enumerate(tipos):
+            conta.registrar({"inicio": self._h(passo_h * (len(tipos) - i)), "nome": "linear-krn-9", "custo_usd": 0.3,
+                             "ok": True, "tipo": tipo}, d)
+
+    def test_voltas_de_espera_sem_entrega_barram_na_5a_nos_casos_reais(self):
+        for ident, tipos in self.HISTORICOS_ESPERA.items():
+            with self.subTest(ident), tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as d4:
+                self._historico(d4, tipos[:4])
+                self.assertIsNone(agenda.em_loop("linear-krn-9", d4, self._h(40), None))
+                self._historico(d, tipos[:5])  # voltas a 2,5 h: a janela de 24 h do freio antigo nunca juntava 8
+                self.assertIn("voltas de espera", agenda.em_loop("linear-krn-9", d, self._h(40), None))
+
+    def test_voltas_de_espera_merge_ou_fala_zera(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._historico(d, ["espera_ci"] * 4 + ["merge"] + ["espera_deploy"] * 4)
+            self.assertIsNone(agenda.em_loop("linear-krn-9", d, self._h(30), None))
+        with tempfile.TemporaryDirectory() as d:
+            self._historico(d, ["espera_ci"] * 7)
+            self.assertIsNone(agenda.em_loop("linear-krn-9", d, self._h(0.1), None))  # fala depois das voltas
 
     def test_teto_sem_estado_8_bloqueia_7_passa(self):
         with tempfile.TemporaryDirectory() as d:
             self._runs(d, 7)
             fala = conta.iso(conta.agora())  # fala recente: os 4× sem fala não disparam
-            self.assertIsNone(agenda.em_loop("linear-krn-9", d, fala, self._h(12)))
+            self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, fala, self._h(12)))
             self._runs(d, 1, desde_h=1)
-            self.assertEqual(agenda.em_loop("linear-krn-9", d, fala, self._h(12)), "rodou 8× sem mudar de estado")
+            self.assertEqual(agenda.teto_sem_estado("linear-krn-9", d, fala, self._h(12)), "rodou 8× sem mudar de estado")
 
     def test_teto_sem_estado_ignora_limite_e_interrompida(self):
         with tempfile.TemporaryDirectory() as d:
             self._runs(d, 7)
             self._runs(d, 3, desde_h=2, limite=True)
             self._runs(d, 3, desde_h=1, interrompida=True)
-            self.assertIsNone(agenda.em_loop("linear-krn-9", d, conta.iso(conta.agora()), self._h(12)))
+            self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, conta.iso(conta.agora()), self._h(12)))
 
     def test_teto_sem_estado_mudanca_de_estado_zera(self):
         with tempfile.TemporaryDirectory() as d:
             self._runs(d, 9)
             fala = conta.iso(conta.agora())
-            self.assertIn("sem mudar de estado", agenda.em_loop("linear-krn-9", d, fala, self._h(12)))
-            self.assertIsNone(agenda.em_loop("linear-krn-9", d, fala, self._h(0.01)))
+            self.assertIn("sem mudar de estado", agenda.teto_sem_estado("linear-krn-9", d, fala, self._h(12)))
+            self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, fala, self._h(0.01)))
 
     def test_teto_sem_estado_desligado_sem_estado_desde(self):
         with tempfile.TemporaryDirectory() as d:
             self._runs(d, 12)
-            self.assertIsNone(agenda.em_loop("linear-krn-9", d, conta.iso(conta.agora()), None))
+            self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, conta.iso(conta.agora()), None))
 
     def test_teto_sem_estado_fala_depois_do_aviso_zera_e_aviso_so_uma_vez(self):
         from hub import linear
@@ -572,7 +612,7 @@ class LinearTest(unittest.TestCase):
                 "ultima_fala": self._h(0.01)}
         with tempfile.TemporaryDirectory() as d, mock.patch.object(linear, "comentar") as com:
             self._runs(d, 8)
-            motivo = agenda.em_loop("linear-krn-9", d, item["ultima_fala"], item["estado_desde"])
+            motivo = agenda.teto_sem_estado("linear-krn-9", d, item["ultima_fala"], item["estado_desde"])
             self.assertEqual(motivo, "rodou 8× sem mudar de estado")
             self.assertTrue(agenda.avisar_teto_estado(item, motivo, d))
             self.assertTrue(agenda.avisar_teto_estado(item, motivo, d))  # segundo tick: não repete
@@ -582,11 +622,11 @@ class LinearTest(unittest.TestCase):
             # fala depois do aviso: recomeça a contar
             fala = conta.iso(conta.agora() + dt.timedelta(seconds=5))
             with mock.patch("hub.agenda.conta.agora", lambda: conta.de_iso(fala) + dt.timedelta(seconds=1)):
-                self.assertIsNone(agenda.em_loop("linear-krn-9", d, fala, item["estado_desde"]))
+                self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, fala, item["estado_desde"]))
 
     def test_teto_sem_estado_isolado_ignora_regra_4x(self):
         with tempfile.TemporaryDirectory() as d:
-            self._runs(d, 5)  # 5 rodadas sem fala: a regra 4× do em_loop barraria, a por estado (8) não
+            self._runs(d, 5, tipo="conferencia")  # 5 rodadas sem fala: a regra 4× do em_loop barraria, a por estado (8) não
             self.assertIsNone(agenda.teto_sem_estado("linear-krn-9", d, self._h(48), self._h(12)))
             self.assertIn("sem fala nova", agenda.em_loop("linear-krn-9", d, self._h(48), self._h(12)))
 
@@ -655,7 +695,8 @@ class LinearTest(unittest.TestCase):
         from hub import linear
         item = {"identifier": "KRN-9", "id": "i", "tipo": "issue", "titulo": "x", "url": "u",
                 "descricao": "d", "comentarios": [], "repos": [], "modelo": "opus"}
-        for motivo in ("rodou 22 vezes em 24 h sem fechar",
+        for motivo in ("rodou 8 voltas automáticas em 24 h sem entrega (merge ou recibo)",
+                       "rodou 22 vezes em 24 h sem fechar",
                        "gastou US$ 60 nas últimas 24 h na reserva de API (teto US$ 60)",
                        "consumiu 100% do uso da semana das contas em 24 h"):
             with self.subTest(motivo=motivo), tempfile.TemporaryDirectory() as d, \
@@ -968,7 +1009,7 @@ class RegistroMortoTest(unittest.TestCase):
     """Reboot de 12/10: registro de processo morto (ou de pid reaproveitado) segurava vaga e issue por horas."""
 
     ITEM = {"tipo": "issue", "id": "u331", "identifier": "KRN-331", "titulo": "t", "descricao": "", "url": "x",
-            "modelo": "haiku", "repos": ["example-org/asite01"], "comentarios": [], "estados": {}}
+            "modelo": "haiku", "repos": ["acme/asite01"], "comentarios": [], "estados": {}}
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -978,7 +1019,7 @@ class RegistroMortoTest(unittest.TestCase):
     def _registro(self, pid, inicio, vaga=0):
         agenda._gravar_json(agenda._rodando_arq(self.d, vaga=vaga),
                             {"nome": "linear-krn-331", "inicio": inicio, "pid": pid, "conta": "1",
-                             "repos": ["example-org/asite01"], "linear": self.ITEM})
+                             "repos": ["acme/asite01"], "linear": self.ITEM})
 
     def _soltou(self):
         self.assertEqual(agenda.rodando_todas(self.d), {})
@@ -1068,9 +1109,22 @@ class RegistroMortoTest(unittest.TestCase):
 
 
 class MaquinaTest(unittest.TestCase):
+    def test_carga_por_nucleo(self):
+        with mock.patch.object(agenda.os, "getloadavg", lambda: (6.0, 5.0, 4.0)), mock.patch.object(agenda.os, "cpu_count", lambda: 8):
+            self.assertEqual(agenda.carga_por_nucleo(), 0.75)
+        with mock.patch.object(agenda.os, "getloadavg", lambda: (3.0, 0, 0)), mock.patch.object(agenda.os, "cpu_count", lambda: None):
+            self.assertEqual(agenda.carga_por_nucleo(), 3.0)  # sem cpu_count: 1 núcleo
+        with mock.patch.object(agenda.os, "getloadavg", side_effect=OSError):
+            self.assertIsNone(agenda.carga_por_nucleo())
+
     def test_carga_alta_fecha_vaga_extra(self):
         with mock.patch.object(agenda.os, "getloadavg", lambda: (27.0, 20.0, 15.0)), mock.patch.object(agenda.os, "cpu_count", lambda: 8):
             self.assertFalse(agenda.maquina_folgada())
+
+    def test_sem_como_medir_a_carga_nao_trava_nem_olha_memoria(self):
+        with mock.patch.object(agenda.os, "getloadavg", side_effect=OSError), \
+                mock.patch("builtins.open", side_effect=AssertionError("não devia ler a memória")):
+            self.assertTrue(agenda.maquina_folgada())
 
     def test_carga_baixa_e_memoria_sobrando_abre(self):
         meminfo = "MemTotal: 20000000 kB\nMemAvailable: 8000000 kB\n"
@@ -1145,6 +1199,26 @@ class EspalhaTest(unittest.TestCase):
                 mock.patch.object(agenda.conta, "pausa_ativa", lambda *a, **k: None):
             self.assertEqual(agenda.despachar({}, base_dados=d, trava=trava_vaga_1), "cedi: outra conta está parada")
 
+    def test_vaga_extra_nao_cede_com_fila_maior_que_as_paradas(self):
+        d = tempfile.mkdtemp()
+        agenda._gravar_json(agenda._rodando_arq(d, vaga=0), {"nome": "x", "pid": os.getpid()})
+
+        @contextlib.contextmanager
+        def trava_vaga_1():
+            agenda._vaga = 1
+            try:
+                yield True
+            finally:
+                agenda._vaga = 0
+        cheia = [{"nome": f"t{i}", "prioridade": 1, "enfileirada_em": conta.iso(conta.agora())} for i in range(3)]
+        with mock.patch.object(agenda, "conta_ociosa", lambda n, *a: n == "2"), \
+                mock.patch.object(agenda, "fila", lambda *a, **k: cheia), \
+                mock.patch.object(agenda, "minha_vez", lambda *a, **k: True), \
+                mock.patch.object(agenda, "codex_com_login", lambda **k: False), \
+                mock.patch.object(agenda, "proximo", lambda *a, **k: None), \
+                mock.patch.object(agenda.conta, "pausa_ativa", lambda *a, **k: None):
+            self.assertEqual(agenda.despachar({}, base_dados=d, trava=trava_vaga_1), "nada para rodar")
+
     def test_conta_ociosa_olha_todas_as_vagas(self):
         d = tempfile.mkdtemp()
         with mock.patch.object(agenda, "_conta_livre", lambda *a: True):
@@ -1154,6 +1228,44 @@ class EspalhaTest(unittest.TestCase):
 
 
 class CanceladaTest(unittest.TestCase):
+    def setUp(self):
+        p = mock.patch.object(agenda, "_cancelada", _CANCELADA_REAL)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_inc_206_falha_de_consulta_nao_autoriza_execucao(self):
+        item = {"nome": "linear-krn-1208", "linear": {"identifier": "KRN-1208"}}
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(agenda, "fila", return_value=[item]), \
+                mock.patch.object(agenda.linear, "gql", side_effect=ConnectionError("indisponível")), \
+                mock.patch.object(agenda, "tirar") as tirar, \
+                mock.patch.object(agenda.linear, "tarefa") as tarefa:
+            with mock.patch.object(agenda, "_log") as log:
+                self.assertIsNone(agenda.proximo({}, conta.agora(), False, d, so_api=False))
+            self.assertTrue(any("estado não conferido" in c.args[0] for c in log.call_args_list))
+            tirar.assert_not_called()
+            tarefa.assert_not_called()
+
+    def test_falha_transitoria_devolve_none_e_permanente_nao_prende(self):
+        item = {"identifier": "KRN-1208"}
+        casos = ((ConnectionError("rede"), None), (TimeoutError("t"), None), (RuntimeError("Linear HTTP 503: x"), None),
+                 (RuntimeError("Linear: limite da hora nas duas chaves"), None),
+                 (RuntimeError("Linear HTTP 401: chave recusada"), False), (KeyError("issue"), False))
+        for erro, esperado in casos:
+            with self.subTest(erro=erro), mock.patch.object(agenda.linear, "gql", side_effect=erro), \
+                    mock.patch.object(agenda, "_log"):
+                self.assertIs(agenda._cancelada(item), esperado)
+
+    def test_issue_inexistente_conta_como_cancelada(self):
+        with mock.patch.object(agenda.linear, "gql", return_value={"issue": None}), mock.patch.object(agenda, "_log"):
+            self.assertIs(agenda._cancelada({"identifier": "KRN-9"}), True)
+
+    def test_cancelamento_consultado_sem_erro(self):
+        for estado, esperado in (("canceled", True), ("started", False)):
+            with self.subTest(estado=estado), mock.patch.object(
+                    agenda.linear, "gql", return_value={"issue": {"state": {"type": estado}}}):
+                self.assertIs(agenda._cancelada({"identifier": "KRN-1208"}), esperado)
+
     def test_issue_cancelada_sai_da_fila_sem_rodar(self):
         d = tempfile.mkdtemp()
         tiradas = []
@@ -1191,7 +1303,8 @@ class PromptGrandeTest(unittest.TestCase):
 
 
 class TickLinearIndisponivelTest(unittest.TestCase):
-    def test_falha_da_coleta_nao_impede_despacho_da_fila_local(self):
+    def test_falha_da_coleta_nao_derruba_o_coordenar(self):
+        """a coleta é do `coordenar`; o tick só despacha e nem chama o Linear."""
         import io
         for erro in (RuntimeError("Linear: limite da hora nas duas chaves"), OSError("rede")):
             with self.subTest(erro=type(erro).__name__), tempfile.TemporaryDirectory() as d, \
@@ -1205,10 +1318,11 @@ class TickLinearIndisponivelTest(unittest.TestCase):
                     mock.patch.object(agenda, "agendar", return_value=[]), \
                     mock.patch.object(agenda, "puxar_linear", side_effect=erro), \
                     mock.patch.object(agenda, "_log") as log, \
-                    mock.patch.object(agenda, "despachar", return_value="rodou local") as despachar:
-                self.assertEqual(agenda.main(["tick"]), 0)
-                despachar.assert_called_once_with({"local": "tarefa"})
-                self.assertIn("despachando fila local", log.call_args_list[0].args[0])
+                    mock.patch.object(agenda, "despachar", return_value="rodou local") as despachar, \
+                    mock.patch("hub.ociosidade.medir"):
+                self.assertEqual(agenda.main(["coordenar"]), 0)
+                self.assertIn("coleta falhou", log.call_args_list[0].args[0])
+                despachar.assert_not_called()
 
 
 class LimiteGastoTest(unittest.TestCase):
@@ -1277,6 +1391,16 @@ class LimiteGastoTest(unittest.TestCase):
                          "custo_usd": 5, "nome": "x"}, self.dados)  # terminou hoje, 01h
         self.assertTrue(self.despacha()[0].startswith("limite de gasto do dia"))
 
+    def test_carga_contas_ignora_semana_do_uso_contas(self):
+        # só vale a janela de 5 h (conta Claude não tem limite semanal): semana 99 no JSON não pesa
+        (Path(self.dados) / "claude").mkdir(parents=True, exist_ok=True)
+        (Path(self.dados) / "claude" / "uso-contas.json").write_text(json.dumps({"contas": {
+            "1": {"cinco_horas": {"pct": 10.0}, "semana": {"pct": 99.0}, "fonte": "oauth"},
+            "2": {"semana": {"pct": 99.0}}}}))
+        carga = agenda.carga_contas(self.dados, self.dia)
+        self.assertEqual(carga["1"], 10.0)
+        self.assertEqual(carga["2"], 0.0)  # sem cinco_horas: estima pelos minutos rodados, nunca pela semana
+
     def test_conta_adicionada_pela_config_aparece_sem_reimportar(self):
         from hub import config
         self.assertEqual(sorted(agenda.carga_contas(self.dados, self.dia)), ["1", "2", "3", "4"])  # legado, sem toml
@@ -1302,3 +1426,82 @@ class ChamarOrqUmaVez(unittest.TestCase):
             self.assertFalse(agenda._chamar_orq_uma_vez("KRN-1", "teto", "freio da fila", d))
             self.assertTrue(agenda._chamar_orq_uma_vez("KRN-1", "outro motivo", "freio da fila", d))
         self.assertEqual(2, chamar.call_count)
+
+
+class EstadosEmLoteTest(unittest.TestCase):
+    """21/10: proximo lia o estado de cada issue da fila uma a uma (197 consultas, 104 s sob despacho.lock)."""
+
+    def test_uma_consulta_para_a_fila_e_cancelada_vem_do_lote(self):
+        chamadas = []
+
+        def gql(q, **v):
+            chamadas.append(v)
+            return {"issues": {"nodes": [{"id": "a", "state": {"type": "canceled"}}, {"id": "b", "state": {"type": "started"}}]}}
+        with mock.patch.object(agenda.linear, "gql", gql), mock.patch.object(agenda, "_cancelada", _CANCELADA_REAL):
+            agenda._ler_estados([{"id": "a"}, {"id": "b"}, {"id": "a"}])
+            self.assertTrue(agenda._cancelada({"id": "a"}))
+            self.assertFalse(agenda._cancelada({"id": "b"}))
+        self.assertEqual(len(chamadas), 1)
+        agenda._ESTADOS.clear()
+
+
+class FasesDoCoordenarTest(unittest.TestCase):
+    """o que enfileira trabalho (Linear, esperas, recibo, debugger, metas) vem antes da manutenção (in_review,
+    entrega_zap, porteiro, automerge, moedor, parada, main_vermelho)."""
+
+    def puxar(self, prazo=None):
+        """Roda puxar_linear com todas as fases trocadas por gravadores (sem rede). Devolve (ordem, mocks por fase)."""
+        from hub import debugger, in_review, metas
+        ordem, mocks = [], {}
+        alvos = [(agenda.linear, "puxar", "linear", None), (agenda, "voltar_das_esperas", "esperas", []),
+                 (agenda.recibo, "vigiar", "recibo", []), (debugger, "vigiar", "debugger", None),
+                 (metas, "acordar", "metas", []), (in_review, "varrer", "in_review", {}),
+                 (agenda.entrega_zap, "vigiar", "entrega_zap", None), (agenda.comum_caixa, "descarregar", "porteiro", False),
+                 (agenda.automerge, "vigiar", "automerge", []), (agenda.automerge, "vigiar_debugger", "automerge debugger", None),
+                 (agenda.automerge, "vigiar_moedor", "moedor", None), (agenda.parada, "vigiar_no_tick", "parada", []),
+                 (agenda.main_vermelho, "vigiar_no_tick", "main_vermelho", None)]
+        with contextlib.ExitStack() as pilha, tempfile.TemporaryDirectory() as d:
+            for mod, nome, rotulo, volta in alvos:
+                mocks[rotulo] = pilha.enter_context(mock.patch.object(
+                    mod, nome, side_effect=lambda *a, _r=rotulo, _v=volta, **k: ordem.append(_r) or _v))
+            for mod, nome, volta in ((agenda.linear, "entregar_respostas_zap", []), (agenda.automerge, "fechar_incidentes", None),
+                                     (agenda.automerge, "baixar_incidentes_de_prs_mergeados", None), (agenda, "fila", []),
+                                     (agenda, "rodando_todas", {}), (agenda, "da_fila", {}), (agenda.conta, "sufixo", ""),
+                                     (in_review, "orcamento_s", 300), (agenda, "_log", None)):
+                pilha.enter_context(mock.patch.object(mod, nome, return_value=volta, create=True))
+            agenda.puxar_linear({}, d, prazo=prazo)
+        return ordem, mocks
+
+    def test_ordem_das_fases(self):
+        self.assertEqual(self.puxar()[0], ["linear", "esperas", "recibo", "debugger", "metas", "in_review", "entrega_zap",
+                                           "porteiro", "automerge", "automerge debugger", "moedor", "parada", "main_vermelho"])
+
+    def test_in_review_nao_passa_do_prazo_do_minuto(self):
+        _, mocks = self.puxar(prazo=agenda.time.monotonic() + 100)
+        self.assertLessEqual(mocks["in_review"].call_args.kwargs["orcamento"], 100)  # orcamento_s() daria 300
+        _, mocks = self.puxar()
+        self.assertIsNone(mocks["in_review"].call_args.kwargs["orcamento"])  # sem prazo: o da máquina
+
+
+class TetoCoordenarTest(unittest.TestCase):
+    def test_teto_pela_carga(self):
+        self.assertEqual(agenda.teto_coordenar(0.3), 300)
+        self.assertEqual(agenda.teto_coordenar(0.5), 240)
+        self.assertEqual(agenda.teto_coordenar(1.5), 240)
+        for carga, esperado in ((None, 240), (0.1, 300), (0.8, 240)):
+            with self.subTest(carga=carga), mock.patch.object(agenda, "carga_por_nucleo", return_value=carga):
+                self.assertEqual(agenda.teto_coordenar(), esperado)
+
+    def test_trava_e_prazo_usam_o_teto_da_maquina(self):
+        alarmes = []
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(agenda, "_pasta", return_value=Path(d)), \
+                mock.patch.object(agenda, "carga_por_nucleo", return_value=0.1), \
+                mock.patch.object(agenda.signal, "alarm", side_effect=lambda s: alarmes.append(s) or 0), \
+                mock.patch.object(agenda, "agendar", return_value=[]), mock.patch.object(agenda.conta, "sufixo", return_value=""), \
+                mock.patch.object(agenda, "puxar_linear", return_value=[]) as pl, mock.patch.object(agenda, "_log"), \
+                mock.patch("hub.ociosidade.medir"):
+            inicio = agenda.time.monotonic()
+            agenda._coordenar({}, d)
+        self.assertEqual(alarmes[0], 300)
+        prazo = pl.call_args.kwargs["prazo"]
+        self.assertGreater(prazo, inicio + 300 - agenda.MARGEM_COORDENAR - 5)

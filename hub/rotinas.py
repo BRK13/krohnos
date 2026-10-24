@@ -61,7 +61,7 @@ def casa(expr, agora):
 
 def chave_tarefa(nome):
     """Como a tarefa do Claude entra em `rotinas.desligadas`: "tarefa:<nome>". O prefixo existe porque rotina e tarefa
-    podem ter o mesmo nome (asite01-prospeccao e fsite05-gmb têm os dois) e desligar uma não pode desligar a outra."""
+    podem ter o mesmo nome (asite01-prospeccao e fsite06-gmb têm os dois) e desligar uma não pode desligar a outra."""
     return f"tarefa:{nome}"
 
 

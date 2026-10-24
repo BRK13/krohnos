@@ -10,8 +10,8 @@ rastreamento e reindexação. Escolha do hub, não do Google.
 
 Cada PR de SEO registra a mudança em $HUB_DATA/mudancas.jsonl:
 
-    python -m hub.janelas registrar --site fsite05 --url /quiropraxia --tipo titulo --pr https://github.com/...
-    python -m hub.janelas abertas [--site fsite05]
+    python -m hub.janelas registrar --site fsite06 --url /quiropraxia --tipo titulo --pr https://github.com/...
+    python -m hub.janelas abertas [--site fsite06]
 
 A análise semanal e a tarefa do Claude leem as janelas abertas e não propõem mexer de novo na mesma página
 antes da data de julgar.

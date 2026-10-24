@@ -124,12 +124,12 @@ class CofrePostTest(Base):
         self.post({"acao": "definir", "nome": "a.b", "valor": VALOR})
         self.post({"acao": "definir", "nome": "a.b", "valor": VALOR[::-1]}, usuario="bia")
         self.assertEqual(cofre.listar()[0]["por"], "bia")
-        st, destino = self.post({"acao": "apagar", "nome": "a.b"}, usuario="bia", ip="192.0.2.4")
+        st, destino = self.post({"acao": "apagar", "nome": "a.b"}, usuario="bia", ip="192.0.2.5")
         self.assertEqual(st, 303)
         self.assertIn("ok=", destino)
         self.assertEqual(cofre.listar(), [])
         a = cofre.auditoria()[0]
-        self.assertEqual((a["quem"], a["acao"], a["ip"]), ("bia", "apagar", "192.0.2.4"))
+        self.assertEqual((a["quem"], a["acao"], a["ip"]), ("bia", "apagar", "192.0.2.5"))
 
     def test_apagar_inexistente_erro(self):
         _, destino = self.post({"acao": "apagar", "nome": "nao.existe"})
@@ -458,7 +458,7 @@ class ConexoesTelaTest(Base):
     def test_html_nunca_tem_valores_so_fim4_e_quando(self):
         cofre.definir("linear.token", VALOR, por="ana")
         cofre.definir("dataforseo.senha", VALOR + "x", por="bia")
-        conta = {"type": "service_account", "client_email": "user6@example.com",
+        conta = {"type": "service_account", "client_email": "user10@example.com",
                  "private_key": "-----BEGIN PRIVATE KEY-----\nSEGREDOPRIVADO\n-----END PRIVATE KEY-----\n"}
         cofre.definir("google.conta_servico", json.dumps(conta, separators=(",", ":")), por="ana")
         corpo = self.get()

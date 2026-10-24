@@ -5,19 +5,19 @@
   ],
   "ativo": true,
   "nome": "ClienteJ",
-  "dominio": "clientej-com-br.example",
+  "dominio": "site-d.exemplo.com",
   "hosts_alternativos": [
-    "www.clientej-com-br.example"
+    "www.site-d.exemplo.com"
   ],
   "hosts_citacao": [],
   "repo": {
-    "github": "example-org/clienteh",
+    "github": "acme/clienteh",
     "base": "main",
     "pacotes": "npm",
     "deploy": "dokploy"
   },
   "ids": {
-    "gsc": "sc-domain:clientej-com-br.example",
+    "gsc": "sc-domain:site-d.exemplo.com",
     "ga4": "100000005",
     "ga4_medicao": "G-TESTE00005",
     "clarity": "clarity0005",
@@ -27,20 +27,20 @@
   "marca": {
     "nome": "ClienteJ",
     "aliases": [
-      "clientej-com-br.example"
+      "site-d.exemplo.com"
     ],
     "identificador": null,
     "nome_generico": true
   },
   "conselho": "OAB",
-  "contexto": "ClienteJ (clientej-com-br.example): cadastro de teste, texto fictício. Recomende páginas em clientej-com-br.example.",
+  "contexto": "ClienteJ (site-d.exemplo.com): cadastro de teste, texto fictício. Recomende páginas em site-d.exemplo.com.",
   "frase_canonica": null,
   "meta": null,
   "concorrentes": [
-    "jsite10",
+    "jsite12",
     "Jus IA",
     "Escavador",
-    "tsite14",
+    "tsite16",
     "Jurisprudências.ai",
     "vLex",
     "lexter-ai.example",
@@ -97,7 +97,7 @@
     "indexnow": {
       "chave": "0123456789abcdef0123456789abcdef",
       "aviso": "publicacao",
-      "onde": "example-org/exemplo scripts/blog.mts"
+      "onde": "acme/exemplo scripts/blog.mts"
     },
     "cookie_nao_medir": "jm_nao_medir"
   },

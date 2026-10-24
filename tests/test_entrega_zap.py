@@ -36,7 +36,7 @@ class Base(unittest.TestCase):
 
     def rodar(self, i, **kw):
         with mock.patch.object(ez, "admin_numero", return_value="5500000000002"), \
-                mock.patch.object(ez, "_hosts_dos_sites", return_value={"clientea-com.example"}):
+                mock.patch.object(ez, "_hosts_dos_sites", return_value={"site-b.exemplo.com"}):
             return ez.entregar(i, str(self.dados), str(self.caixa), self.avisar, agora=AGORA, **kw)
 
 
@@ -50,7 +50,7 @@ class Coleta(Base):
     def test_codigo_e_json_ficam_fora(self):
         p, q = self.arq("dados.json"), self.arq("script.py")
         with mock.patch.object(ez, "_hosts_dos_sites", return_value=set()):
-            self.assertEqual([], ez.candidatos(issue(f"PR pronto, {p} {q} https://github.com/example-org/x/pull/3"), str(self.dados)))
+            self.assertEqual([], ez.candidatos(issue(f"PR pronto, {p} {q} https://github.com/acme/x/pull/3"), str(self.dados)))
 
     def test_anexo_do_linear_e_previa(self):
         u = "https://uploads.linear.app/o/a/b"
@@ -59,9 +59,9 @@ class Coleta(Base):
                          {(x["tipo"], x["nome"]) for x in c})
 
     def test_pagina_do_site_so_vale_como_pagina_nova(self):
-        with mock.patch.object(ez, "_hosts_dos_sites", return_value={"clientea-com.example"}):
-            self.assertEqual(1, len(ez.candidatos(issue("Página nova no ar: https://clientea-com.example/dor-lombar"), str(self.dados))))
-            self.assertEqual([], ez.candidatos(issue("Ajustei o título de https://clientea-com.example/dor-lombar"), str(self.dados)))
+        with mock.patch.object(ez, "_hosts_dos_sites", return_value={"site-b.exemplo.com"}):
+            self.assertEqual(1, len(ez.candidatos(issue("Página nova no ar: https://site-b.exemplo.com/dor-lombar"), str(self.dados))))
+            self.assertEqual([], ez.candidatos(issue("Ajustei o título de https://site-b.exemplo.com/dor-lombar"), str(self.dados)))
 
     def test_registro_do_anexar_com_arquivo_local(self):
         p = self.arq("a.pdf")

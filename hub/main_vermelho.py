@@ -39,11 +39,12 @@ def _fechado(repo, base_dados=None):
     return None
 
 
-def _fechar(repo, atual, motivo, base_dados, agora, log, sem_conserto=False):
+def _fechar(repo, atual, motivo, base_dados, agora, log):
     """Solta as esperas e deixa a marca: só uma rodada NOVA vermelha reabre (as velhas ainda aparecem na amostra).
-    sem_conserto (24 h): guarda a issue, que a próxima rodada vermelha do mesmo teste readota se ainda aberta."""
+    Guarda sempre a issue: qualquer que seja o motivo, a próxima rodada vermelha do mesmo teste a readota
+    se ainda estiver aberta, em vez de abrir duplicata."""
     arq = _arq(repo, base_dados)
-    marca = {"teste": atual["teste"], "fechado_em": conta.iso(agora), **({"issue": atual["issue"]} if sem_conserto else {})}
+    marca = {"teste": atual["teste"], "fechado_em": conta.iso(agora), "issue": atual["issue"]}
     arq.with_suffix(".fechado").write_text(json.dumps(marca), encoding="utf-8")
     arq.unlink(missing_ok=True)
     log(motivo)
@@ -55,6 +56,18 @@ def _issue_encerrada(ident):
         t = linear.gql("query($i: String!) { issue(id: $i) { state { type } } }", i=ident)["issue"]["state"]["type"]
         return t in ("completed", "canceled")
     return False
+
+
+def _issue_aberta_do_teste(teste, projeto):
+    """id da issue ainda aberta com o título `main vermelho: <teste>` NO PROJETO do repo (o vigia perdeu a marca,
+    ou outra conta a abriu). Teste homônimo em outro projeto não conta."""
+    from hub import linear
+    titulo = f"main vermelho: {teste}"
+    with contextlib.suppress(Exception, SystemExit):  # Linear fora: segue para criar, como antes
+        nos = linear.gql('query($t: String!, $p: String!) { issues(first: 20, filter: {title: {eq: $t}, project: {name: {eqIgnoreCase: $p}}, '
+                         'state: {type: {nin: ["completed", "canceled"]}}}) { nodes { identifier title } } }', t=titulo, p=projeto)["issues"]["nodes"]
+        return next((n["identifier"] for n in nos if n["title"] == titulo), None)
+    return None
 
 
 def aberto(repo, base_dados=None):
@@ -108,13 +121,21 @@ def _suspeitos(gh, repo, desde, ate, teste):
 def _abrir(repo, teste, sha, suspeitos, origem, criar, base_dados, agora, log, encerrada=None):
     from hub import linear
     marca = _fechado(repo, base_dados) or {}
-    # I6: fechada por 24 h sem conserto, a P1 do mesmo teste pode seguir aberta: readota em vez de abrir a 2ª
+    # I6 + fechada por qualquer motivo, a P1 do mesmo teste pode seguir aberta: readota em vez de abrir a 2ª
+    existente = None
     if marca.get("teste") == teste and marca.get("issue") and not (encerrada or _issue_encerrada)(marca["issue"]):
-        est = {"issue": marca["issue"], "teste": teste, "sha": sha, "desde": conta.iso(agora)}
+        existente = marca["issue"]
+    else:  # sem marca: procura no Linear
+        with contextlib.suppress(Exception, SystemExit):
+            existente = _issue_aberta_do_teste(teste, linear.projeto_do_repo(repo))
+    if existente:
+        est = {"issue": existente, "teste": teste, "sha": sha, "desde": conta.iso(agora)}
+        _arq(repo, base_dados).parent.mkdir(parents=True, exist_ok=True)
         _arq(repo, base_dados).write_text(json.dumps(est, ensure_ascii=False), encoding="utf-8")
-        log(f"main vermelho em {repo}: {teste} de novo → segue em {marca['issue']}")
+        log(f"main vermelho em {repo}: {teste} de novo → segue em {existente}")
         return est
-    criar = criar or (lambda t, d, p: linear.criar_issue(linear.projeto_do_repo(repo), t, d, "Backlog", ["main-vermelho"], p))
+    # `merge`: o AGENTS.md do clienteh (seção 5) libera o squash com o local-ci verde; sem a label o conserto ficava parado
+    criar = criar or (lambda t, d, p: linear.criar_issue(linear.projeto_do_repo(repo), t, d, "Backlog", ["main-vermelho", "merge"], p))
     desc = (f"**Por quê:** {origem}. Enquanto isso, todo PR do {repo} falha nesse teste e a fila para "
             "(caso real: #695 em 14/10).\n\n"
             f"**Teste:** `{teste}`\n**Commit culpado (suspeitos, do mais novo):**\n" + "\n".join(suspeitos() or [f"- `{sha[:8]}`"]) +
@@ -157,8 +178,7 @@ def _checar(repo, gh, criar, base_dados, agora, log, encerrada=None):
         elif (encerrada or _issue_encerrada)(atual["issue"]):
             _fechar(repo, atual, f"{atual['issue']} encerrada; soltei as esperas de {repo}", base_dados, agora, log)
         elif agora - conta.de_iso(atual["desde"]) >= MAX_ABERTO:
-            _fechar(repo, atual, f"main vermelho há 24 h: soltei as esperas de {repo} ({atual['issue']})", base_dados, agora, log,
-                    sem_conserto=True)
+            _fechar(repo, atual, f"main vermelho há 24 h: soltei as esperas de {repo} ({atual['issue']})", base_dados, agora, log)
         return None
     marca = _fechado(repo, base_dados)
 

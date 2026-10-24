@@ -103,15 +103,15 @@ class InitTest(unittest.TestCase):
 
     def test_entradas_invalidas(self):
         with mock.patch("sys.stderr"):
-            self.assertEqual(init.main(["--sim", "--dominio", "https://x.com/a", "--dono-email", "user8@example.com"]), 1)
+            self.assertEqual(init.main(["--sim", "--dominio", "https://x.com/a", "--dono-email", "user12@example.com"]), 1)
             self.assertEqual(init.main(["--sim", "--dominio", "x.com", "--dono-email", "ruim"]), 1)
             self.assertEqual(init.main(["--sim", "--dominio", "x.com"]), 1)
             self.assertEqual(init.main(self.ARGS + ["--dono-senha-env", "NAO_EXISTE_XYZ"]), 1)
 
     def test_sim_exige_projeto_dominio(self):
         with mock.patch("sys.stderr") as err:
-            self.assertEqual(init.main(["--sim", "--dominio", "x.exemplo.test", "--dono-email", "user8@example.com"]), 1)
-            self.assertEqual(init.main(["--sim", "--dominio", "x.exemplo.test", "--dono-email", "user8@example.com",
+            self.assertEqual(init.main(["--sim", "--dominio", "x.exemplo.test", "--dono-email", "user12@example.com"]), 1)
+            self.assertEqual(init.main(["--sim", "--dominio", "x.exemplo.test", "--dono-email", "user12@example.com",
                                         "--projeto-id", "abc"]), 1)
         self.assertFalse((self.tmp / "cofre").exists())
 

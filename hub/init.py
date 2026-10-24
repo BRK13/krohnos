@@ -354,6 +354,8 @@ def executar(r, destino_toml=None):
              "dono": {"nome": r["dono_nome"], "email": r["dono_email"]},
              "github": {"org": r["org"]},
              "painel": {"dominio": r["dominio"]}}
+    # sem [issues] provedor: vazio = fila própria até haver chave do Linear (fila_issues.provedor), e salvar a chave
+    # depois (Conexões, linear.env) liga o Linear sem editar o toml
     saida = {"toml": toml, "criou_toml": False}
     cofre, segredos, dados_dir = (Path(caminhos[k]).expanduser() for k in ("cofre", "segredos", "dados"))
     # 1) tudo que pode falhar por entrada ruim, antes de qualquer escrita

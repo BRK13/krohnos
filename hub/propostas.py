@@ -6,18 +6,18 @@ Uma proposta por arquivo em $HUB_DATA/propostas/<id>.json:
      "historico": [{"em", "estado", "nota"}], "assinatura"?}
 
 - tipo: um de TIPOS. Toda proposta é executável pelo `faz N` do dono, sem passo manual (não existe "outro"):
-  email               Resend, pelo domínio do remetente      dados: {"de": "Nome <x@dominio>", "assunto": "..."}
-  whatsapp            pelo número dono da conversa           dados: {"remetente": "fsite05", "contato_id": <uuid do CRM>,
-                      (fsite05 = WhatsApp da clínica, CRM;             "reativacao": true|false}
+  email               provedor por EMAIL_PROVEDOR (domínio do remetente) dados: {"de": "Nome <x@dominio>", "assunto": "..."}
+  whatsapp            pelo número dono da conversa           dados: {"remetente": "fsite06", "contato_id": <uuid do CRM>,
+                      (fsite06 = WhatsApp da clínica, CRM;             "reativacao": true|false}
                        asite01 = bot do número da asite01)          ou {"remetente": "asite01", "numero": "55..."}
                                                              ou {"remetente": "asite01", "lote": [{"numero", "texto", ...}]}
                                                              (até 10; o bot agenda e manda aos poucos, hub/prospeccao_wpp.py)
-  post_gmb            Google da fsite05 (Post Bridge)          dados: {"unidade": "alfa|beta", "link"?, "imagem"?}
-  resposta_avaliacao  API do Google da fsite05                 dados: {"unidade": "alfa|beta", "review_id": "..."}
+  post_gmb            Google da fsite06 (Post Bridge)          dados: {"unidade": "alfa|beta", "link"?, "imagem"?}
+  resposta_avaliacao  API do Google da fsite06                 dados: {"unidade": "alfa|beta", "review_id": "..."}
   pr_merge            CI verde → merge → deploy do Dokploy   destino ou dados.pr = URL do PR
   vps                 o root roda dados.comandos (bash) exatamente como o dono viu (hash), com timeout
                                                              dados: {"comandos": "...", "timeout_min"?: 1..30}
-  carrossel           Instagram @clientej-com-br.example          dados: {"carrossel_id": "<id>", "slides": [sha256 dos PNG],
+  carrossel           Instagram da conta de conteúdo          dados: {"carrossel_id": "<id>", "slides": [sha256 dos PNG],
                       (Post Bridge, hub/farejador_social.py           "legenda_sha256": "..."}; conteudo = a legenda
                        publicar; o runner marca aprovada)
 - destino: para quem/onde (e-mail, telefone, unidade, URL do PR, "VPS")
@@ -40,10 +40,12 @@ import json
 import os
 import re
 import secrets
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
-from hub import RAIZ, config, data
+from hub import RAIZ, config, data, destino_execucao
 
 TIPOS = ("email", "whatsapp", "post_gmb", "resposta_avaliacao", "pr_merge", "vps", "carrossel")
 ESTADOS = ("pendente", "enviada", "aprovada", "feita", "recusada", "falhou")
@@ -54,6 +56,8 @@ RE_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[a-z0-9-]+-[0-9a-f]{4}$")
 RE_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 RE_TELEFONE = re.compile(r"^\d{10,15}$")
 RE_REVIEW = re.compile(r"^[A-Za-z0-9_-]{6,200}$")
+RE_HOST = re.compile(r"^[a-z0-9][a-z0-9.-]{0,60}$")
+RE_VAR = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 RE_SHA = re.compile(r"^[0-9a-f]{64}$")
 RE_CARROSSEL = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")  # = carrossel_clientej.RE_ID (lá importa Pillow)
 UNIDADES = ("alfa", "beta")
@@ -122,6 +126,15 @@ def validar(p, base_dados=None):
         raise PropostaInvalida("; ".join(erros))
 
 
+def _dominio_fsite06():
+    """Domínio do site da clínica no cadastro (projetos/fsite06.json); "" se não houver."""
+    from hub import sites
+    try:
+        return sites.site("fsite06").get("dominio") or ""
+    except sites.SiteInvalido:
+        return ""
+
+
 def _erros_do_tipo(tipo, p, dados, base_dados=None):
     """O que o executor de cada tipo precisa para rodar sem ninguém completar à mão."""
     erros, conteudo = [], str(p.get("conteudo") or "")
@@ -155,8 +168,9 @@ def _erros_do_tipo(tipo, p, dados, base_dados=None):
             if not 50 <= len(conteudo.strip()) <= 1500:
                 erros.append("post_gmb: texto de 50 a 1500 caracteres")
             link = dados.get("link")
-            if link and not str(link).startswith("https://clientea-com.example"):
-                erros.append("post_gmb: dados.link tem que ser uma página de https://clientea-com.example")
+            dom = _dominio_fsite06()
+            if link and not str(link).startswith(f"https://{dom}" if dom else "https://"):
+                erros.append(f"post_gmb: dados.link tem que ser uma página de https://{dom or '<domínio do site>'}")
     elif tipo == "vps":
         cmds = dados.get("comandos")
         if not isinstance(cmds, str) or not cmds.strip():
@@ -166,6 +180,9 @@ def _erros_do_tipo(tipo, p, dados, base_dados=None):
         t = dados.get("timeout_min", 10)
         if isinstance(t, bool) or not isinstance(t, int) or not 1 <= t <= 30:
             erros.append("vps: dados.timeout_min de 1 a 30")
+        erros += _erros_env_exigido(dados)
+        if isinstance(cmds, str):
+            erros += destino_execucao.erros(dados)  # script de coleta só na máquina que o produz
     elif tipo == "carrossel":
         cid = str(dados.get("carrossel_id") or "")
         if not RE_CARROSSEL.match(cid):
@@ -182,6 +199,43 @@ def _erros_do_tipo(tipo, p, dados, base_dados=None):
         if re.search("[\u2014\u2013]", conteudo):
             erros.append("carrossel: sem travessão na legenda")
     return erros
+
+
+def _nomes_no_host(host, arquivo):
+    """Nomes (nunca valores) das variáveis com valor não vazio em `arquivo` no `host` (servidor_hub = local)."""
+    # o sed só imprime o nome; o valor nunca sai do host
+    # linha com valor vazio ou só aspas ("" ou '') não conta como preenchida
+    sed = ("sed -n -e '/=[[:space:]]*\\(\"\"\\|'\"'\"''\"'\"'\\)\\?[[:space:]]*$/d' "
+           "-e 's/^[[:space:]]*\\(export[[:space:]]\\+\\)\\?\\([A-Za-z_][A-Za-z0-9_]*\\)=.\\+/\\2/p' ") + shlex.quote(arquivo)
+    host = destino_execucao.resolver(host)  # vps-servidor_a é o dedicado, a própria máquina
+    cmd = ["sh", "-c", sed] if host == destino_execucao.HOST_PADRAO else ["ssh", "-o", "BatchMode=yes", host, sed]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        raise OSError(f"{cmd[0]} saiu com {r.returncode}")
+    return {l.strip() for l in r.stdout.splitlines() if RE_VAR.match(l.strip())}
+
+
+def _erros_env_exigido(dados):
+    """Pedido vps com `dados.exige_env` {arquivo, nomes}: confere no host alvo, antes de gravar, que as variáveis
+    existem. A recusa lista só os nomes que faltam (Pedido recusado porque o serviço não tinha as chaves SES)."""
+    exige = dados.get("exige_env")
+    if exige is None:
+        return []
+    host = dados.get("host", "servidor_hub")
+    arquivo, nomes = (exige.get("arquivo"), exige.get("nomes")) if isinstance(exige, dict) else (None, None)
+    if not isinstance(host, str) or not RE_HOST.match(host):
+        return ["vps: dados.host inválido"]
+    if (not isinstance(arquivo, str) or not arquivo.startswith("/") or "\n" in arquivo
+            or not isinstance(nomes, list) or not nomes or not all(isinstance(n, str) and RE_VAR.match(n) for n in nomes)):
+        return ["vps: dados.exige_env tem que ser {\"arquivo\": \"/caminho/.env\", \"nomes\": [\"VAR\", ...]}"]
+    try:
+        achados = _nomes_no_host(host, arquivo)
+    except (OSError, subprocess.SubprocessError) as e:
+        return [f"vps: não consegui conferir {arquivo} em {host} ({type(e).__name__}); Pedido não gravado"]
+    falta = [n for n in dict.fromkeys(nomes) if n not in achados]
+    if falta:
+        return [f"vps: {arquivo} em {host} sem as variáveis: {', '.join(falta)}"]
+    return []
 
 
 LOTE_MAX = 10  # prospecção por WhatsApp da asite01: o bot também trava em 10 envios por dia
@@ -205,6 +259,17 @@ def _erros_do_lote(lote):
             erros.append(f"lote {i}: texto de 1 a 1000 caracteres")
         if RE_LINK.search(texto):
             erros.append(f"lote {i}: primeira mensagem sem link")
+        if "textos" in it:  # A/B: braço -> texto do próprio lead, 2 a 3 braços
+            tx = it["textos"]
+            if not isinstance(tx, dict) or not 2 <= len(tx) <= 3:
+                erros.append(f"lote {i}: textos com 2 a 3 variantes")
+                continue
+            for vid, vt in tx.items():
+                vt = str(vt).strip()
+                if not re.fullmatch(r"[A-Za-z0-9_-]{1,20}", str(vid)):
+                    erros.append(f"lote {i}: id de variante inválido")
+                if not 1 <= len(vt) <= 1000 or RE_LINK.search(vt):
+                    erros.append(f"lote {i}: textos[{vid}] de 1 a 1000 caracteres e sem link")
     return erros
 
 
@@ -326,7 +391,7 @@ FAZ SOZINHO, sem perguntar, tudo que é seguro e reversível; depois confere que
   bot_whatsapp); deploy-app <app do Dokploy> (deploy que não subiu). Lista: `python3 -m hub.raiz acoes`.
   Banco, Dokploy e proxy (traefik) o root recusa: isso é Pedido "vps".
 - Código: branch, correção, testes, PR e MERGE quando os testes/CI passam, nos repos do dono (repo-privado,
-  bot_whatsapp, ferramentas_seo). Nos sites (cliente-a-v2, clienteipsi-v2, psite13, fsite06,
+  bot_whatsapp, ferramentas_seo). Nos sites (cliente-a-v2, clienteipsi-v2, psite15, fsite07,
   cliente-q-clientei...): PR e merge se o AGENTS.md/CLAUDE.md do repo deixa e o CI/teste passa; o Dokploy
   publica sozinho, confira com curl. cliente-c: com a label `merge` na issue, merge na develop com `tsc` + `vitest` +
   `build` verdes e a revisão do Codex sem achado sério (docs/GOVERNANCE.md regra 5, decisão de 15/10, PR #219); a
@@ -354,16 +419,17 @@ só encaminha ao dono o que envolve terceiro, dinheiro ou decisão de produto); 
     --destino "<para quem>" --resumo "<uma linha>" --conteudo-arquivo <arquivo com o texto exato> --dados '<json>'
 Tipos e o que --dados precisa (a validação recusa proposta incompleta):
 - email: {{"de": "Nome <x@dominio-do-site>", "assunto": "..."}}; --destino = o e-mail.
-- whatsapp: {{"remetente": "fsite05", "contato_id": "<uuid do CRM>", "reativacao": true|false}} (WhatsApp da clínica;
+- whatsapp: {{"remetente": "fsite06", "contato_id": "<uuid do CRM>", "reativacao": true|false}} (WhatsApp da clínica;
   reativacao=true manda a mensagem pronta aprovada se a janela de 24 h estiver fechada) ou
   {{"remetente": "asite01", "numero": "55DDDNUMERO"}} (número da asite01). Conteúdo = só a mensagem.
-- post_gmb: {{"unidade": "alfa|beta", "link": "https://clientea-com.example/...", "imagem": "/images/..."}}; texto de 50 a 1500.
+- post_gmb: {{"unidade": "alfa|beta", "link": "https://<dominio-do-site>/...", "imagem": "/images/..."}}; texto de 50 a 1500.
 - resposta_avaliacao: {{"unidade": "alfa|beta", "review_id": "<id>"}}; conteúdo = a resposta.
 - pr_merge: --destino = URL do PR (só quando a regra do repo não deixa você mesmo fazer o merge).
-- vps: {{"comandos": "<bash exato, um comando por linha>", "timeout_min": 10}}; conteúdo = por quê e o risco.
+- vps: {{"comandos": "<bash exato, um comando por linha>", "timeout_min": 10, "host"?: "vps-servidor_b"}}; conteúdo = por quê e o risco.
+  Script de coleta roda na máquina que o produz (o Pedido sem host roda na servidor_hub): vps-tjs.sh e vps-diario-tribunais.sh na vps-servidor_b.
   O orquestrador vê os comandos e o risco; o "faz N" dele faz o root rodar exatamente aquilo e o resultado volta aqui.
 - carrossel: não crie à mão; `python3 -m hub.carrossel_clientej propor <id>` grava a proposta (legenda até 2200, sem
-  travessão). Aprovada, o hub agenda no Instagram @clientej-com-br.example.
+  travessão). Aprovada, o hub agenda no Instagram da conta de conteúdo.
 Não existe proposta "para o dono fazer à mão": se não cabe em um tipo, faça você ou diga no texto final por que não dá.
 Não repita proposta pendente: `python3 -m hub.propostas listar --estado pendente`.
 Desistiu de uma proposta já gravada: marque-a na hora (`python3 -m hub.propostas marcar <id> --estado recusada --nota "..."`) e confira com `listar --estado pendente`: o orquestrador lê a fila, não o texto da issue, e executa o que ficou pendente.

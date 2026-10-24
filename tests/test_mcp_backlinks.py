@@ -22,7 +22,7 @@ class Test(unittest.TestCase):
 
     def chama(self, nome, respostas, **args):
         with mock.patch.object(dataforseo, "post", side_effect=[[r] for r in respostas]) as p:
-            r = mcp_proxy.executar(nome, {"site": "psite13", **args})
+            r = mcp_proxy.executar(nome, {"site": "psite15", **args})
         return r, [(c[0][0], c[0][1][0]) for c in p.call_args_list]
 
     def test_tools_list_tem_as_propriedades_do_original(self):
@@ -42,13 +42,13 @@ class Test(unittest.TestCase):
         r, chamadas = self.chama("get_backlinks_overview", [resumo, hist, doms], scope="domain")
         self.assertEqual([c[0] for c in chamadas], ["backlinks/summary/live", "backlinks/history/live", "backlinks/referring_domains/live"])
         c = chamadas[0][1]
-        self.assertEqual((c["target"], c["include_subdomains"], c["backlinks_status_type"], c["rank_scale"]), ("psite13-com.example", False, "live", "one_hundred"))
+        self.assertEqual((c["target"], c["include_subdomains"], c["backlinks_status_type"], c["rank_scale"]), ("site-e.exemplo.com", False, "live", "one_hundred"))
         self.assertEqual(set(chamadas[1][1]), {"target", "date_from", "date_to", "rank_scale"})
         d = chamadas[2][1]
         self.assertEqual((d["limit"], d["offset"], d["order_by"], d["filters"]), (100, 0, ["backlinks,desc"], [["backlinks_spam_score", "<=", 40]]))
         self.assertTrue(r["ok"])
         self.assertEqual(r["custo"], 0.09)
-        self.assertEqual((r["target"], r["scope"]), ("psite13-com.example", "domain"))
+        self.assertEqual((r["target"], r["scope"]), ("site-e.exemplo.com", "domain"))
         self.assertIn("scopeNote", r)
         s = r["overview"]["overview"]["summary"]
         self.assertEqual((s["rank"], s["backlinks"], s["referringDomains"], s["referringPages"], s["targetSpamScore"], s["newReferringDomains"]), (12, 10, 3, 7, 2, 1))
@@ -70,13 +70,13 @@ class Test(unittest.TestCase):
         self.assertNotIn("referringDomains", r)
 
     def test_overview_top_pages_chama_domain_pages_summary_e_mapeia(self):
-        pagina = {"url": "https://psite13-com.example/a", "rank": 30, "backlinks": 9, "referring_domains": 4, "referring_pages": 6, "backlinks_spam_score": 2,
+        pagina = {"url": "https://site-e.exemplo.com/a", "rank": 30, "backlinks": 9, "referring_domains": 4, "referring_pages": 6, "backlinks_spam_score": 2,
                   "broken_backlinks": 1, "first_seen": "2026-01-01"}
         resp = [tarefa([{}], 0.02), tarefa([{"items": []}], 0.03), tarefa([{"items": []}], 0.04), tarefa([{"items": [pagina]}], 0.05)]
         r, ch = self.chama("get_backlinks_overview", resp, scope="domain", topPages=True)
         self.assertEqual(ch[3][0], "backlinks/domain_pages_summary/live")
-        self.assertEqual((ch[3][1]["limit"], ch[3][1]["order_by"], ch[3][1]["target"]), (100, ["backlinks,desc"], "psite13-com.example"))
-        self.assertEqual(r["topPages"], [{"url": "https://psite13-com.example/a", "rank": 30, "backlinks": 9, "referringDomains": 4, "referringPages": 6,
+        self.assertEqual((ch[3][1]["limit"], ch[3][1]["order_by"], ch[3][1]["target"]), (100, ["backlinks,desc"], "site-e.exemplo.com"))
+        self.assertEqual(r["topPages"], [{"url": "https://site-e.exemplo.com/a", "rank": 30, "backlinks": 9, "referringDomains": 4, "referringPages": 6,
                                           "spamScore": 2, "brokenBacklinks": 1, "firstSeen": "2026-01-01"}])
         self.assertEqual(r["custo"], 0.14)
 
@@ -89,7 +89,7 @@ class Test(unittest.TestCase):
         for args in ({"target": "x.com/blog"}, {"target": "x.com/pg", "scope": "exact_url"}):
             with self.subTest(args=args), mock.patch.object(dataforseo, "post") as p:
                 with self.assertRaises(mcp_grupos.ErroUso):
-                    mcp_proxy.executar("get_backlinks_overview", {"site": "psite13", "topPages": True, **args})
+                    mcp_proxy.executar("get_backlinks_overview", {"site": "psite15", "topPages": True, **args})
                 p.assert_not_called()
 
     def test_overview_falha_devolve_ok_false_com_custo_ja_gasto(self):
@@ -98,14 +98,14 @@ class Test(unittest.TestCase):
         self.assertEqual((r["ok"], r["reason"], r["custo"], len(ch)), (False, "dataforseo_erro", 0.02, 2))
 
     def test_profile_corpo_e_campos(self):
-        linha = {"domain_from": "a-com.example", "url_from": "https://a-com.example/x", "url_to": "https://psite13-com.example/", "anchor": "psi", "type": "anchor", "dofollow": True,
+        linha = {"domain_from": "a-com.example", "url_from": "https://a-com.example/x", "url_to": "https://site-e.exemplo.com/", "anchor": "psi", "type": "anchor", "dofollow": True,
                  "attributes": ["nofollow"], "rank": 40, "domain_from_rank": 60, "backlink_spam_score": 3, "first_seen": "2026-01-01", "is_lost": False}
         filtros = {"include": "blog,news", "minDomainRank": "20", "linkType": "dofollow", "hideLost": True}
         r, ch = self.chama("get_backlinks_profile", [tarefa([{"total_count": 120, "items": [linha]}], 0.03)],
                            page=2, pageSize=50, sortField="domainRank", sortOrder="asc", filters=filtros, mode="as_is")
         self.assertEqual(ch[0][0], "backlinks/backlinks/live")
         c = ch[0][1]
-        self.assertEqual((c["target"], c["limit"], c["offset"], c["mode"], c["order_by"]), ("psite13-com.example", 50, 50, "as_is", ["domain_from_rank,asc"]))
+        self.assertEqual((c["target"], c["limit"], c["offset"], c["mode"], c["order_by"]), ("site-e.exemplo.com", 50, 50, "as_is", ["domain_from_rank,asc"]))
         self.assertEqual(c["filters"], [[["url_from", "ilike", "%blog%"], "or", ["url_from", "ilike", "%news%"]], "and", ["domain_from_rank", ">=", 20.0],
                                         "and", ["dofollow", "=", True], "and", ["is_lost", "=", False], "and", SPAM])
         b = r["backlinks"]
@@ -138,7 +138,7 @@ class Test(unittest.TestCase):
                      {"filters": {"include": "a,b,c,d,e", "exclude": "f,g"}}):
             with self.subTest(args=args), mock.patch.object(dataforseo, "post") as p:
                 with self.assertRaises(mcp_grupos.ErroUso):
-                    mcp_proxy.executar("get_backlinks_profile", {"site": "psite13", **args})
+                    mcp_proxy.executar("get_backlinks_profile", {"site": "psite15", **args})
                 p.assert_not_called()
         with self.assertRaises(mcp_grupos.ErroUso):
             backlinks.executar("get_backlinks_overview", {}, None)

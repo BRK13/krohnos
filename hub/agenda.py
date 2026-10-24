@@ -47,6 +47,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import time
 from pathlib import Path
 
@@ -89,11 +90,20 @@ def _ler_json(arq, padrao=None):
 
 # ---- fila ----
 
+def _prioridade(valor):
+    """prioridade sempre int (1-3); texto gravado à mão ("0") ou lixo não derruba a agenda (str < int)."""
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return 2
+
+
 def fila(base_dados=None):
     itens = []
     for arq in (_pasta(base_dados) / "fila").glob("*.json"):
         item = _ler_json(arq)
         if item:
+            item["prioridade"] = _prioridade(item.get("prioridade"))
             itens.append(item)
     return sorted(itens, key=lambda i: (i["prioridade"], i["enfileirada_em"]))
 
@@ -103,7 +113,7 @@ def enfileirar(t, motivo, base_dados=None, quando=None, substituir=False, retoma
     """Põe a tarefa na fila (uma por nome). Devolve False se ela já estava lá (substituir=True troca o item: a
     refação da conferência e a fala nova do dono precisam ir com o conteúdo novo)."""
     arq = _pasta(base_dados) / "fila" / f"{t.nome}.json"
-    if arq.exists() and not substituir:
+    if arq.exists() and not substituir and _ler_json(arq):  # arquivo vazio/cortado não conta como "já está na fila"
         return False
     if getattr(t, "linear", None) and _teto_execucoes(t, motivo, base_dados):  # 10 execuções desde a última fala: pausa até o orquestrador decidir (vale também com o freio já conferido)
         return False
@@ -118,7 +128,7 @@ def enfileirar(t, motivo, base_dados=None, quando=None, substituir=False, retoma
                 _chamar_orq_uma_vez(t.linear.get("identifier", ""), f"entrada na fila bloqueada: {freio}",
                                     "freio da fila", base_dados)
                 return False
-    item = {"nome": t.nome, "prioridade": t.prioridade, "enfileirada_em": conta.iso(quando or conta.agora()),
+    item = {"nome": t.nome, "prioridade": _prioridade(t.prioridade), "enfileirada_em": conta.iso(quando or conta.agora()),
             "motivo": motivo}
     if getattr(t, "conta", None):
         item["conta"] = t.conta
@@ -168,13 +178,40 @@ TETO_GASTO_USD = 60  # orçamento por issue em 24 h (mediana real US$ 3, p95 US$
 
 # (lição 1): volta legítima (a issue andou: primeira, fala, resultado de CI/deploy, Pedido, merge, recibo) nunca conta
 # como laço; volta inútil (conferência, retomada, sem tipo) conta, e a 4ª sem fala nova não é enfileirada.
-VOLTAS_LEGITIMAS = frozenset({"primeira", "fala", "espera_ci", "espera_deploy", "proposta", "merge", "recibo"})
+# (falha do conserto): `promessa` tem teto próprio no código (uma por issue) e entra aqui;
+# a `conferencia` colada na volta anterior (CONFERENCIA_COLADA) é a prova daquela volta, não uma volta nova, e não conta.
+VOLTAS_LEGITIMAS = frozenset({"primeira", "fala", "espera_ci", "espera_deploy", "proposta", "merge", "recibo", "promessa"})
+CONFERENCIA_COLADA = dt.timedelta(minutes=15)
 VOLTAS_INUTEIS_MAX = 3
+# (falha do conserto): 3 conferências em 9 h (15:49, 23:43, 00:54), com espera de deploy no meio, viraram
+# "3 vezes sem fala nova": o orquestrador deu rumo e a contagem ainda vinha da fala de 15:44. Laço é volta seguida; uma pausa
+# de 6 h ou mais entre duas voltas encerra a sequência que ainda não disparou (o teto de voltas de espera e o de entrega não dependem disso).
+PAUSA_INUTIL = dt.timedelta(hours=6)
+# (falha do conserto): espera_ci, espera_deploy, conferência e proposta são "legítimas" uma a uma,
+# mas a ~2,5 h de distância cada volta escorrega para fora da janela de 24 h; as 5 issues foram até o teto de 8 por estado sem
+# merge nem recibo (7 espera_ci seguidas). Quem espera sem fechar, desde a última fala, é barrado na 5ª, sem teto de janela.
+VOLTAS_ESPERA = frozenset({"espera_ci", "espera_deploy", "conferencia", "proposta"})
+VOLTAS_ESPERA_MAX = 5
+# (falha do conserto): proposta, espera_ci e conferência alternadas passam por "legítimas" e a fala
+# zera os outros freios; 13 a 29 voltas sem fechar. Volta do hub (não é gente falando) sem merge/recibo no meio conta, fala ou não.
+VOLTAS_DE_PESSOA = frozenset({"primeira", "fala", "fala_durante"})
+VOLTAS_ENTREGA = frozenset({"merge", "recibo"})
+VOLTAS_AUTOMATICAS_MAX = 8
+SUFIXO_SEM_ENTREGA = "sem entrega (merge ou recibo)"
 TETO_USD_DESDE_FALA = 40  # por issue desde a última fala (gastou US$ 85 em 29 voltas; mediana real US$ 3)
 
 
 TETO_SEM_ESTADO = 8  # execuções desde a última mudança de estado (ou da fala que liberou o último aviso)
 SUFIXO_SEM_ESTADO = "sem mudar de estado"
+# a espera de CI/deploy tem freio próprio (VOLTAS_ESPERA_MAX) e não é laço do teto por estado
+VOLTAS_ESPERA_HUB = frozenset({"espera_ci", "espera_deploy"})
+# volta de pessoa (primeira, fala, fala_durante) é conversa, não laço: o orquestrador deu rumo
+# 4 a 6 vezes e cada rumo somou no teto. E uma pausa longa encerra a sequência: juntou 8 voltas em 3 dias (2 delas
+# depois de 2 dias parada). O laço de verdade (voltas do hub seguidas, de 20 min a 3 h) continua barrado.
+PAUSA_QUE_ZERA = dt.timedelta(hours=12)
+# O uso.jsonl de antes deste conserto grava a volta do portão de Done como `fala` (sem o motivo, não há como migrar): essas voltas
+# antigas não somam no teto por estado. A janela fecha sozinha (só contam voltas desde a última mudança de estado) e o teto de
+# TETO_DIA execuções em 24 h (em_loop) vale para qualquer tipo; da volta nova em diante o portão grava `portao`, que conta.
 
 
 def _chamar_orq(ident, motivo, origem, base_dados=None):
@@ -219,6 +256,13 @@ def _corte_sem_estado(nome, base_dados, ultima_fala, estado_desde):
     return corte
 
 
+def freio_da_volta(t, base_dados=None):
+    """toda volta (merge mecânico, alarme de parada, recibo de Done, espera) passa pela mesma regra: a fala e o
+    estado da própria issue. Sem eles o freio conta desde 24 h atrás e a regra por estado fica desligada."""
+    lin = getattr(t, "linear", None) or {}
+    return em_loop(t.nome, base_dados, lin.get("ultima_fala"), lin.get("estado_desde"))
+
+
 def em_loop(nome, base_dados=None, ultima_fala=None, estado_desde=None):
     """Disjuntor. Loop = rodar 4× SEM fala nova do dono (em 08/10); conversa de verdade nunca é barrada (a
     foi, por contar só inícios por hora; a, pelo teto de 8). Teto de segurança: 20× em 24 h. Devolve o motivo ou None."""
@@ -227,6 +271,14 @@ def em_loop(nome, base_dados=None, ultima_fala=None, estado_desde=None):
     dia = [r for r in todas if not (r.get("limite") or r.get("interrompida"))]  # limite de uso e sinal não são loop da issue
     if len(dia) >= TETO_DIA:
         return f"rodou {len(dia)} vezes em 24 h sem fechar"
+    ciclo = []
+    for r in sorted(dia, key=lambda r: r["inicio"]):
+        if r.get("tipo") in VOLTAS_ENTREGA:
+            ciclo = []
+        elif r.get("tipo") and r["tipo"] not in VOLTAS_DE_PESSOA:  # sem tipo (registro antigo) não prova volta do hub
+            ciclo.append(r)
+    if len(ciclo) >= VOLTAS_AUTOMATICAS_MAX:
+        return f"rodou {len(ciclo)} voltas automáticas em 24 h {SUFIXO_SEM_ENTREGA}"
     # O disparo é pelo total do dia (é ele que o teto existe para segurar); só a mensagem separa API de assinatura.
     gasto_api = sum(float(r.get("custo_usd") or 0) for r in todas if r.get("conta") == "api")
     consumo = sum(float(r.get("custo_usd") or 0) for r in todas if r.get("conta") != "api")
@@ -242,9 +294,28 @@ def em_loop(nome, base_dados=None, ultima_fala=None, estado_desde=None):
                    [r for r in conta.ler_uso(corte, base_dados) if r.get("nome") == nome])
     apos = [r for r in desde_todas if conta.de_iso(r["inicio"]) > corte]
     sem_fala = [r for r in apos if not (r.get("limite") or r.get("interrompida"))]  # só a contagem de voltas ignora limite e sinal
-    inuteis = [r for r in sem_fala if r.get("tipo") not in VOLTAS_LEGITIMAS]
+    inuteis, anterior, fim_anterior = [], None, None
+    for r in sorted(sem_fala, key=lambda r: r["inicio"]):
+        quando = conta.de_iso(r["inicio"])
+        colada = (r.get("tipo") == "conferencia" and fim_anterior is not None
+                  and quando - fim_anterior <= CONFERENCIA_COLADA)
+        # só a volta de trabalho tem conferência colada: conferência atrás de conferência é laço, e sem `fim` não há como provar
+        fim_anterior = conta.de_iso(r["fim"]) if r.get("fim") and r.get("tipo") != "conferencia" else None
+        if colada:
+            anterior = quando
+            continue
+        if anterior and quando - anterior > PAUSA_INUTIL and len(inuteis) < VOLTAS_INUTEIS_MAX:
+            inuteis = []  # conferência de horas em horas não é laço; freio já disparado só solta com fala
+        anterior = quando
+        if r.get("tipo") not in VOLTAS_LEGITIMAS:
+            inuteis.append(r)
     if len(inuteis) >= VOLTAS_INUTEIS_MAX:
         return f"rodou {len(inuteis)} vezes sem fala nova sua"
+    espera = 0
+    for r in sorted(sem_fala, key=lambda r: r["inicio"]):
+        espera = 0 if r.get("tipo") in VOLTAS_ENTREGA else espera + (r.get("tipo") in VOLTAS_ESPERA)
+    if espera >= VOLTAS_ESPERA_MAX:
+        return f"rodou {espera} voltas de espera (CI, deploy, conferência) sem merge nem fala nova sua"
     desde_fala = sum(float(r.get("custo_usd") or 0) for r in apos)  # o dinheiro gasto conta mesmo em volta interrompida (Codex, #436)
     if desde_fala >= TETO_USD_DESDE_FALA:
         return f"gastou US$ {desde_fala:.0f} sem fala nova sua (teto US$ {TETO_USD_DESDE_FALA} por issue)"
@@ -256,8 +327,26 @@ def teto_sem_estado(nome, base_dados=None, ultima_fala=None, estado_desde=None):
     if not estado_desde:
         return None
     corte = _corte_sem_estado(nome, base_dados, ultima_fala, estado_desde)
-    todo = [r for r in conta.ler_uso(corte, base_dados) if r.get("nome") == nome
-            and not (r.get("limite") or r.get("interrompida")) and conta.de_iso(r["inicio"]) > corte]
+    todo, anterior, fim_anterior = [], None, None
+    for r in sorted((r for r in conta.ler_uso(corte, base_dados) if r.get("nome") == nome
+                     and not (r.get("limite") or r.get("interrompida")) and conta.de_iso(r["inicio"]) > corte),
+                    key=lambda r: r["inicio"]):
+        quando = conta.de_iso(r["inicio"])
+        # conferência colada na volta anterior (proposta, parada) é o mesmo turno
+        # conferindo o que acabou de fazer; a regra já valia no freio de execuções sem fala (#888) e faltava aqui.
+        colada = (r.get("tipo") == "conferencia" and fim_anterior is not None
+                  and quando - fim_anterior <= CONFERENCIA_COLADA)
+        fim_anterior = conta.de_iso(r["fim"]) if r.get("fim") and r.get("tipo") != "conferencia" else None
+        if colada:
+            anterior = quando
+            continue
+        if anterior and quando - anterior > PAUSA_QUE_ZERA:
+            todo = []  # a issue ficou parada e voltou: é outra rodada, não a mesma sequência
+        anterior = quando
+        if r.get("tipo") in VOLTAS_ENTREGA:
+            todo = []  # merge e recibo são a issue andando, não laço
+        elif r.get("tipo") not in VOLTAS_ESPERA_HUB and r.get("tipo") not in VOLTAS_DE_PESSOA:
+            todo.append(r)
     if len(todo) >= TETO_SEM_ESTADO:
         return f"rodou {len(todo)}× {SUFIXO_SEM_ESTADO}"
     return None
@@ -319,7 +408,10 @@ def _pausa_por_loop(t, motivo, base_dados=None):
             elif t.linear.get("tipo") == "issue":
                 linear.comentar(t.linear["id"], f"{texto}\n\n_{linear.MARCA}._")
 
-    absoluto = (motivo.endswith("em 24 h sem fechar") or motivo.startswith(("gastou US$ ", "consumiu ")))
+    # INC-247: o teto de voltas automáticas também é absoluto; a pausa
+    # não autoriza uma nona execução sem entrega enquanto a janela o acusa.
+    absoluto = (motivo.endswith(("em 24 h sem fechar", SUFIXO_SEM_ENTREGA))
+                or motivo.startswith(("gastou US$ ", "consumiu ")))
     if not est:
         _log(f"{t.nome}: disjuntor, {motivo}; não enfileira")
         est = {"em": conta.iso(agora), "motivo": motivo}
@@ -366,9 +458,22 @@ def _pausa_por_loop(t, motivo, base_dados=None):
     return False
 
 
-def puxar_linear(tarefas, base_dados=None):
+def puxar_linear(tarefas, base_dados=None, prazo=None):
     """Linear → fila. Cada item entra na fila NA HORA (antes do anúncio no Linear), então um erro no meio não perde
     o que já foi decidido; erro de rede ou do Linear só vai para o log (tenta no próximo tick)."""
+    marca = {"fase": "linear", "t": time.monotonic()}
+
+    def cabe(fase, pular=True):
+        """cada fase começa aqui. Passou do `prazo` do minuto, a fase pula (SemTempo cai no `except` dela) e
+        o que ficou volta no minuto seguinte. Fase que levou mais de 20 s vai para o log: é a medida do gargalo."""
+        agora_m = time.monotonic()
+        if agora_m - marca["t"] > 20:
+            _log(f"coordenar: fase {marca['fase']} levou {agora_m - marca['t']:.0f} s")
+        marca.update(fase=fase, t=agora_m)
+        if pular and prazo is not None and agora_m > prazo:
+            raise SemTempo(f"sem tempo neste minuto, {fase} fica para o próximo")
+
+    cabe("linear", pular=False)
     # respostas do dono pelo WhatsApp viram comentário dele na issue antes de ler o Linear (assim já acordam agora)
     with contextlib.suppress(Exception):
         for issue in linear.entregar_respostas_zap(log=_log):
@@ -409,13 +514,15 @@ def puxar_linear(tarefas, base_dados=None):
     except Exception as e:  # noqa: BLE001
         _log(f"linear: {type(e).__name__}: {str(e)[:200]}")
     try:
+        cabe("esperas")
         aceitas += voltar_das_esperas(tarefas, base_dados)
     except Exception as e:  # noqa: BLE001
         _log(f"esperas: {type(e).__name__}: {str(e)[:200]}")
     try:  # Done só com recibo; o que voltou entra na fila com o motivo
+        cabe("recibo")
         ocup = {i["nome"] for i in fila(base_dados)} | {r["nome"] for r in rodando_todas(base_dados).values()}
         for t in recibo.vigiar(base_dados=base_dados, log=_log, ocupadas=ocup):  # ocupada: julga na próxima rodada
-            motivo = em_loop(t.nome, base_dados)  # o orçamento vale também para o que volta de Done (como na parada)
+            motivo = freio_da_volta(t, base_dados)  # o orçamento vale também para o que volta de Done (como na parada)
             if motivo:
                 _log(f"{t.nome}: voltou de Done, mas a issue {motivo}; não volta")
                 _chamar_orq(t.linear.get("identifier", ""), f"voltou de Done sem recibo, mas {motivo}", "freio do recibo", base_dados)
@@ -425,11 +532,52 @@ def puxar_linear(tarefas, base_dados=None):
                 aceitas.append(t.nome)
     except Exception as e:  # noqa: BLE001
         _log(f"recibo: {type(e).__name__}: {str(e)[:200]}")
+    # o que enfileira trabalho para as contas (recibo, debugger, metas) vem antes da manutenção; o in_review
+    # (a fase mais cara) e o automerge pesado não seguram a fila quando o prazo do minuto aperta.
+    try:
+        from hub import debugger
+        cabe("debugger")
+        debugger.vigiar(base_dados)
+        tarefas.update(da_fila(base_dados))
+    except Exception as e:  # noqa: BLE001
+        _log(f"debugger: {type(e).__name__}: {str(e)[:200]}")
+    try:
+        from hub import metas
+        cabe("metas")
+
+        def enfileirar_meta(t, motivo):
+            tarefas[t.nome] = t
+            return enfileirar(t, motivo, base_dados)
+
+        ocup = {i["nome"] for i in fila(base_dados)} | {r["nome"] for r in rodando_todas(base_dados).values()}
+        aceitas += metas.acordar(ocup, base_dados, reabrir=linear.reabrir, enfileirar=enfileirar_meta, em_loop=em_loop)
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        _log(f"metas: {type(e).__name__}: {str(e)[:200]}")
+    try:  # In Review parada > 2 h: fecha o que está no ar; com conta ociosa, reenfileira o resto
+        cabe("in_review")
+        if not conta.sufixo():  # só o tick da conta 1: uma varredura por intervalo, não uma por conta
+            from hub import in_review
+
+            def enfileirar_ir(t, motivo, base_dados=None):
+                tarefas[t.nome] = t
+                if enfileirar(t, motivo, base_dados):
+                    aceitas.append(t.nome)
+                    return True
+                return False
+
+            # o orçamento da varredura (pela carga) nunca passa do prazo do minuto: o teto da coordenação a cortaria
+            # antes de gravar varrida_em
+            orcamento = None if prazo is None else max(0.0, min(in_review.orcamento_s(), prazo - time.monotonic()))
+            in_review.varrer(base_dados=base_dados, log=_log, enfileirar=enfileirar_ir, orcamento=orcamento)
+    except Exception as e:  # noqa: BLE001
+        _log(f"in_review: {type(e).__name__}: {str(e)[:200]}")
     try:  # entrega visual (anexo, PDF, vídeo, prévia) de Done/In Review vai sozinha ao WhatsApp do dono
+        cabe("entrega_zap")
         entrega_zap.vigiar(base_dados=base_dados, log=_log)
     except Exception as e:  # noqa: BLE001
         _log(f"entrega_zap: {type(e).__name__}: {str(e)[:200]}")
     try:  # o que ficou na fila do porteiro (madrugada, teto, versão do dia) sai num resumo só, a partir das 8h
+        cabe("porteiro")
         if comum_caixa.descarregar(caixa=conta.CAIXA_AVISOS, base_dados=base_dados):
             _log("porteiro: resumo da fila enviado ao WhatsApp")
     except Exception as e:  # noqa: BLE001
@@ -437,26 +585,36 @@ def puxar_linear(tarefas, base_dados=None):
     try:  # CI verde + revisão limpa + label merge: o hub manda o merge, sem LLM
         ocup = {i["nome"] for i in fila(base_dados)} | {r["nome"] for r in rodando_todas(base_dados).values()}
 
+        cabe("automerge")
+
         def aceitar_merge(t):  # a ponta só é gravada como mandada se a tarefa entrou na fila
-            motivo = em_loop(t.nome, base_dados)
+            motivo = freio_da_volta(t, base_dados)
             if motivo:
                 _log(f"{t.nome}: merge mecânico, mas a issue {motivo}; tenta no próximo tick")
                 return False
             tarefas[t.nome] = t
             return enfileirar(t, "merge mecânico (CI verde, revisão limpa)", base_dados, substituir=True)
 
-        for t in automerge.vigiar(base_dados=base_dados, log=_log, ocupadas=ocup, aceitar=aceitar_merge):
+        for t in automerge.vigiar(base_dados=base_dados, log=_log, ocupadas=ocup, aceitar=aceitar_merge, prazo=min(prazo, time.monotonic() + PRAZO_AUTOMERGE) if prazo is not None else None):
             aceitas.append(t.nome)
     except Exception as e:  # noqa: BLE001
         _log(f"automerge: {type(e).__name__}: {str(e)[:200]}")
     try:  # PR do Debugger (hub, bot_whatsapp) com CI verde e revisão limpa: merge + atualizar-*, sem sessão
+        cabe("automerge debugger")
         automerge.vigiar_debugger(base_dados=base_dados, log=_log)
         automerge.fechar_incidentes(base_dados=base_dados, log=_log)
+        automerge.baixar_incidentes_de_prs_mergeados(base_dados=base_dados, log=_log)  # PR mergeado por fora do hub
     except Exception as e:  # noqa: BLE001
         _log(f"automerge debugger: {type(e).__name__}: {str(e)[:200]}")
+    try:  # PR diário do moedor (`moedor/*`, label merge, só docs/referencias/) com ponta verde: merge, sem sessão
+        cabe("moedor")
+        automerge.vigiar_moedor(base_dados=base_dados, log=_log)
+    except Exception as e:  # noqa: BLE001
+        _log(f"automerge moedor: {type(e).__name__}: {str(e)[:200]}")
     try:  # alarme de tarefa parada; o orçamento vale também para o que ele devolve à fila
+        cabe("parada")
         for t in parada.vigiar_no_tick(base_dados=base_dados, log=_log):
-            motivo = em_loop(t.nome, base_dados)
+            motivo = freio_da_volta(t, base_dados)
             if motivo:
                 _log(f"{t.nome}: parada, mas a issue {motivo}; não volta")
                 _chamar_orq(t.linear.get("identifier", ""), f"parada pelo alarme, mas {motivo}", "freio do alarme", base_dados)
@@ -467,26 +625,10 @@ def puxar_linear(tarefas, base_dados=None):
     except Exception as e:  # noqa: BLE001
         _log(f"parada: {type(e).__name__}: {str(e)[:200]}")
     try:  # main vermelho vira incidente; não devolve tarefa (só segura esperas e avisa no prompt)
+        cabe("main_vermelho")
         main_vermelho.vigiar_no_tick(base_dados=base_dados, log=_log)
     except Exception as e:  # noqa: BLE001
         _log(f"main_vermelho: {type(e).__name__}: {str(e)[:200]}")
-    try:
-        from hub import debugger
-        debugger.vigiar(base_dados)
-        tarefas.update(da_fila(base_dados))
-    except Exception as e:  # noqa: BLE001
-        _log(f"debugger: {type(e).__name__}: {str(e)[:200]}")
-    try:
-        from hub import metas
-
-        def enfileirar_meta(t, motivo):
-            tarefas[t.nome] = t
-            return enfileirar(t, motivo, base_dados)
-
-        ocup = {i["nome"] for i in fila(base_dados)} | {r["nome"] for r in rodando_todas(base_dados).values()}
-        aceitas += metas.acordar(ocup, base_dados, reabrir=linear.reabrir, enfileirar=enfileirar_meta, em_loop=em_loop)
-    except (Exception, SystemExit) as e:  # noqa: BLE001
-        _log(f"metas: {type(e).__name__}: {str(e)[:200]}")
     return aceitas
 
 
@@ -504,6 +646,7 @@ def _sem_ia(e, fala, d, base_dados, chamar, agora, rodar_gh=None):
         return None
     if d["tipo"] == "no_ar":
         if "seo-fix" in item.get("labels", []):
+            d["causa_ia"] = "seo_fix"
             # INC-117: SHA publicado não prova que a regra da auditoria sumiu.
             return (f"{fala}\n\nDeploy confirmado. Antes de concluir esta issue seo-fix, "
                     "repita a auditoria nas páginas afetadas, confira a regra indicada "
@@ -523,10 +666,12 @@ def _sem_ia(e, fala, d, base_dados, chamar, agora, rodar_gh=None):
             except (KeyError, TypeError, ValueError):
                 vencida = True  # espera antiga sem data confiável: retome para investigar
             if vencida:
+                d["causa_ia"] = "recibo_vencido"
                 return f"{fala}\n\nRecibo indisponível por tempo demais. Investigue a conferência antes de Done."
             _log(f"{nome}: recibo indisponível; mantém a espera para nova tentativa sem IA")
             return None
         if not recibo["ok"]:
+            d["causa_ia"] = "recibo_falta"
             faltas = "; ".join(recibo["faltas"]) or "o recibo ainda não pôde confirmar a entrega"
             return f"{fala}\n\nDeploy conferido, mas a entrega precisa de recibo: {faltas}. Conclua as pendências antes de Done."
         linear.encerrar_sem_ia(item, "Done", d["texto"])
@@ -544,6 +689,7 @@ def _sem_ia(e, fala, d, base_dados, chamar, agora, rodar_gh=None):
     ok, erro = esperas.merge_pr(e, d["sha"], rodar_gh, chamar)
     if not ok:
         _log(f"{nome}: merge pelo hub falhou: {erro}")
+        d["causa_ia"] = "merge_falhou"
         return f"{fala}\n\nO hub tentou o merge e falhou: {erro}"
     esperas.gravar(ident, e["pr"], e.get("max_horas") or esperas.MAX_HORAS, chamar=chamar, base_dados=base_dados,
                    agora=agora, no_ar="")
@@ -575,19 +721,20 @@ def voltar_das_esperas(tarefas, base_dados=None, chamar=None, agora=None):
             try:
                 fala = _sem_ia(e, fala, desfechos[ident], base_dados, chamar, agora)
             except Exception as erro:  # noqa: BLE001 — nunca perder o despertar: cai no caminho de hoje
+                desfechos[ident]["causa_ia"] = "erro_sem_ia"
                 _log(f"{nome}: desfecho sem IA falhou ({type(erro).__name__}: {str(erro)[:150]}); volta com IA")
             else:
                 if fala is None:
                     continue
         # disjuntor só pelo teto do dia: corrigir CI vermelho e voltar de novo é trabalho, não loop sem fala
-        motivo = em_loop(nome, base_dados, e["criada_em"])
-        if not motivo:  # a regra por estado precisa da issue; só busca quando a espera já ia voltar
-            with contextlib.suppress(Exception):
-                item = linear.item_por_ident(ident)
-                motivo = teto_sem_estado(nome, base_dados, item.get("ultima_fala"), item.get("estado_desde"))
-                if motivo and avisar_teto_estado(item, motivo, base_dados):
-                    esperas.apagar(ident, base_dados)
-                    continue
+        # a fala é a da issue, não a hora em que a espera foi criada (o hub a criou; usá-la zerava as voltas de espera)
+        item = {}
+        with contextlib.suppress(Exception):
+            item = linear.item_por_ident(ident) or {}
+        motivo = em_loop(nome, base_dados, item.get("ultima_fala"), item.get("estado_desde"))
+        if motivo and item and avisar_teto_estado(item, motivo, base_dados):
+            esperas.apagar(ident, base_dados)
+            continue
         if motivo:
             esperas.apagar(ident, base_dados)
             _log(f"{nome}: espera do CI pronta, mas a issue {motivo}; não volta")
@@ -611,7 +758,8 @@ def voltar_das_esperas(tarefas, base_dados=None, chamar=None, agora=None):
             t.modelo = t.linear["modelo"] = roteamento.config().get("retomada_mecanica") or "sonnet"
             t.linear["roteado_por"] = "retomada mecânica"
         tarefas[t.nome] = t
-        causa = f"; {e['causa']}" if e.get("causa") else ""  # por que a espera acordou uma sessão
+        causa_ia = (desfechos.get(e["ident"]) or {}).get("causa_ia") or e.get("causa")
+        causa = f"; {causa_ia}" if causa_ia else ""  # por que a espera acordou uma sessão
         if enfileirar(t, f"voltou da espera do CI ({e['pr']}{causa})", base_dados, freio_conferido=True):
             voltaram.append(t.nome)
         esperas.apagar(ident, base_dados)
@@ -638,10 +786,21 @@ CARGA_PESADA_DIA = 0.5  # de dia, tarefa pesada só entra com a VPS abaixo disso
 MEMORIA_MIN_MB = 3000  # memória disponível mínima para abrir vaga extra
 
 
+def carga_por_nucleo():
+    """Carga de 1 min por núcleo da máquina; None se não dá para medir (Windows, teste)."""
+    try:
+        return os.getloadavg()[0] / (os.cpu_count() or 1)
+    except (OSError, AttributeError):
+        return None
+
+
 def maquina_folgada(carga_max=None):
     """A VPS aguenta mais uma sessão? Carga por núcleo e memória disponível (/proc/meminfo)."""
+    carga = carga_por_nucleo()
+    if carga is None:
+        return True  # sem como medir (Windows, teste): não trava
     try:
-        if os.getloadavg()[0] / (os.cpu_count() or 1) > (CARGA_MAX if carga_max is None else carga_max):
+        if carga > (CARGA_MAX if carga_max is None else carga_max):
             return False
         with open("/proc/meminfo", encoding="utf-8") as f:
             livre = next(int(l.split()[1]) for l in f if l.startswith("MemAvailable:"))
@@ -665,7 +824,32 @@ def limite_memoria(t):
 def cabe_na_memoria(t, base_dados=None):
     """a sessão cabe no orçamento global (soma das MemoryMax vivas + a nova)? Chamar sob a trava de despacho."""
     return memoria.cabe(list(rodando_todas(base_dados).values()), memoria.bytes_de(limite_memoria(t)),
-                        memoria.bytes_de(MEMORIA_MAX))
+                        memoria.bytes_de(MEMORIA_MAX), extra=memoria.reserva_pesado())
+
+
+CPU_VAGA_EXTRA = 60.0  # % de CPU da VPS: abaixo disso, fila p1 maior que as contas livres abre a vaga extra em qualquer conta com cota
+
+
+def cpu_pct(amostra=0.25):
+    """% de CPU usada da VPS numa amostra curta de /proc/stat; None se não dá para medir (teste, Windows)."""
+    def ler():
+        with open("/proc/stat", encoding="utf-8") as f:
+            v = [int(x) for x in f.readline().split()[1:]]
+        return v[3] + v[4], sum(v)  # idle + iowait, total
+    try:
+        i0, t0 = ler()
+        time.sleep(amostra)
+        i1, t1 = ler()
+        return 100.0 * (1 - (i1 - i0) / (t1 - t0)) if t1 > t0 else None
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def fila_p1_passa_das_livres(base_dados=None, quando=None):
+    """há mais itens p1 esperando do que contas sem nada rodando? Item do Codex e `conta: api` não contam."""
+    p1 = sum(1 for i in fila(base_dados) if i.get("prioridade") == 1 and not _eh_codex(i))
+    livres = sum(1 for n in conta.contas_config() if conta_ociosa(n, base_dados, quando))
+    return p1 > livres
 
 
 def _vagas_extras_liberadas(base_dados=None):
@@ -1023,13 +1207,49 @@ def modelo_api(t):
     return "opus" if (getattr(t, "linear", None) or {}).get("prioridade") == 1 else "sonnet"
 
 
+_ESTADOS = {}  # id da issue -> tipo do estado, lido em lote por proximo (_ler_estados)
+
+
+def _ler_estados(itens):
+    """Uma consulta para a fila inteira (21/10: 197 consultas uma a uma levavam 104 s sob despacho.lock e as contas
+    desistiam com "despacho ocupado"). Erro de leitura: cada item cai na consulta individual de _cancelada."""
+    _ESTADOS.clear()
+    ids = list({i["id"] for i in itens if i.get("id")})
+    q = "query($ids: [ID!], $n: Int) { issues(filter: {id: {in: $ids}}, first: $n) { nodes { id state { type } } } }"
+    for k in range(0, len(ids), 100):
+        try:
+            for n in linear.gql(q, ids=ids[k:k + 100], n=100)["issues"]["nodes"]:
+                _ESTADOS[n["id"]] = n["state"]["type"]
+        except Exception:  # noqa: BLE001
+            pass
+
+
+_TRANSITORIO = re.compile(r"HTTP (5\d\d|429)|limite da hora|timed? ?out", re.I)
+
+
+def _falha_transitoria(e):
+    """Rede, timeout, 5xx, 429 e limite da hora passam sozinhos; o resto (schema, token, dado) não."""
+    return isinstance(e, OSError) or (isinstance(e, RuntimeError) and bool(_TRANSITORIO.search(str(e))))
+
+
 def _cancelada(item):
-    """A issue está cancelada no Linear agora? Erro de leitura não bloqueia (melhor rodar do que perder pedido)."""
+    """Estado atual: True cancelada, False ativa, None só se a falha é transitória (rede, timeout, 5xx, limite).
+    Issue inexistente ou sem acesso conta como cancelada (sai da fila); erro permanente é logado e não prende o item."""
+    if item.get("id") in _ESTADOS:
+        return _ESTADOS[item["id"]] == "canceled"
+    ident = item.get("identifier") or item.get("id")
     try:
         q = "query($i: String!) { issue(id: $i) { state { type } } }"
-        return linear.gql(q, i=item.get("identifier") or item.get("id"))["issue"]["state"]["type"] == "canceled"
-    except Exception:  # noqa: BLE001
+        issue = linear.gql(q, i=ident)["issue"]
+    except Exception as e:  # noqa: BLE001
+        if _falha_transitoria(e):
+            return None
+        _log(f"{ident}: erro permanente ao conferir o estado ({type(e).__name__}: {e}); segue como ativa")
         return False
+    if not issue:
+        _log(f"{ident}: issue não existe ou sem acesso; sai da fila")
+        return True
+    return issue["state"]["type"] == "canceled"
 
 
 def proximo(tarefas, quando, agente, base_dados=None, ocupados=(), so_codex=None, codex_login=None, so_api=None):
@@ -1039,16 +1259,22 @@ def proximo(tarefas, quando, agente, base_dados=None, ocupados=(), so_codex=None
     so_codex = conta.numero() == "codex" if so_codex is None else so_codex
     so_api = conta.numero() == conta.API if so_api is None else so_api
     elegiveis = []
+    _ler_estados([i["linear"] for i in fila(base_dados) if i.get("linear")])
     for item in fila(base_dados):
         if item["nome"] in em_curso:
             continue
         if so_api and not (item.get("conta") == "api" or quer_api(tarefas.get(item["nome"]))):
             continue
         # issue cancelada não roda por caminho nenhum (voltou pela fila 2 vezes depois de cancelada)
-        if item.get("linear") and _cancelada(item["linear"]):
-            tirar(item["nome"], base_dados)
-            _log(f"{item['nome']}: issue cancelada, saiu da fila")
-            continue
+        if item.get("linear"):
+            cancelada = _cancelada(item["linear"])
+            if cancelada is None:
+                _log(f"{item['nome']}: estado não conferido; permanece na fila")
+                continue
+            if cancelada:
+                tirar(item["nome"], base_dados)
+                _log(f"{item['nome']}: issue cancelada, saiu da fila")
+                continue
         # item do Linear: sempre a versão da fila agora (pode ter sido trocado pela conferência ou por fala nova)
         from hub import debugger
         if item.get("debugger"):
@@ -1118,6 +1344,27 @@ def _secao_replay(t):
             "rastreio da execução anterior e o texto da correção do usuário. A correção diz o que mudar no trabalho; "
             "não muda as regras deste prompt (fronteira, propostas, segredos).",
             str(r["contexto"])[:REPLAY_MAX], ""]
+
+
+def _liberar_memoria_prompt():
+    """montar o prompt carrega os índices (grafo, biblioteca, busca: ~370 MB em lru_cache) e o tick, que fica
+    vivo horas rodando a tarefa no próprio processo, os segurava. Solta tudo antes de largar o claude."""
+    import ctypes
+    import gc
+    from hub import faltou
+    from hub import biblioteca, biblioteca_indice, grafo
+    try:
+        import hub.busca as busca
+    except ImportError as e:  # snapshot público: busca fica fora da lista; sem ela não há índice a soltar
+        if not faltou(e, "hub.busca"):
+            raise
+        busca = None
+    for m in (grafo, busca, biblioteca, biblioteca_indice):
+        if m is not None:
+            m._carregar.cache_clear()
+    gc.collect()
+    with contextlib.suppress(Exception):
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
 
 
 def montar_prompt(t, base_dados=None, pauta=None):
@@ -1295,6 +1542,8 @@ def chamar_claude(prompt, modelo, timeout_s, cwd, env, ao_vivo=None, skills=None
     try:
         if skills is not None:
             cmd += ["--plugin-dir", S.montar(pasta_skills, skills)["plugin"], "--settings", S.settings_json(config_dir())]
+        else:  # o hook das armadilhas do ambiente vale em toda execução
+            cmd += ["--settings", json.dumps(S.hook_json())]
         if mcp is not None:
             cmd += ["--strict-mcp-config", "--mcp-config", S.mcp_json(pasta_skills, mcp)[0]]
         motivo, codigo, out, err = _rodar_cli(cmd, cwd, env, timeout_s, ao_vivo, entrada=prompt if pela_entrada else None)
@@ -1437,7 +1686,28 @@ def _desfecho(motivo, codigo, j, out, err, timeout_s):
         return 124, None, f"{out}\n{err}\nTIMEOUT depois de {timeout_s // 60} min"
     if motivo == "parado":
         return 130, None, f"{out[-3000:]}\nPARADO pelo {config.dono()} no Linear"
+    if codigo == 0 and j is None:  # (19/10): a CLI saiu em 0 sem o evento result
+        j = _result_do_stream(out)
     return codigo, j, f"{out}\n{err}"
+
+
+def _result_do_stream(out):
+    """Saída 0 sem evento `result` (a CLI fechou o stream depois de responder): vale a última fala de texto do assistente
+    como resultado, marcada `sem_result`. Sem fala de texto devolve None e a execução segue como falha de verdade."""
+    texto, pendente = "", False  # pendente: o último turno principal pediu uma ferramenta e o stream acabou antes do retorno
+    for linha in (out or "").splitlines():
+        with contextlib.suppress(ValueError):
+            ev = json.loads(linha)
+            if isinstance(ev, dict) and ev.get("type") == "assistant" and not ev.get("parent_tool_use_id"):
+                blocos = [b for b in (ev.get("message") or {}).get("content") or [] if isinstance(b, dict)]
+                partes = [b.get("text") or "" for b in blocos if b.get("type") == "text"]
+                texto = "".join(partes).strip() or texto
+                pendente = any(b.get("type") == "tool_use" for b in blocos)
+            elif isinstance(ev, dict) and ev.get("type") == "user" and not ev.get("parent_tool_use_id"):
+                pendente = False
+    if pendente:
+        return None
+    return {"type": "result", "subtype": "success", "is_error": False, "result": texto, "sem_result": True} if texto else None
 
 
 def evento_codex(ev):
@@ -1521,6 +1791,39 @@ def _ultimo_result(out):
     return None
 
 
+# a CLI morre em 0 min com "OAuth session expired and could not be refreshed" quando a renovação do login falha
+# (17-18/10: 66 falhas em 8 h, 3 contas). Não é falha da tarefa nem limite da conta: repete uma vez depois de uma espera
+# curta e, se persistir, volta para a fila calada. Nunca vira Backlog nem aviso ao dono.
+RE_LOGIN_EXPIRADO = re.compile(r"OAuth session expired and could not be refreshed", re.I)
+LOGIN_ESPERA_S = 45
+
+
+def _sem_login(j, bruto):
+    """A execução morreu por login que não renovou? Só o `result` e as linhas fora do stream (stderr): a saída das
+    ferramentas nunca decide."""
+    fora = "\n".join(l for l in str(bruto).splitlines()[-300:] if not l.lstrip().startswith("{"))[-2000:]
+    return bool(RE_LOGIN_EXPIRADO.search(f"{(j or {}).get('result') or ''}\n{fora}"))
+
+
+def _diagnostico_login():
+    """Uma linha de log para provar a causa: validade do token da conta e quantas sessões `claude` usam a mesma pasta
+    de login agora (best-effort; nada do token sai daqui)."""
+    partes = []
+    with contextlib.suppress(Exception):
+        o = json.loads((config_dir() / ".credentials.json").read_text(encoding="utf-8"))["claudeAiOauth"]
+        partes.append(f"token expira em {(float(o['expiresAt']) / 1000 - conta.agora().timestamp()) / 60:.0f} min")
+    with contextlib.suppress(Exception):
+        alvo, n = str(config_dir()), 0
+        for p in Path("/proc").glob("[0-9]*"):
+            with contextlib.suppress(OSError):
+                if not (p / "cmdline").read_bytes().split(b"\0")[0].endswith(b"claude"):
+                    continue
+                dirs = [e[18:].decode() for e in (p / "environ").read_bytes().split(b"\0") if e.startswith(b"CLAUDE_CONFIG_DIR=")]
+                n += (dirs[0] if dirs else str(Path(home_agentes()) / ".claude")) == alvo
+        partes.append(f"{n} sessões claude na mesma pasta de login")
+    return "; ".join(partes) or "sem diagnóstico"
+
+
 def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, saida_dir=None, pauta_fn=None):
     """Roda a tarefa (quem chama segura a trava). Registra o uso, trata limite (pausa e volta para a fila) e avisa.
     Devolve o registro gravado em uso.jsonl. Tarefa com `pauta` pede a pauta ao app antes: sem pauta, não chama o
@@ -1552,6 +1855,8 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
             if erro_pauta:
                 raise RuntimeError(f"pauta do app falhou: {erro_pauta}")
             prompt = montar_prompt(t, base_dados, pauta=pauta) if pauta else montar_prompt(t, base_dados)
+            with contextlib.suppress(Exception):
+                _liberar_memoria_prompt()
         except Exception as e:  # cadastro de sites inválido ou app sem pauta: não roda às cegas
             codigo, j, bruto = 1, None, f"prompt não montou: {e}"
         else:
@@ -1561,10 +1866,17 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
             if chamar is chamar_claude:  # só o Claude lê plugin-dir (chamar_codex e os mocks não)
                 extra["skills"] = list(getattr(t, "skills", None) or [])
                 extra["mcp"] = mcp_da_tarefa(t)
-            codigo, j, bruto = chamar(prompt, modelo, t.timeout_s, str(HOME if HOME.exists() else Path.cwd()),
-                                      {**env_claude(base_dados, res), "TAREFA_NOME": t.nome, "TAREFA_LOG": str(log),
-                                       "TAREFA_MEMORIA_MAX": limite_memoria(t),
-                                       **({"LINEAR_SESSAO": sessao} if sessao else {})}, **extra)
+            def chamada():
+                return chamar(prompt, modelo, t.timeout_s, str(HOME if HOME.exists() else Path.cwd()),
+                              {**env_claude(base_dados, res), "TAREFA_NOME": t.nome, "TAREFA_LOG": str(log),
+                               "TAREFA_INICIO": conta.agora().isoformat(),
+                               "TAREFA_MEMORIA_MAX": limite_memoria(t),
+                               **({"LINEAR_SESSAO": sessao} if sessao else {})}, **extra)
+            codigo, j, bruto = chamada()
+            if not api and codigo != 0 and _sem_login(j, bruto):  # a renovação costuma voltar em segundos
+                _log(f"{t.nome}: login da conta {conta.numero()} não renovou ({_diagnostico_login()}); repito em {LOGIN_ESPERA_S} s")
+                time.sleep(LOGIN_ESPERA_S)
+                codigo, j, bruto = chamada()
         fim = conta.agora()
         for chave in (conta.chaves_api() if api else ()):  # a CLI não deveria ecoar a chave (de nenhuma reserva), mas
             bruto = bruto.replace(chave, "•••")  # nada dela vai para disco, Linear ou WhatsApp
@@ -1578,15 +1890,16 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
         fora_do_stream = "\n".join(l for l in bruto.splitlines()[-300:] if not l.lstrip().startswith("{"))[-2000:]
         status = (j or {}).get("api_error_status")
         # sem chamar o Claude (pauta do app ou prompt falhou) nunca é limite da conta: o 403/rate limit do GitHub na
-        # pauta da fsite05-gmb pausou 3 contas e avisou o dono como "cota acabou" (17/10)
+        # pauta da fsite06-gmb pausou 3 contas e avisou o dono como "cota acabou" (17/10)
         pode = chamou and not ok and not teto and codigo not in (124, 130)
         recusada = pode and api and (status in (401, 402, 403) or bool(RE_CHAVE_API.search(f"{texto}\n{fora_do_stream}")))
         sobrecarga = pode and api and not recusada and (status == 529 or "overloaded" in f"{texto}\n{fora_do_stream}".lower())
-        limite = pode and (recusada or sobrecarga or conta.eh_limite(f"{texto}\n{fora_do_stream}") or status == 429)
+        sem_login = pode and not api and _sem_login(j, bruto)  #
+        limite = pode and not sem_login and (recusada or sobrecarga or conta.eh_limite(f"{texto}\n{fora_do_stream}") or status == 429)
         # morta por sinal de fora (143 = SIGTERM, 137 = SIGKILL) sem resposta: não é falha da tarefa, volta para a fila
         # calada (o disjuntor segura se repetir). A morreu assim e foi para o dono como "FALHOU".
-        interrompida = not ok and not limite and codigo in (137, 143, -9, -15)
-        morta_por_tempo = not ok and not limite and codigo == 124  # timeout também é execução morta
+        interrompida = not ok and not limite and not sem_login and codigo in (137, 143, -9, -15)
+        morta_por_tempo = not ok and not limite and not sem_login and codigo == 124  # timeout também é execução morta
         erro = None if ok else (texto or fora_do_stream.strip() or f"saiu com código {codigo}")[-800:]
         if teto:
             erro = f"parou no teto de US$ {ORCAMENTO_POR_TAREFA_USD} por tarefa" + (f": {texto}"[:800] if texto else "")
@@ -1602,6 +1915,10 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
                "custo_usd": ORCAMENTO_POR_TAREFA_USD if estimado else (j or {}).get("total_cost_usd"),
                "tokens": conta.tokens_de(j), "turnos": (j or {}).get("num_turns"),
                "duracao_s": round((fim - inicio).total_seconds(), 1), "erro": erro and erro[-300:], "saida": str(arq)}
+        if sem_login:
+            reg["login_expirado"] = True
+        if (j or {}).get("sem_result"):
+            reg["sem_result"] = True  # a CLI não mandou o result; o texto veio do último turno do stream
         reg["tipo"] = retomada.exigir_tipo(tokens.tipo_execucao(getattr(t, "motivo", None), getattr(t, "linear", None)),
                                            t.nome, base_dados, fim)  #; nunca vazio
         if getattr(t, "motivo", None):
@@ -1613,10 +1930,10 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
         if estimado:
             reg["custo_estimado"] = True
         conta.registrar(reg, base_dados)
-        if getattr(t, "linear", None) and not limite and not interrompida:
+        if getattr(t, "linear", None) and not limite and not interrompida and not sem_login:
             with contextlib.suppress(Exception):  # aos 6, um aviso na issue
                 retomada.avisar_seis(t.linear, base_dados, fim, comentar=_comentar_na_issue)
-        if getattr(t, "debugger", None) and not limite and not interrompida:
+        if getattr(t, "debugger", None) and not limite and not interrompida and not sem_login:
             with contextlib.suppress(Exception):
                 from hub import debugger
                 debugger.resultado(t.debugger, texto or erro or '', base_dados)
@@ -1649,6 +1966,13 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
             else:
                 enfileirar(t, f"voltou para a fila: limite de uso até {ate.astimezone(T.BRT):%H:%M}", base_dados, fim)
                 _log(f"{t.nome}: limite de uso; fila pausada até {conta.iso(ate)}")
+        elif sem_login:  # nunca Backlog nem aviso ao dono; a próxima rodada tenta de novo
+            ident = (getattr(t, "linear", None) or {}).get("identifier", t.nome)
+            if parada.tratar_login(ident, base_dados, fim, _log) == "reenfileirar":
+                enfileirar(t, "voltou para a fila: login da conta não renovou", base_dados, fim, substituir=True)
+                _log(f"{t.nome}: login da conta {conta.numero()} sem renovar; voltou para a fila")
+            else:
+                _log(f"{t.nome}: login sem renovar de novo; orquestrador chamado, não volta sozinha")
         elif interrompida or morta_por_tempo:
             pedido = parada.pedido_de_parada(t.nome, base_dados, consumir=True)  # o alarme parou a sessão
             if pedido and pedido.get("inicio") != conta.iso(inicio):
@@ -1666,6 +1990,30 @@ def executar(t, origem="tarefa", base_dados=None, chamar=None, avisar_fn=None, s
                         resumo = (f"Hub: a execução anterior morreu ({motivo_morte}, {reg['duracao_s'] / 60:.0f} min). Fim da "
                                   f"última saída: «{' '.join((texto or fora_do_stream).split())[-500:]}». Retome do que já está "
                                   f"feito (git status, PR, comentários); não refaça nem repita o que levou à morte.")
+                        if interrompida or morta_por_tempo:
+                            # INC-294: sinais também perdem o contexto de espera por recursos.
+                            # INC-289: stderr só dizia TIMEOUT; o trabalho e o parecer estavam no stream.
+                            resumo += (f" Leia o log completo da rodada anterior em {log} antes de alterar código; "
+                                       "ele contém os comandos e pareceres que o resumo final pode omitir. "
+                                       "Não espere revisores com `tail -f /dev/null` nem abra novas rodadas de "
+                                       "revisão sem corrigir um achado concreto. Publique o progresso em commit e "
+                                       "PR (mesmo em draft se a revisão estiver pendente), registre os achados "
+                                       "e o próximo passo no checkpoint; não declare Done com pendências.")
+                        if morta_por_tempo:  # INC-191: a retomada repetiu validações até gastar outras 3 h
+                            resumo += (" Antes de executar comandos, confira os logs e registre um checkpoint com "
+                                       "o que passou, o que falhou e o próximo passo. Não repita suítes inteiras nem "
+                                       "snapshots já validados; rode só os testes afetados pela correção. Onde há "
+                                       "local-ci, deixe a validação completa com o runner. Se estiver esperando CI "
+                                       "ou revisão de PR, entregue o checkpoint e encerre a sessão; o hub retoma "
+                                       "quando houver resultado. Não espere CI nesta sessão.")
+                        if interrompida:
+                            resumo += (" Se pesado recusar com código 75, o comando não rodou: não registre "
+                                       "o teste como aprovado nem repita em loop com espera. Registre o bloqueio "
+                                       "no checkpoint, publique o progresso e encerre; onde há local-ci, deixe "
+                                       "a validação com o runner. Não espere CI nesta sessão.")
+                        if codigo in (143, -15):  # INC-295: SIGTERM após 57 s de investigação, sem build
+                            resumo += (" SIGTERM indica encerramento por sinal; não confirma timeout nem OOM. "
+                                       "Confira o motivo da parada nos registros antes de atribuir causa ou alterar limites.")
                         if codigo in (137, -9):  # INC-178: repetir build com heap maior matou também a retomada
                             resumo += (f" SIGKILL pode ser falta de memória; o sinal sozinho não confirma OOM. "
                                        f"Esta sessão tem MemoryMax={limite_memoria(t)}, compartilhada com seus filhos. "
@@ -1758,8 +2106,112 @@ def minha_vez(base_dados=None, quando=None):
     return not melhores or sum(1 for i in fila(base_dados) if i.get("linear")) > len(melhores)
 
 
+MAX_TICKS_COORDENANDO = 8   # mais que isso (ticks vivos SEM tarefa rodando) é acúmulo, não trabalho
+RAM_MIN_TICK_MB = 2048      # com menos que isso livre, não abre tick novo
+
+
+def _ticks_coordenando(proc="/proc"):
+    """Ticks sem filho que já excederam o prazo normal de coordenação."""
+    n = 0
+    agora = time.time()
+    for d in Path(proc).glob("[0-9]*"):
+        with contextlib.suppress(OSError):
+            args = (d / "cmdline").read_bytes().split(b"\0")
+            if not any(a.endswith(b"agenda.py") for a in args) or not any(a in (b"tick", b"tick-codex", b"tick-api") for a in args):
+                continue
+            if str(d.name) == str(os.getpid()):
+                continue
+            # INC-396: largadas simultâneas do cron ainda estão importando/decidindo;
+            # ausência momentânea de filho não prova coordenação travada.
+            inicio = _inicio_processo(d.name)
+            if inicio is not None and agora - inicio < TETO_FASE_TICK:
+                continue
+            filhos = (d / "task" / d.name / "children")
+            if not filhos.read_text().strip():
+                n += 1
+    return n
+
+
+def _ram_livre_mb(meminfo="/proc/meminfo"):
+    with contextlib.suppress(OSError, ValueError, IndexError):
+        for linha in Path(meminfo).read_text().splitlines():
+            if linha.startswith("MemAvailable:"):
+                return int(linha.split()[1]) // 1024
+    return None
+
+
+def vigia_tick(base_dados=None, proc="/proc", meminfo="/proc/meminfo"):
+    """devolve o motivo para NÃO abrir tick novo (ticks coordenando demais ou RAM livre baixa) e abre
+    incidente P1 (uma vez por motivo) para o orquestrador; None = pode seguir."""
+    n, ram = _ticks_coordenando(proc), _ram_livre_mb(meminfo)
+    if n > MAX_TICKS_COORDENANDO:
+        motivo = f"{n} ticks da agenda vivos sem rodar tarefa (teto {MAX_TICKS_COORDENANDO})"
+    elif ram is not None and ram < RAM_MIN_TICK_MB:
+        motivo = f"RAM livre {ram} MB (mínimo {RAM_MIN_TICK_MB} MB)"
+    else:
+        return None
+    with contextlib.suppress(Exception):
+        from hub import incidentes
+        incidentes.registrar(f"agenda não abre tick novo: {motivo}", "tarefa_parada", "agenda.vigia_tick",
+                             chave="vigia-tick", base_dados=base_dados, prioridade=1)
+        _chamar_orq_uma_vez("", f"agenda parou de abrir tick: {motivo}", "vigia do tick", base_dados)
+    return motivo
+
+
+TETO_FASE_TICK = 120  # s: a fase de coordenação do tick (agendar, puxar o Linear, decidir o despacho) nunca passa disso (era 600; medida: 0,5 s)
+_fase_tick = None  # ExitStack da trava de coordenação do tick em curso
+TRAVA_PREVIA = None  # descritor da trava do tick, pego por deploy/trava_previa.py antes dos imports
+
+
+@contextlib.contextmanager
+def trava_tick(tipo, base_dados=None, teto=None):
+    """um tick por conta/tipo (e por linha do cron, TICK_LINHA) na fase de coordenação, sem esperar. A
+    trava e o teto de tempo valem só até a tarefa começar (`_soltar_fase_tick`): o tick roda a tarefa no próprio
+    processo e cada conta tem várias vagas, então travar o tick inteiro cortaria tarefa longa e a 2ª vaga.
+    Yield True se pegou; False = o tick anterior ainda coordena (18/10: ~115 ticks empilhados derrubaram a servidor_hub)."""
+    global _fase_tick, TRAVA_PREVIA
+    nome = "-".join(x for x in ("tick", conta.numero(), tipo, os.environ.get("TICK_LINHA", "")) if x)
+    _pasta(base_dados).mkdir(parents=True, exist_ok=True)
+    previa, TRAVA_PREVIA = TRAVA_PREVIA, None
+    with contextlib.ExitStack() as pilha:
+        if previa is not None:  # já pega no topo do deploy/agenda.py; fechar o descritor solta
+            pilha.callback(os.close, previa)
+        elif not pilha.enter_context(conta.trava(esperar=0, caminho=str(_pasta(base_dados) / f"{nome}.lock"))):
+            yield False
+            return
+        antigo = None
+        if hasattr(signal, "SIGALRM"):
+            def _estourou(*_):
+                raise TimeoutError(f"{nome}: fase de coordenação passou de {teto or TETO_FASE_TICK} s")
+            antigo = signal.signal(signal.SIGALRM, _estourou)
+            signal.alarm(teto or TETO_FASE_TICK)
+        pilha.callback(_restaurar_alarme, antigo)
+        _fase_tick = pilha.pop_all()  # a trava sai quando a tarefa começa (ou no fim do with, o que vier antes)
+        try:
+            yield True
+        finally:
+            _soltar_fase_tick()
+            pilha.close()
+
+
+def _restaurar_alarme(antigo):
+    if hasattr(signal, "SIGALRM"):
+        signal.alarm(0)
+        if antigo is not None:
+            signal.signal(signal.SIGALRM, antigo)
+
+
+def _soltar_fase_tick():
+    """Chamado quando a tarefa vai começar: solta a trava do tick e desarma o teto de tempo."""
+    global _fase_tick
+    pilha, _fase_tick = _fase_tick, None
+    if pilha:
+        pilha.close()
+
+
 def _rodar_e_concluir(t, base_dados, executar_fn):
     """Roda o item já tirado da fila e marcado como rodando; do Linear, entrega na issue. No fim, sai do rodando."""
+    _soltar_fase_tick()
     try:
         reg = executar_fn(t, base_dados=base_dados)
         if reg:
@@ -1909,15 +2361,22 @@ def despachar(tarefas, quando=None, base_dados=None, trava=None, executar_fn=Non
     if conta.numero() != "1" and not (HOME / f".claude-{conta.numero()}" / ".credentials.json").exists():
         return "conta sem login"  # a 4ª conta entra no cron antes do login: até lá, não pega nada
     if trava is None:
-        folgada = carga_contas(base_dados, quando).get(conta.numero(), 0.0) < LIMITE_VAGA_EXTRA and _vagas_extras_liberadas(base_dados)
+        minha_carga = carga_contas(base_dados, quando).get(conta.numero(), 0.0)
+        folgada = minha_carga < LIMITE_VAGA_EXTRA and _vagas_extras_liberadas(base_dados)
+        if not folgada and minha_carga < 100.0 and not memoria.pausa_ativa(base_dados) and fila_p1_passa_das_livres(base_dados, quando):
+            cpu = cpu_pct()  # fila p1 > contas livres e a VPS abaixo de 60%: toda conta com cota abre a vaga extra
+            folgada = cpu is not None and cpu < CPU_VAGA_EXTRA
         trava = lambda: _trava_vaga(VAGAS if folgada else 1)  # noqa: E731
     with trava() as pegou:
         if not pegou:
             return "conta ocupada"
         # Espalha antes de empilhar: vaga extra só quando nenhuma outra conta está parada (10/10: a conta 1 rodou 3
         # sessões Opus juntas e estourou a janela de 5 h às 0h, com as outras quase vazias).
-        if _vaga > 0 and any(conta_ociosa(n, base_dados, quando) for n in conta.contas_config() if n != conta.numero()):
-            return "cedi: outra conta está parada"
+        # ...mas só se a fila cabe nas paradas (19/10: 63 na fila, a conta 1 "parada" no moedor e as outras cedendo a ela)
+        if _vaga > 0:
+            paradas = [n for n in conta.contas_config() if n != conta.numero() and conta_ociosa(n, base_dados, quando)]
+            if paradas and len(fila(base_dados)) <= len(paradas):
+                return "cedi: outra conta está parada"
         # ponytail: a fila do WhatsApp só segura a conta 1 (a do agente); as outras ficam livres de dia
         agente = agente_ocupado(fila_agente) if not conta.sufixo() else False
         # fora da trava de despacho: `codex login status` leva segundos
@@ -2013,6 +2472,7 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("tick")
+    sub.add_parser("coordenar", help="a coordenação (agendar, puxar o Linear, automerge, esperas), uma por vez e com teto; cron próprio")
     sub.add_parser("tick-codex", help="o tick do Codex (cron com CLAUDE_CONTA=codex): só a faixa codex")
     sub.add_parser("tick-api", help="a reserva de API (cron com CLAUDE_CONTA=api): só quando as OAuth não podem")
     r = sub.add_parser("rodar")
@@ -2034,6 +2494,101 @@ def main(argv=None):
                 conta.avisar(f"Claude VPS: agenda parada, tarefa inválida no repositório.\n{str(e)[:1500]}", tipo="tecnico")
         return 1
     tarefas.update(da_fila())
+    if args.cmd == "coordenar":
+        return _coordenar(tarefas)
+    if args.cmd in ("tick", "tick-codex", "tick-api"):
+        motivo = vigia_tick()
+        if motivo:
+            _log(f"{args.cmd}: não abre tick novo, {motivo}")
+            return 0
+        with trava_tick(args.cmd) as livre:
+            if not livre:
+                return 0  # o tick anterior (desta conta/tipo/linha) ainda está coordenando: não empilha
+            return _tick(args, tarefas)
+    return _comando(args, tarefas)
+
+
+TETO_COORDENAR = 240  # s: a coordenação inteira nunca passa disso (o automerge sozinho levava 147 s)
+MARGEM_COORDENAR = 60  # s: a coordenação para de começar fases novas com isso antes do teto (o alarme é a rede de segurança)
+PRAZO_AUTOMERGE = 120  # s: orçamento do automerge dentro da coordenação; o resto fica para o minuto seguinte
+TETO_COORDENAR_FOLGADO = 300  # s: máquina folgada (carga por núcleo < CARGA_COORDENAR_FOLGADA) dá mais tempo
+CARGA_COORDENAR_FOLGADA = 0.5
+
+
+def teto_coordenar(carga=None):
+    """Teto da coordenação pela máquina: TETO_COORDENAR_FOLGADO com a carga por núcleo abaixo de 0,5; TETO_COORDENAR com
+    a máquina cheia ou sem medida. `carga` None mede agora."""
+    if carga is None:
+        carga = carga_por_nucleo()
+    return TETO_COORDENAR_FOLGADO if carga is not None and carga < CARGA_COORDENAR_FOLGADA else TETO_COORDENAR
+
+
+class SemTempo(Exception):
+    """a fase foi pulada porque o orçamento do minuto acabou; o `except Exception` da fase só registra."""
+
+
+class TetoEstourado(BaseException):
+    """BaseException de propósito: os `except Exception` de cada fase da coordenação não podem engolir o teto
+    (o TimeoutError do tick era engolido pelo automerge e a coordenação seguia por mais de 224 s)."""
+
+
+@contextlib.contextmanager
+def trava_coordenar(base_dados=None, teto=None):
+    """Um `coordenar` por vez (flock próprio, sem esperar) e teto de tempo que não se engole. Yield False se outro roda.
+
+    O flock é o coordenar.lock, distinto do despacho.lock do `despachar`: a coordenação lenta nunca segura o despacho
+    das contas. `teto` None = teto_coordenar (pela carga da máquina)."""
+    teto = teto or teto_coordenar()
+    _pasta(base_dados).mkdir(parents=True, exist_ok=True)
+    with conta.trava(esperar=0, caminho=str(_pasta(base_dados) / "coordenar.lock")) as pegou:
+        if not pegou:
+            yield False
+            return
+        antigo = None
+        if hasattr(signal, "SIGALRM"):
+            def _estourou(*_):
+                raise TetoEstourado(f"coordenar passou de {teto} s")
+            antigo = signal.signal(signal.SIGALRM, _estourou)
+            signal.alarm(teto)
+        try:
+            yield True
+        finally:
+            _restaurar_alarme(antigo)
+
+
+def _coordenar(tarefas, base_dados=None):
+    """Agenda e puxa o Linear (conta 1) e enfileira o que veio; quem despacha é o tick de cada conta. Roda sob o
+    coordenar.lock (trava_coordenar), não sob o despacho.lock: o tick das contas despacha enquanto isto roda."""
+    inicio = time.monotonic()
+    teto = teto_coordenar()
+    with trava_coordenar(base_dados, teto=teto) as livre:
+        if not livre:
+            return 0  # o coordenar anterior ainda roda: não empilha
+        novas = []
+        with contextlib.suppress(Exception):  # a medição de ociosidade nunca atrapalha a coordenação
+            from hub import ociosidade
+            ociosidade.medir(base_dados)
+            if conta.agora().minute == 0:
+                ociosidade.podar(base_dados)
+        try:
+            novas = agendar(tarefas, base_dados=base_dados)
+            if not conta.sufixo():
+                try:
+                    novas += puxar_linear(tarefas, base_dados, prazo=inicio + teto - MARGEM_COORDENAR)
+                except Exception as e:  # noqa: BLE001  (INC-57: a coleta remota não derruba o resto)
+                    _log(f"linear: coleta falhou ({type(e).__name__})")
+        except TetoEstourado as e:
+            # o último quadro é o handler (_estourou); o que interessa é onde a fase estava parada
+            onde = [f for f in traceback.extract_tb(e.__traceback__) if f.name != "_estourou"][-3:]
+            _log(f"coordenar: {e} (parou em {' > '.join(f'{f.name}:{f.lineno}' for f in onde)}); segue no próximo minuto")
+        if novas:
+            _log("enfileiradas:", ", ".join(novas))
+        if time.monotonic() - inicio > 30:
+            _log(f"coordenar: levou {time.monotonic() - inicio:.0f} s")
+    return 0
+
+
+def _tick(args, tarefas):
     if args.cmd == "tick-codex":
         if conta.numero() != "codex":
             print("tick-codex precisa de CLAUDE_CONTA=codex", file=sys.stderr)
@@ -2056,23 +2611,15 @@ def main(argv=None):
         if not tem_login():
             return 0  # conta N cadastrada no cron mas ainda sem login: não faz nada
         _pasta().mkdir(parents=True, exist_ok=True)
-        novas = []
-        # agenda.lock só guarda agendar/puxar. Ocupada (o tick da conta 1 leva mais de 30 s puxando o Linear), a
-        # conta despacha a fila mesmo assim: antes ela desistia e as contas 2-4 ficavam paradas com 58 na fila (17/10).
-        with conta.trava(esperar=5, caminho=str(_pasta() / "agenda.lock")) as pegou:
-            if pegou:
-                novas = agendar(tarefas)
-                if not conta.sufixo():
-                    try:
-                        novas += puxar_linear(tarefas)
-                    except Exception as e:  # a coleta remota não pode impedir o despacho da fila local (INC-57)
-                        _log(f"linear: coleta falhou ({type(e).__name__}); despachando fila local")
-        if novas:
-            _log("enfileiradas:", ", ".join(novas))
+        # o tick só despacha. Agendar, puxar o Linear, automerge e esperas são do `coordenar` (cron próprio):
+        # coordenação lenta no tick da conta 1 segurava a conta inteira com a fila cheia.
         res = despachar(tarefas)
         if res.startswith("rodou"):
             _log(res)
         return 0
+
+
+def _comando(args, tarefas):
     if args.cmd == "fila":
         return mostrar_fila(tarefas)
     if args.cmd == "limpar":

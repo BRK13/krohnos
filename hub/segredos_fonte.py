@@ -24,7 +24,7 @@ FONTES = {
     "OPENROUTER_API_KEY": [(HOME / ".config/openrouter.key", None),
                            (ETC / "openrouter.env", "OPENROUTER_API_KEY")],
     "RESEND_API_KEY": [(ETC / "apps/asite01.env", "RESEND_API_KEY"),
-                       (ETC / "apps/fsite05.env", "RESEND_API_KEY")],
+                       (ETC / "apps/fsite06.env", "RESEND_API_KEY")],
     "LINEAR_API_KEY": [(ETC / "linear.env", "LINEAR_API_KEY")],
     "PAGESPEED_CHAVE": [(ETC / "pagespeed.env", "PAGESPEED_CHAVE")],
     "ELEVENLABS_API_KEY": [(HOME / ".config/elevenlabs.key", None), (HOME / ".config/elevenlabs", None)],
@@ -37,7 +37,7 @@ def ler_origem(arquivo, chave):
     """Valor de uma origem, ou None (arquivo ausente, ilegível ou sem a chave)."""
     try:
         texto = Path(arquivo).read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     if chave is None:
         return texto.strip() or None
@@ -98,17 +98,23 @@ def _gravar(destino, nome, valor, grupo):
     destino.mkdir(mode=0o750, parents=True, exist_ok=True)
     os.chmod(destino, 0o750)
     arq = destino / nome
+    if arq.is_file() and not arq.read_text(errors="ignore").strip():
+        arq.unlink()  # arquivo vazio não é segredo: recriar em vez de estourar no O_EXCL
     fd = os.open(arq, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
-    with os.fdopen(fd, "w") as f:
-        f.write(valor + "\n")
-    os.chmod(arq, 0o640)
-    if grupo:
-        import shutil
-        shutil.chown(destino, group=grupo)
-        shutil.chown(arq, group=grupo)
+    try:
+        os.chmod(arq, 0o640)
+        if grupo:
+            import shutil
+            shutil.chown(destino, group=grupo)
+            shutil.chown(arq, group=grupo)  # antes de gravar o valor: grupo inválido não deixa segredo root:root
+        with os.fdopen(fd, "w") as f:
+            f.write(valor + "\n")
+    except BaseException:
+        arq.unlink(missing_ok=True)
+        raise
 
 
-_NOME_SEGREDO = re.compile(r"(KEY|TOKEN|PASS|SENHA|SECRET|PAT)", re.I)
+_NOME_SEGREDO = re.compile(r"(KEY|CHAVE|TOKEN|PASS|SENHA|SECRET|PAT)", re.I)
 
 
 def _arquivos(caminhos):

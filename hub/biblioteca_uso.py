@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from hub import biblioteca as B, biblioteca_indice as I, data, gh
+from hub import biblioteca as B, biblioteca_indice as I, data, gh, sites as cadastro
 
 RE_RECEITA = re.compile(r"receitas/[\w.+-]+/[\w.+/-]+?\.md")
 RE_LINHA = re.compile(r"(?im)^[ \t>*-]*receitas?\s*:\s*(.+)$")
@@ -118,9 +118,19 @@ def _gh(args):
     return json.loads(r.stdout or "[]")
 
 
+def _donos():
+    """Dono da biblioteca mais os donos dos repos do cadastro de sites (repo de terceiro também abre PR com receita)."""
+    dono = B.REPO.split("/")[0]
+    try:
+        extras = {((s.get("repo") or {}).get("github") or "").split("/")[0] for s in cadastro.carregar()}
+    except Exception:
+        extras = set()
+    return [dono] + sorted(e for e in extras if e and e != dono)
+
+
 def coletar(db=None, gh=_gh, donos=None):
     """Busca no GitHub os PRs (abertos, fechados e fundidos) cujo corpo cita "Receita: receitas/" e grava o uso."""
-    donos = donos or [B.REPO.split("/")[0], "jpexemplo"]
+    donos = donos or _donos()
     total = 0
     c = _conn(db)
     with c:

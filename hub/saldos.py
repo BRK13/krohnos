@@ -7,8 +7,7 @@ Root, cron (deploy/nimbus.cron). Tudo em $HUB_DATA/saldos/.
                                                     # código 3 + motivo se o serviço está sem saldo (o job para sem quebrar);
                                                     # --job registra o job para a retomada
 
-Serviços: openrouter (GET /api/v1/credits: total_credits − total_usage; chave em OPENROUTER_API_KEY ou no .env do
-clienteh), anthropic (reserva de API: o saldo estimado de conta.gasto_api) e openai (cota grátis do dia por faixa
+Serviços: openrouter (GET /api/v1/credits: total_credits − total_usage; chave do WhatsApp em OPENROUTER_WHATSAPP_API_KEY; só ela), anthropic (reserva de API: o saldo estimado de conta.gasto_api) e openai (cota grátis do dia por faixa
 de modelo, lida de openai-dados-publicos.json quando a coleta dele existir).
 
 Estados: ok, baixo (OpenRouter < US$ 5), zerado, indisponivel (sem leitura; nunca alerta nem trava).
@@ -39,6 +38,8 @@ MIN_MEDIA_USD = 0.5  # média menor que isso: qualquer gasto vira "3×"; só val
 ENV_CLIENTEH = Path("/opt/clienteh/.env")
 URL_CREDITOS = "https://openrouter.ai/api/v1/credits"
 URL_ATIVIDADE = "https://openrouter.ai/api/v1/activity"
+URL_CHAVE = "https://openrouter.ai/api/v1/key"  # memoria-ok: whatsapp
+CHAVE_WHATSAPP = "OPENROUTER_WHATSAPP_API_KEY"  # a OpenRouter é só do WhatsApp; o hub só LÊ o gasto dessa chave (com teto diário)
 ROTULO = {"openrouter": "OpenRouter", "anthropic": "Reserva de API da Anthropic", "openai": "OpenAI (cota grátis)"}
 # job (nome da tarefa do hub) a enfileirar quando o saldo do serviço volta; os jobs dos apps retomam sozinhos pelo guard
 TAREFA_DO_JOB = {}
@@ -69,7 +70,7 @@ def _dia(quando):
 # ---- leituras (efeitos) ----
 
 def chave_openrouter(env=None, arquivo=ENV_CLIENTEH):
-    return carregar_segredo("OPENROUTER_API_KEY", env=env) or comum_env.segredo("OPENROUTER_API_KEY", (arquivo,), ambiente=env)
+    return carregar_segredo(CHAVE_WHATSAPP, env=env) or comum_env.segredo(CHAVE_WHATSAPP, (arquivo,), ambiente=env)
 
 
 def _get(url, chave):
@@ -82,13 +83,19 @@ def ler_openrouter(http=_get, chave=None):
     """{"saldo": US$, "creditos", "usado", "consumidores": {modelo: US$ de ontem}} ou {"erro": ...} (nunca com a chave)."""
     chave = chave or chave_openrouter()
     if not chave:
-        return {"erro": "sem OPENROUTER_API_KEY"}
+        return {"erro": f"sem {CHAVE_WHATSAPP} (chave do WhatsApp, só leitura de gasto)"}
     try:
         d = http(URL_CREDITOS, chave)["data"]
         total, usado = float(d["total_credits"]), float(d["total_usage"])
     except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
         return {"erro": f"{type(e).__name__} {str(e)[:120]}"}
     out = {"saldo": round(total - usado, 4), "creditos": total, "usado": usado}
+    try:  # teto da chave: `limit` com reinício diário; usage_daily/weekly são US$ da própria chave
+        k = http(URL_CHAVE, chave)["data"]
+        out["chave"] = {"limite": k.get("limit"), "restante": k.get("limit_remaining"), "reinicio": k.get("limit_reset"),
+                        "dia": float(k.get("usage_daily") or 0), "semana": float(k.get("usage_weekly") or 0)}
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError):
+        pass
     try:  # melhor esforço: a rota de atividade pede chave de gestão
         linhas = http(URL_ATIVIDADE, chave)["data"]
         por = {}
@@ -230,7 +237,7 @@ def coletar(base_dados=None, quando=None, avisar_fn=None, enfileirar_fn=None, le
     return novo
 
 
-def _retomar(servico, base_dados, quando, enfileirar_fn):
+def _retomar(servico, base_dados, quando, enfileirar_fn, motivo=None):
     """Saldo voltou: enfileira a tarefa do hub dos jobs pendentes e registra a retomada."""
     pend = _json(pasta(base_dados) / "pendentes.json", {})
     jobs = pend.pop(servico, []) if isinstance(pend, dict) else []
@@ -238,7 +245,7 @@ def _retomar(servico, base_dados, quando, enfileirar_fn):
     for j in jobs:
         nome = TAREFA_DO_JOB.get(j)
         if nome and enfileirar_fn:
-            enfileirar_fn(nome, f"saldo de {servico} voltou")
+            enfileirar_fn(nome, motivo or f"saldo de {servico} voltou")
         retomados.append(j)
     _gravar(pasta(base_dados) / "pendentes.json", pend if isinstance(pend, dict) else {})
     with open(pasta(base_dados) / "retomadas.jsonl", "a", encoding="utf-8") as f:
@@ -250,15 +257,22 @@ def _retomar(servico, base_dados, quando, enfileirar_fn):
 def sem_saldo(servico, job=None, base_dados=None):
     """Motivo ("sem saldo, retomo sozinho: ...") se o serviço está zerado, senão None. Estado desconhecido não trava.
     Com job, registra-o em pendentes.json para a retomada."""
+    from hub import gasto_anormal  # pausa por gasto anormal vale como saldo zerado
+    pausa = gasto_anormal.pausado({"anthropic": "anthropic-reserva"}.get(servico, servico), base_dados)
     s = (_json(pasta(base_dados) / "estado.json", {}).get("servicos") or {}).get(servico) or {}
-    if s.get("estado") != "zerado":
+    if not pausa and s.get("estado") != "zerado":
         return None
-    if job:
+    if job:  # pausa por gasto também registra: gasto_anormal.liberar() enfileira a retomada
         p = _json(pasta(base_dados) / "pendentes.json", {})
         p = p if isinstance(p, dict) else {}
         if job not in p.setdefault(servico, []):
             p[servico].append(job)
-            _gravar(pasta(base_dados) / "pendentes.json", p)
+            try:
+                _gravar(pasta(base_dados) / "pendentes.json", p)
+            except PermissionError:  # job rodado pelo usuário claude (pasta do root): segue parado, sem retomada automática
+                print(f"saldos: sem permissão para registrar {job} em pendentes.json", file=sys.stderr)
+    if pausa:
+        return f"sem saldo, retomo sozinho quando liberado: {ROTULO.get(servico, servico)} {pausa}"
     return f"sem saldo, retomo sozinho: {ROTULO.get(servico, servico)} zerado desde a última leitura"
 
 

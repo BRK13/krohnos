@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -7,10 +8,39 @@ from unittest import mock
 from pathlib import Path
 from unittest.mock import patch
 
-from hub import cerebro
+from hub import cerebro, config
 
 AGORA = dt.datetime(2026, 10, 15, 17, 0, tzinfo=dt.timezone.utc)
 DESDE = AGORA - dt.timedelta(hours=24)
+# O desenho de uma instalação completa (4 contas, Codex, CI, Debugger, servidor, PC e os 6 sites do cadastro de teste),
+# dito na config como o dono diz no krohnos.toml dele: nada disso é constante do código.
+SITES_DONO = {"loja-a": "Loja A", "loja-b": "Loja B", "loja-c": "Loja C", "loja-d": "Loja D", "loja-e": "Loja E",
+              "loja-f": "Loja F"}  # a Loja F sobe direto no servidor (servidor_deploys), como um app fora do Dokploy
+CADASTRO_DONO = [{"id": i, "nome": f"{rot} Ltda.", "dominio": f"{i}.exemplo.com", "hosts_alternativos": [f"www.{i}.exemplo.com"],
+                  "repo": {"github": f"acme/{i}-site"}, "marca": {"nome": rot, "aliases": []}} for i, rot in SITES_DONO.items()]
+DONO = {"KROHNOS_AGENTES_CONTAS": '["1", "2", "3", "4"]', "KROHNOS_CEREBRO_CODEX": "true", "KROHNOS_CEREBRO_CI": "true",
+        "KROHNOS_CEREBRO_DEBUGGER": "true", "KROHNOS_CEREBRO_SERVIDOR": "dedicado", "KROHNOS_CEREBRO_SERVIDOR_DEPLOYS": "loja-f",
+        "KROHNOS_CEREBRO_GPU_ESTACAO": "/nao/existe/estacao.json", "KROHNOS_CEREBRO_SITES": json.dumps(SITES_DONO),
+        "KROHNOS_CEREBRO_REPOS": '{"meu-hub": "dedicado"}', "KROHNOS_CEREBRO_PROJETOS": '{"infra": "dedicado"}',
+        "KROHNOS_LINEAR_WORKSPACE": "acme"}
+
+
+def _site(i, pasta=None):
+    for s in CADASTRO_DONO:
+        if s["id"] == i:
+            return s
+    raise cerebro.cadastro.SiteInvalido(i)
+
+
+def dono(caso, **extra):
+    """Liga a topologia do dono (DONO, com o cadastro CADASTRO_DONO) durante o teste `caso`. Código sem o desenho por
+    config (antes da) não tem como ler esta topologia: o teste pula, e quem prova a mudança é TopologiaTest."""
+    if not hasattr(cerebro, "topologia"):
+        raise unittest.SkipTest("Cérebro sem topologia por config")
+    for p in (patch.dict(os.environ, {**DONO, **extra}), patch.object(cerebro.cadastro, "ativos", return_value=CADASTRO_DONO),
+              patch.object(cerebro.cadastro, "site", _site)):
+        p.start()
+        caso.addCleanup(p.stop)
 
 
 def _jsonl(p, linhas):
@@ -20,6 +50,7 @@ def _jsonl(p, linhas):
 
 class EventosDiscoTest(unittest.TestCase):
     def setUp(self):
+        dono(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
 
@@ -44,17 +75,17 @@ class EventosDiscoTest(unittest.TestCase):
     def test_aviso_resposta_codex_e_root(self):
         _jsonl(self.base / "claude" / "avisos-enviados.jsonl", [{"em": "2026-10-15T13:00:00+00:00", "texto": "linha 1\nlinha 2"}])
         _jsonl(self.base / "claude" / "respostas.jsonl", [{"em": "2026-10-15T14:00:40Z", "fase": "orch", "segundos": 40}])
-        _jsonl(self.base / "codex.jsonl", [{"em": "2026-10-15T15:00:00+00:00", "repo": "clienteh", "pr": 1, "achados": True,
-                                            "url": "https://github.com/example-org/clienteh/pull/1"}])
+        _jsonl(self.base / "codex.jsonl", [{"em": "2026-10-15T15:00:00+00:00", "repo": "loja-f-site", "pr": 1, "achados": True,
+                                            "url": "https://github.com/acme/loja-f-site/pull/1"}])
         r = self.base / "vps" / "resultados" / "x.json"
         r.parent.mkdir(parents=True)
-        r.write_text(json.dumps({"em": "2026-10-15T15:30:00+00:00", "acao": "deploy-app", "alvo": "asite01", "ok": True}))
+        r.write_text(json.dumps({"em": "2026-10-15T15:30:00+00:00", "acao": "deploy-app", "alvo": "loja-a", "ok": True}))
         ev, _ = cerebro.eventos_disco(self.base, DESDE, codex=self.base / "codex.jsonl")
         tipos = {e["tipo"]: e for e in ev}
         self.assertEqual(tipos["aviso"]["rot"], "Aviso no WhatsApp: linha 1")
         self.assertEqual(tipos["msg"]["t"], "2026-10-15T14:00:00+00:00")  # chegada = resposta - segundos
         self.assertEqual((tipos["codex_achado"]["de"], tipos["codex_achado"]["para"]), ("codex", "ci"))
-        self.assertEqual((tipos["pedido"]["de"], tipos["pedido"]["para"]), ("orch", "hub"))
+        self.assertEqual((tipos["pedido"]["de"], tipos["pedido"]["para"]), ("orch", "dedicado"))
 
 
 class ConsultasGithubTest(unittest.TestCase):
@@ -86,6 +117,7 @@ class EventosGithubTest(unittest.TestCase):
 
 class GrafoTest(unittest.TestCase):
     def setUp(self):
+        dono(self)
         leitura_sessoes = mock.patch.object(cerebro, "CODEX_SESSOES", Path("/inexistente"))
         leitura_sessoes.start()
         self.addCleanup(leitura_sessoes.stop)
@@ -94,16 +126,22 @@ class GrafoTest(unittest.TestCase):
         self.addCleanup(leitura.stop)
 
     def test_arestas_ligam_nos_que_existem(self):
-        ids = {n[0] for n in cerebro.LAYOUT}
-        self.assertTrue(all(a in ids and b in ids for a, b in cerebro.ARESTAS))
-        self.assertTrue(set(cerebro.REPO_NO.values()) <= ids and set(cerebro.PROJETO_NO.values()) <= ids)
+        t = cerebro.topologia()
+        ids = {n[0] for n in cerebro.layout(t)}
+        self.assertTrue(all(a in ids and b in ids for a, b in cerebro.arestas_fixas(t)))
+        self.assertTrue(set(t["repo_no"].values()) <= ids and set(t["projeto_no"].values()) <= ids)
+        # repo → nó e projeto → nó saem do cadastro (repo.github, nome do site), não de tabela no código
+        self.assertEqual((t["repo_no"]["loja-f-site"], t["repo_no"]["loja-a-site"], t["repo_no"]["meu-hub"]),
+                         ("loja-f", "loja-a", "dedicado"))
+        self.assertEqual((t["projeto_no"]["lojaaltda"], t["projeto_no"]["lojad"], t["projeto_no"]["infra"]),
+                         ("loja-a", "loja-d", "dedicado"))
 
     def test_nos_sem_dados_nao_inventam_alerta(self):
         with tempfile.TemporaryDirectory() as d:
             nos = cerebro.nos(d, AGORA)
-        self.assertEqual(len(nos), len(cerebro.LAYOUT))
+        self.assertEqual(len(nos), len(cerebro.layout(cerebro.topologia())))
         self.assertFalse(any(n["alerta"] for n in nos))
-        self.assertIn("sem leitura", " ".join(next(n for n in nos if n["id"] == "asite01")["linhas"]))
+        self.assertIn("sem leitura", " ".join(next(n for n in nos if n["id"] == "loja-a")["linhas"]))
 
 
     def test_conta_estourada_mostra_a_volta(self):
@@ -111,11 +149,13 @@ class GrafoTest(unittest.TestCase):
             (Path(d) / "claude").mkdir()
             reset = (AGORA + dt.timedelta(hours=2)).isoformat()
             (Path(d) / "claude" / "uso-contas.json").write_text(json.dumps({"contas": {
-                "1": {"cinco_horas": {"pct": 100, "reset": reset}, "semana": {"pct": 72}}, "2": {"cinco_horas": {"pct": 40, "reset": reset}}}}))
+                "1": {"cinco_horas": {"pct": 100, "reset": reset}}, "2": {"cinco_horas": {"pct": 40, "reset": reset}}}}))
             (Path(d) / "claude" / "pausa-3.json").write_text(json.dumps({"ate": reset}))
             por = {n["id"]: n for n in cerebro.nos(d, AGORA)}
         volta = (AGORA + dt.timedelta(hours=-1)).strftime("%H:%M")
-        self.assertEqual((por["c1"]["cota"], por["c1"]["semana"]), (100, 72))
+        self.assertEqual(por["c1"]["cota"], 100)
+        self.assertNotIn("semana", por["c1"])
+        self.assertNotIn("semana_pct", por["c1"])
         self.assertIsNone(por["c3"]["cota"])
         self.assertEqual(por["c1"]["estourou"], volta)
         self.assertEqual(por["c3"]["estourou"], volta)
@@ -155,13 +195,10 @@ class AoVivoTest(unittest.TestCase):
     FORA = {"prs": [], "linear": [], "sites": None}
 
     def setUp(self):
+        dono(self)
         leitura = patch("hub.orq_estado.limite_codex", return_value=None)
         leitura.start()
         self.addCleanup(leitura.stop)
-        self.codex, cerebro.CODEX_REVISOES = cerebro.CODEX_REVISOES, Path("/nao/existe.jsonl")
-
-    def tearDown(self):
-        cerebro.CODEX_REVISOES = self.codex
 
     def test_desde_reenvia_so_a_janela_de_atraso(self):
         with tempfile.TemporaryDirectory() as d:
@@ -216,6 +253,22 @@ class AoVivoTest(unittest.TestCase):
         self.assertIn("webglcontextlost", h)
         self.assertNotIn("const energia = ", h)   # a fita de energia antiga saiu
 
+    def test_sem_lag_polling_15s_aba_oculta_movimento_reduzido_um_webgl(self):
+        """polling de 15 s, laço parado com a aba oculta, movimento reduzido estático, um só contexto WebGL."""
+        h = cerebro.html({}, "/cerebro.json")
+        self.assertIn("const POLL_MS = 15000", h)
+        self.assertIn("setInterval(buscarVivo, POLL_MS)", h)
+        self.assertNotIn("setInterval(buscarVivo, 5000)", h)
+        self.assertIn("visibilitychange", h)
+        self.assertIn("prefers-reduced-motion", h)
+        self.assertIn("ultimaAssinatura", h)   # só redesenha se o JSON mudou
+        self.assertEqual(len(re.findall(r"new T\.WebGLRenderer\(", h)), 1)   # um contexto, não um por planeta
+        self.assertEqual(len(re.findall(r"getContext\(\s*[\"']webgl2?[\"']", h)), 0)
+        self.assertIn("reduzir.matches || COMPACTO", h)   # quadro compacto sem animação nem WebGL
+        for velho in ("vps8238", "gemea", "82.38", "Gêmea", "VPS"):
+            self.assertNotIn(velho, h)
+        self.assertIsNone(re.search(r"\bPrec\d\b", h))   # os dois servidores antigos do coletor
+
 
 class PainelTest(unittest.TestCase):
     def test_rotas_do_cerebro(self):
@@ -234,6 +287,9 @@ class PainelTest(unittest.TestCase):
         self.assertIn("application/json", cab_j["Content-Type"])
 
 class CotasTest(unittest.TestCase):
+    def setUp(self):
+        dono(self)
+
     def test_janelas_independentes_pausa_e_codex(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as d:
@@ -241,13 +297,14 @@ class CotasTest(unittest.TestCase):
             (base / 'claude').mkdir()
             reset = (AGORA + dt.timedelta(hours=2)).isoformat()
             (base / 'claude' / 'uso-contas.json').write_text(json.dumps({'contas': {
-                '1': {'cinco_horas': {'pct': 0}, 'semana': {'pct': 82}},
-                '2': {'cinco_horas': {'pct': 75}, 'semana': {'pct': 20}},
+                '1': {'cinco_horas': {'pct': 0}, 'semana': {'pct': 99}},
+                '2': {'cinco_horas': {'pct': 75}},
                 '3': {'cinco_horas': {'pct': 100, 'reset': reset}}}}))
             with patch('hub.orq_estado.limite_codex', return_value={'pct': 100, 'reset': reset}):
                 por = {n['id']: n for n in cerebro.nos(base, AGORA)}
-            self.assertEqual((por['c1']['cota_pct'], por['c1']['semana_pct']), (0, 82))
-            self.assertEqual((por['c2']['cota_pct'], por['c2']['semana_pct']), (75, 20))
+            self.assertEqual((por['c1']['cota_pct'], por['c2']['cota_pct']), (0, 75))
+            self.assertNotIn('semana_pct', por['c1'])  # Claude sem limite semanal, mesmo com 99 no JSON
+            self.assertNotIn('semana', por['c1'])
             self.assertIsNone(por['c4']['cota_pct'])
             self.assertEqual(por['codex']['cota_pct'], 100)
             self.assertEqual(por['codex']['semana_pct'], 100)
@@ -263,7 +320,7 @@ class CotasTest(unittest.TestCase):
             for erro in (OSError("sem acesso"), ValueError("JSON quebrado")):
                 with patch("hub.orq_estado.limite_codex", side_effect=erro):
                     por = {n["id"]: n for n in cerebro.nos(base, AGORA)}
-                    self.assertEqual(len(por), len(cerebro.LAYOUT))
+                    self.assertEqual(len(por), len(cerebro.layout(cerebro.topologia())))
                     self.assertIsNone(por["codex"]["cota_pct"])
                     estado.write_text(json.dumps({"codex": {"semana": {"pct": 82}}}))
                     por = {n["id"]: n for n in cerebro.nos(base, AGORA)}
@@ -278,10 +335,10 @@ class CotasTest(unittest.TestCase):
         self.assertEqual(por["codex"]["estourou"], "18/10 16:00")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class FontesTest(unittest.TestCase):
+    def setUp(self):
+        dono(self)
+
     def test_nos_correspondem_as_fontes_e_ignoram_pid_morto(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -291,7 +348,7 @@ class FontesTest(unittest.TestCase):
                 p.write_text(json.dumps(d))
                 return p
             uso = {str(i): {'cinco_horas': {'pct': p, 'reset': (AGORA + dt.timedelta(hours=2)).isoformat()},
-                            'semana': {'pct': 60+i}} for i,p in enumerate([27,0,8,100],1)}
+                            } for i,p in enumerate([27,0,8,100],1)}
             gravar('claude/uso-contas.json', {'contas': uso})
             tarefas = [('1','krn-828'),('2','krn-667'),('2','krn-848'),('3','krn-905'),
                        ('4','consertador'),('codex','krn-893'),('codex','debugger')]
@@ -301,24 +358,24 @@ class FontesTest(unittest.TestCase):
             gpu = gravar('estacao.json', {'visto_em': (AGORA-dt.timedelta(minutes=2)).isoformat(),
                                          'gpu':'RTX 4070 Laptop','ocupada':False})
             gravar('monitor/remotos.json', {s:{'cpu':41,'mem_pct':62,'disco_pct':73,
-                    't':(AGORA-dt.timedelta(minutes=3)).isoformat(),'erro':'sem resposta'} for s in ['servidor_a','servidor_b']})
+                    't':(AGORA-dt.timedelta(minutes=3)).isoformat()} for s in ['dedicado']})
             sessao = gravar('sessions/a.jsonl', {'payload': {'rate_limits': {
                 'primary': {'used_percent':12,'window_minutes':300},
                 'secondary': {'used_percent':88,'window_minutes':10080}}}})
-            with mock.patch.object(cerebro,'GPU_ESTACAO',gpu), mock.patch.object(cerebro,'CODEX_SESSOES',sessao.parent):
-                por = {n['id']:n for n in cerebro.nos(base,AGORA,{'fsite05':{'status':503},'clientei':{'status':200}})}
+            with mock.patch.dict(os.environ, {'KROHNOS_CEREBRO_GPU_ESTACAO': str(gpu)}), mock.patch.object(cerebro,'CODEX_SESSOES',sessao.parent):
+                por = {n['id']:n for n in cerebro.nos(base,AGORA,{'loja-b':{'status':503},'loja-c':{'status':200}})}
                 self.assertEqual(por['pc']['linhas'], ['ligado · ocioso','RTX 4070 Laptop'])
                 self.assertEqual(por['codex']['cota'],88)
                 for i,ativo in enumerate([1,2,1,1],1):
                     n=por[f'c{i}']; self.assertEqual(n['ativo'],ativo)
                     self.assertEqual(n['cota'],uso[str(i)]['cinco_horas']['pct'])
-                    self.assertEqual(n['semana'],uso[str(i)]['semana']['pct'])
                     self.assertIn(f"5 h: {n['cota']:.0f}%",n['linhas'][-1])
                 self.assertEqual(por['codex']['ativo'],2)
-                for s in ['servidor_a','servidor_b']:
-                    self.assertEqual(por[s]['linhas'],['CPU 41% · RAM 62% · disco 73% · há 3 min'])
-                self.assertIn('fora do ar',por['fsite05']['linhas'])
-                self.assertIn('HTTP 200',por['clientei']['linhas'])
+                self.assertEqual((por['dedicado']['linhas'] or [''])[0],'CPU 41% · RAM 62% · disco 73% · há 3 min')
+                self.assertFalse(por['dedicado']['alerta'])
+                self.assertNotIn('vps8238', por); self.assertNotIn('gemea', por)   # 82.38 e gêmea saíram do desenho
+                self.assertIn('fora do ar',por['loja-b']['linhas'])
+                self.assertIn('HTTP 200',por['loja-c']['linhas'])
                 self.assertTrue(por['c4']['estourou'])
                 for minutos, texto in [(7,'sinal atrasado'),(16,'desligado')]:
                     gpu.write_text(json.dumps({'visto_em':(AGORA-dt.timedelta(minutes=minutos)).isoformat()}))
@@ -327,6 +384,7 @@ class FontesTest(unittest.TestCase):
 
 class PlacarTest(unittest.TestCase):
     def setUp(self):
+        dono(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
 
@@ -367,3 +425,250 @@ class PlacarTest(unittest.TestCase):
         self.assertEqual((p["rodape"]["ok"], p["rodape"]["falha"]), (3, 1))
         self.assertEqual(p["rodape"]["custo_txt"], "US$ 2,50")
         self.assertEqual(cerebro.placar(self.base / "vazio", AGORA, [])["log"], [])
+
+
+class ServidoresTest(unittest.TestCase):
+    """o desenho é a infra da virada de 22/10 e cada site liga ao servidor que o atende de verdade."""
+
+    def setUp(self):
+        dono(self)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _remotos(self, d):
+        arq = self.base / "monitor" / "remotos.json"
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        arq.write_text(json.dumps(d))
+
+    def test_um_no_so_servidor_sem_82_38_nem_gemea(self):
+        """Decisão do Fulano (22/10): "mata os 3, deixa só o servidor" — um nó de servidor (o dedicado), PC fica."""
+        t = cerebro.topologia()
+        infra = {n[0]: n[1] for n in cerebro.layout(t) if n[2] == "infra"}
+        self.assertEqual(infra, {"pc": "PC · GPU", "dedicado": "Servidor"})
+        fixas = cerebro.arestas_fixas(t)
+        self.assertFalse(any(a in ("vps8238", "gemea") or b in ("vps8238", "gemea") for a, b in fixas))
+        for par in [("orch", "dedicado"), ("c4", "dedicado"), ("codex", "dedicado"), ("loja-f", "dedicado")]:
+            self.assertIn(par, fixas)
+
+    def test_site_liga_ao_servidor_que_atende(self):
+        self._remotos({"dedicado": {"sites": ["www.loja-a.exemplo.com", "loja-d.exemplo.com"]}})
+        d = cerebro.montar(self.base, agora=AGORA, fora={"prs": [], "linear": [], "sites": None})
+        ar = {tuple(a) for a in d["arestas"]}
+        self.assertIn(("loja-a", "dedicado"), ar)    # pelo host alternativo (www.) do cadastro
+        self.assertIn(("loja-d", "dedicado"), ar)
+        self.assertIn(("loja-f", "dedicado"), ar)    # sobe direto no servidor (servidor_deploys)
+        self.assertNotIn(("loja-b", "dedicado"), ar)   # a Loja B não está no servidor lido: sem linha para ela
+        por = {n["id"]: n for n in d["nos"]}
+        self.assertNotIn("vps8238", por)
+        self.assertIn("Sites: Loja A, Loja D", por["dedicado"]["linhas"])
+
+    def test_servidor_sem_resposta_mostra_a_idade_e_alerta(self):
+        self._remotos({"dedicado": {"cpu": 1.3, "mem_pct": 6.7, "disco_pct": 69, "t": (AGORA - dt.timedelta(minutes=252)).isoformat(),
+                                    "erro": "sem resposta"}})
+        g = {n["id"]: n for n in cerebro.nos(self.base, AGORA)}["dedicado"]
+        self.assertTrue(g["alerta"])
+        self.assertIn("há 252 min", g["linhas"][0])
+        self.assertIn("Sem resposta: sem resposta", g["linhas"])
+
+
+class SitesSemLeituraTest(unittest.TestCase):
+    """o painel ficou horas com os 6 sites "fora do ar" porque a leitura dele falhava inteira."""
+
+    def setUp(self):
+        dono(self)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        cerebro._FORA.update(sites=None)
+        self.addCleanup(cerebro._FORA.update, sites=None)
+
+    def _linhas(self, sites):
+        return {n["id"]: n for n in cerebro.nos(self.tmp.name, AGORA, sites) if n["grupo"] == "site"}
+
+    def test_todos_none_nao_vira_fora_do_ar(self):
+        por = self._linhas({s: {"status": None, "versao": ""} for s in SITES_DONO})
+        self.assertFalse(any(n["alerta"] for n in por.values()))
+        self.assertTrue(all("sem leitura (painel)" in n["linhas"] for n in por.values()))
+
+    def test_um_none_vira_fora_do_ar(self):
+        sites = {s: {"status": 200, "versao": ""} for s in SITES_DONO}
+        sites["loja-b"] = {"status": None, "versao": ""}
+        por = self._linhas(sites)
+        self.assertTrue(por["loja-b"]["alerta"])
+        self.assertIn("fora do ar", por["loja-b"]["linhas"])
+        self.assertFalse(por["loja-a"]["alerta"])
+
+    def test_rodada_toda_none_guarda_a_leitura_boa_e_tenta_processo_novo(self):
+        boa = {s: {"status": 200, "versao": "", "em": "2026-10-15T16:50:00+00:00"} for s in SITES_DONO}
+        cerebro._FORA["sites"] = boa
+        ruim = lambda: {s: {"status": None, "versao": ""} for s in SITES_DONO}  # noqa: E731
+        tentou = []
+        self.assertTrue(hasattr(cerebro, "_ler_sites"), "sem guarda para a rodada toda None")
+        s = cerebro._ler_sites(AGORA, ler=ruim, novo=lambda: tentou.append(1))
+        self.assertEqual(tentou, [1])
+        self.assertIs(s, boa)
+        n = self._linhas(s)["loja-a"]
+        self.assertIn("HTTP 200 · leitura de 10 min atrás", n["linhas"])
+        # o processo novo leu: vale a leitura dele
+        s = cerebro._ler_sites(AGORA, ler=ruim, novo=lambda: {x: {"status": 200, "versao": ""} for x in SITES_DONO})
+        self.assertEqual(s["loja-a"], {"status": 200, "versao": "", "em": AGORA.isoformat(timespec="seconds")})
+
+
+
+class SitesLeituraVelhaTest(unittest.TestCase):
+    def setUp(self):
+        dono(self)
+        self.addCleanup(cerebro._FORA.update, sites=None)
+
+    def _boa(self, min_atras):
+        em = (AGORA - dt.timedelta(minutes=min_atras)).isoformat()
+        return {s: {"status": 200, "versao": "", "em": em} for s in SITES_DONO}
+
+    def test_leitura_boa_com_mais_de_30_min_nao_vale(self):
+        ruim = lambda: {s: {"status": None, "versao": ""} for s in SITES_DONO}  # noqa: E731
+        cerebro._FORA["sites"] = self._boa(31)
+        s = cerebro._ler_sites(AGORA, ler=ruim, novo=lambda: None)
+        self.assertTrue(all(v["status"] is None for v in s.values()))
+        cerebro._FORA["sites"] = boa = self._boa(29)
+        self.assertIs(cerebro._ler_sites(AGORA, ler=ruim, novo=lambda: None), boa)
+
+
+class TopologiaTest(unittest.TestCase):
+    """o grafo nasce da config e do cadastro de quem instalou; o código não tem a topologia de ninguém.
+    Só pela API pública de sempre (montar, eventos_disco): o mesmo teste vale contra o código antigo e falha nele."""
+    SEM_SITES = "_sites"   # o id do lugar dos sites numa instalação sem cadastro ("configure seus sites")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        for p in (patch("hub.orq_estado.limite_codex", return_value=None), patch.object(cerebro, "CODEX_SESSOES", Path("/inexistente"))):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _cadastro(self, n):
+        """n sites ativos (fictícios) no cadastro."""
+        sites = [{"id": f"loja-{i}", "nome": f"Loja {i}", "dominio": f"loja-{i}.exemplo.com", "hosts_alternativos": [],
+                  "repo": {"github": f"acme/loja-{i}"}, "marca": {"nome": f"Loja {i}", "aliases": []}} for i in range(n)]
+
+        def site(i, pasta=None):
+            for s in sites:
+                if s["id"] == i:
+                    return s
+            raise cerebro.cadastro.SiteInvalido(i)
+        p = [patch.object(cerebro.cadastro, "ativos", return_value=sites), patch.object(cerebro.cadastro, "site", site)]
+        for x in p:
+            x.start()
+            self.addCleanup(x.stop)
+
+    def _grafo(self):
+        d = cerebro.montar(self.base, agora=AGORA, fora={"prs": [], "linear": [], "sites": None})
+        return d, {n["id"]: n for n in d["nos"]}
+
+    def test_sem_config_nem_cadastro_uma_conta_e_nenhum_site(self):
+        with patch.object(cerebro.cadastro, "ativos", side_effect=cerebro.cadastro.SiteInvalido("nenhum site")):
+            d, por = self._grafo()
+        self.assertEqual([n["id"] for n in d["nos"] if n["grupo"] == "conta"], ["c1"])
+        self.assertEqual([n for n in d["nos"] if n["grupo"] == "site"], [])
+        self.assertEqual(list(por), ["voce", "orch", "fila", "c1", self.SEM_SITES])   # Você → Orquestrador → Fila → Conta 1
+        self.assertEqual(por[self.SEM_SITES]["rot"], "Configure seus sites")
+        self.assertEqual(d["placar"]["rodape"]["contas_total"], 1)
+        self.assertEqual({tuple(a) for a in d["arestas"]}, {("voce", "orch"), ("voce", "fila"), ("orch", "fila"), ("fila", "c1"), ("c1", "orch")})
+
+    def test_exemplos_so_com_demo(self):
+        """Sem cadastro o hub cai em exemplos/projetos (padrão neutro): só vira site no mapa com o `krohnos demo` ligado."""
+        from hub import demo, sites
+        exemplos = cerebro.RAIZ / "exemplos" / "projetos"
+        with patch.object(sites, "PASTA", exemplos):
+            with patch.object(demo, "ativa", return_value=False):
+                _, por = self._grafo()
+                self.assertEqual([n for n in por.values() if n["grupo"] == "site"], [])
+            with patch.object(demo, "ativa", return_value=True):
+                d, _ = self._grafo()
+                self.assertEqual(sorted(n["rot"] for n in d["nos"] if n["grupo"] == "site"), ["Clínica Exemplo", "Loja Exemplo"])
+
+    def test_duas_contas_e_tres_sites(self):
+        self._cadastro(3)
+        with patch.dict(os.environ, {"KROHNOS_AGENTES_CONTAS": '["1", "2"]'}):
+            d, por = self._grafo()
+        self.assertEqual([n["id"] for n in d["nos"] if n["grupo"] == "conta"], ["c1", "c2"])
+        self.assertEqual([(n["id"], n["rot"]) for n in d["nos"] if n["grupo"] == "site"],
+                         [("loja-0", "Loja 0"), ("loja-1", "Loja 1"), ("loja-2", "Loja 2")])   # rótulo = nome do cadastro
+        self.assertNotIn(self.SEM_SITES, por)
+        self.assertEqual([round(n["y"], 2) for n in d["nos"] if n["grupo"] == "site"], [.07, .42, .77])   # y pelo número real
+        self.assertEqual(d["placar"]["rodape"]["contas_total"], 2)
+        self.assertTrue(all(a in por and b in por for a, b in d["arestas"]))
+        self.assertIn(("deploy", "loja-2"), {tuple(a) for a in d["arestas"]})
+
+    def test_lista_de_sites_da_config_e_fechada(self):
+        """[cerebro.sites] presente: só os ids dela, na ordem dela (o 4º site ativo do cadastro fica fora do desenho)."""
+        self._cadastro(4)
+        with patch.dict(os.environ, {"KROHNOS_CEREBRO_SITES": '{"loja-2": "Dois", "loja-0": "Zero", "loja-1": "Um"}'}):
+            d, por = self._grafo()
+        self.assertEqual([(n["id"], n["rot"]) for n in d["nos"] if n["grupo"] == "site"],
+                         [("loja-2", "Dois"), ("loja-0", "Zero"), ("loja-1", "Um")])
+        self.assertNotIn("loja-3", por)
+        self.assertFalse(any("loja-3" in a for a in d["arestas"]))
+
+    def test_evento_de_no_fora_do_desenho_nao_vai_a_tela(self):
+        """Sem Codex nem CI no desenho: revisão do Codex, PR → codex, commit → ci e merge ci → deploy saem dos eventos."""
+        self._cadastro(1)
+        rev = self.base / "revisoes.jsonl"
+        _jsonl(rev, [{"em": "2026-10-15T15:00:00+00:00", "repo": "loja-0", "pr": 1, "achados": False}])
+        pr = {"number": 7, "title": "Algo (KRN-868)", "url": "u", "headRefName": "x", "repository": {"name": "loja-0"},
+              "createdAt": "2026-10-15T16:00:00Z", "mergedAt": "2026-10-15T16:40:00Z",
+              "commits": {"nodes": [{"commit": {"oid": "abcdef0123", "committedDate": "2026-10-15T15:59:00Z", "status": {"contexts": [
+                  {"context": "local-ci", "state": "SUCCESS", "createdAt": "2026-10-15T16:20:00Z"}]}}}]}}
+        _jsonl(self.base / "claude" / "uso.jsonl", [{"inicio": "2026-10-15T15:00:00+00:00", "conta": "1", "nome": "linear-krn-868"}])
+        with patch.dict(os.environ, {"KROHNOS_CEREBRO_CODEX_REVISOES": str(rev)}):
+            d = cerebro.montar(self.base, agora=AGORA, fora={"prs": [pr], "linear": [], "sites": None})
+        ids = {n["id"] for n in d["nos"]}
+        self.assertTrue(d["eventos"])   # o "pegou" da conta 1 fica
+        self.assertEqual([(e["tipo"], e["de"], e["para"]) for e in d["eventos"] if e["de"] not in ids or e["para"] not in ids], [])
+        self.assertEqual({e["tipo"] for e in d["eventos"]}, {"pegou"})
+
+    def test_sem_config_nenhum_no_fixo_de_infra(self):
+        fixos = {"codex", "ci", "debugger", "pc", "dedicado"}
+        self._cadastro(2)
+        d, por = self._grafo()
+        self.assertEqual(sorted(fixos & set(por)), [])
+        self.assertEqual([n for n in d["nos"] if n["grupo"] == "infra"], [])
+        self.assertFalse(any(a in fixos or b in fixos for a, b in d["arestas"]))
+        # sem caminho configurado não há leitura de revisão do Codex nem alvo de servidor nos eventos
+        r = self.base / "vps" / "resultados" / "x.json"
+        r.parent.mkdir(parents=True)
+        r.write_text(json.dumps({"em": "2026-10-15T15:30:00+00:00", "acao": "deploy-app", "ok": True}))
+        ev, _ = cerebro.eventos_disco(self.base, DESDE)
+        self.assertEqual([(e["de"], e["para"]) for e in ev if e["de"] in fixos or e["para"] in fixos], [])
+        self.assertEqual([(e["de"], e["para"]) for e in ev], [("orch", "orch")])   # a ação do root fica no orquestrador
+
+    def test_infra_e_esteiras_so_com_a_chave(self):
+        self._cadastro(1)
+        with patch.dict(os.environ, {"KROHNOS_CEREBRO_SERVIDOR": "srv-1", "KROHNOS_CEREBRO_DEBUGGER": "true",
+                                     "KROHNOS_AGENTES_FAIXAS": '{"1": "construtor", "2": "codex"}'}):
+            d, por = self._grafo()
+        self.assertIn("srv-1", por)
+        self.assertEqual((por["srv-1"]["grupo"], por["srv-1"].get("papel")), ("infra", "servidor"))
+        self.assertIn("codex", por)            # faixa codex configurada liga o nó
+        self.assertIn("debugger", por)
+        self.assertNotIn("ci", por)            # sem a esteira de CI, sem o nó
+        ar = {tuple(a) for a in d["arestas"]}
+        self.assertIn(("debugger", "orch"), ar)
+        self.assertIn(("c1", "deploy"), ar)    # sem CI, a conta entrega direto no deploy
+        self.assertTrue(all(a in por and b in por for a, b in ar))
+
+    def test_codigo_sem_topologia_nem_caminho_do_dono(self):
+        """Nenhuma tabela de topologia no módulo, nenhum caminho absoluto e nenhum id de site do cadastro escrito no código."""
+        for nome in ("CONTAS", "SITES", "SERVIDORES", "HUB", "REPO_NO", "PROJETO_NO", "LAYOUT", "ARESTAS", "CODEX_REVISOES", "GPU_ESTACAO"):
+            self.assertFalse(hasattr(cerebro, nome), nome)
+        fonte = (cerebro.RAIZ / "hub" / "cerebro.py").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"[\"']/(?:home|srv|opt|var)/[^\"']*", fonte), [])
+        ids = [s["id"] for s in cerebro.cadastro.ativos()]
+        self.assertTrue(ids)
+        self.assertEqual([i for i in ids if f'"{i}"' in fonte or f"'{i}'" in fonte], [])
+        self.assertNotIn(f'"{DONO["KROHNOS_CEREBRO_SERVIDOR"]}"', fonte)   # o id do servidor é da config
+
+if __name__ == "__main__":
+    unittest.main()

@@ -30,33 +30,33 @@ def _grava(arq, conteudo):
 
 
 def fixtures(base):
-    _grava(base / "snapshots/2026-10-08/psite13-clarity.json", [{"metricName": "Antiga"}])
-    _grava(base / "snapshots/2026-10-09/psite13-clarity.json", [{"metricName": "DeadClickCount", "information": [{"sessionsCount": 44}]}])
-    _grava(base / "verificador/psite13/latest.json", {"site": "psite13", "data": "2026-10-08", "itens": [{"n": 1, "ok": True}], "pioras": []})
-    _grava(base / "verificador/psite13/latest.md", "# Auditoria\n" + "x" * 30000)
-    _grava(base / "gsc/psite13/latest.json", {"site": "psite13", "data": "2026-10-08", "periodo": "p", "oportunidades": [
+    _grava(base / "snapshots/2026-10-08/psite15-clarity.json", [{"metricName": "Antiga"}])
+    _grava(base / "snapshots/2026-10-09/psite15-clarity.json", [{"metricName": "DeadClickCount", "information": [{"sessionsCount": 44}]}])
+    _grava(base / "verificador/psite15/latest.json", {"site": "psite15", "data": "2026-10-08", "itens": [{"n": 1, "ok": True}], "pioras": []})
+    _grava(base / "verificador/psite15/latest.md", "# Auditoria\n" + "x" * 30000)
+    _grava(base / "gsc/psite15/latest.json", {"site": "psite15", "data": "2026-10-08", "periodo": "p", "oportunidades": [
         {"tipo": "vazamento", "busca": "a"}, {"tipo": "buraco", "busca": "b"}, {"tipo": "vazamento", "busca": "c"}]})
-    busca = base / "aio/psite13/psicologo-brasileiro-online"
+    busca = base / "aio/psite15/psicologo-brasileiro-online"
     _grava(busca / "2026-10-06.json", {"data": "2026-10-06", "keyword": "velha"})
     _grava(busca / "2026-10-07.json", {"data": "2026-10-07", "keyword": "psicólogo brasileiro online", "local": "brasil",
-                                       "tem_ai_overview": True, "citado": ["psite13-com.example"],
-                                       "fontes": [{"domain": "psite13-com.example", "url": "https://psite13-com.example/x"}],
+                                       "tem_ai_overview": True, "citado": ["site-e.exemplo.com"],
+                                       "fontes": [{"domain": "site-e.exemplo.com", "url": "https://site-e.exemplo.com/x"}],
                                        "organico": [{"rank": 1, "domain": "outro-com.example", "url": "https://outro-com.example/"},
-                                                    {"rank": 4, "domain": "www.psite13-com.example", "url": "https://www.psite13-com.example/"}]})
-    _grava(base / "aio/psite13/painel/history.jsonl", "{}\n")
-    _grava(base / "aio/psite13/ciclo-2026-10-01.md", "velho")
-    _grava(base / "aio/psite13/ciclo-2026-10-08.md", "análise nova")
-    _grava(base / "ranking/psite13/2026-10-04.json", {"site": "psite13", "dia": "2026-10-04", "fonte": "dataforseo", "local": 2076,
+                                                    {"rank": 4, "domain": "www.site-e.exemplo.com", "url": "https://www.site-e.exemplo.com/"}]})
+    _grava(base / "aio/psite15/painel/history.jsonl", "{}\n")
+    _grava(base / "aio/psite15/ciclo-2026-10-01.md", "velho")
+    _grava(base / "aio/psite15/ciclo-2026-10-08.md", "análise nova")
+    _grava(base / "ranking/psite15/2026-10-04.json", {"site": "psite15", "dia": "2026-10-04", "fonte": "dataforseo", "local": 2076,
                                                        "dispositivo": "mobile", "profundidade": 40,
-                                                       "itens": [{"palavra": "cliente g", "posicao": 3, "url": "https://psite13-com.example/"}]})
+                                                       "itens": [{"palavra": "cliente g", "posicao": 3, "url": "https://site-e.exemplo.com/"}]})
     (base / "bi").mkdir()
     c = sqlite3.connect(base / "bi/metricas.db")
     c.execute("create table fato(dia text, negocio text, fonte text, metrica text, dim text default '', valor real, "
               "primary key (dia, negocio, fonte, metrica, dim))")
     c.executemany("insert into fato values (?, ?, ?, ?, ?, ?)", [
-        ("2026-10-01", "psite13", "ga4", "sessoes", "", 10), ("2026-10-03", "psite13", "ga4", "sessoes", "", 5),
-        ("2026-10-01", "psite13", "ga4", "sessoes", "organic", 7), ("2026-10-03", "psite13", "ga4", "sessoes", "organic", 1),
-        ("2026-10-02", "psite13", "gsc", "cliques", "", 3), ("2026-10-02", "asite01", "ga4", "sessoes", "", 99)])
+        ("2026-10-01", "psite15", "ga4", "sessoes", "", 10), ("2026-10-03", "psite15", "ga4", "sessoes", "", 5),
+        ("2026-10-01", "psite15", "ga4", "sessoes", "organic", 7), ("2026-10-03", "psite15", "ga4", "sessoes", "organic", 1),
+        ("2026-10-02", "psite15", "gsc", "cliques", "", 3), ("2026-10-02", "asite01", "ga4", "sessoes", "", 99)])
     c.commit()
     c.close()
 
@@ -69,7 +69,7 @@ class McpTest(unittest.TestCase):
         for p in (mock.patch.dict(os.environ, {"HUB_DATA": str(self.base), "DATAFORSEO_AUTH": CHAVE}),
                   mock.patch.object(http.client, "HTTPConnection", side_effect=AssertionError("conexão de saída proibida")),
                   mock.patch.object(dataforseo, "post", side_effect=AssertionError("DataForSEO sem mock")),
-                  mock.patch.object(google, "conta_servico", return_value={"client_email": "user11@example.com", "private_key": "PK"})):
+                  mock.patch.object(google, "conta_servico", return_value={"client_email": "user15@example.com", "private_key": "PK"})):
             p.start()
             self.addCleanup(p.stop)
         self.srv = mcp_proxy.criar_servidor("127.0.0.1", 0)
@@ -142,27 +142,27 @@ class McpTest(unittest.TestCase):
 
     def test_b_site_por_id_dominio_e_nome(self):
         with mock.patch.object(google, "desempenho_gsc", return_value={"ok": True, "rows": [1]}) as m:
-            for args in ({"site": "psite13"}, {"projectId": "psite13-com.example"}, {"site": "Cliente G"},
-                         {"domain": "https://www.psite13-com.example/blog"}, {"site": "PSITE13"}):
+            for args in ({"site": "psite15"}, {"projectId": "site-e.exemplo.com"}, {"site": "Cliente G"},
+                         {"domain": "https://www.site-e.exemplo.com/blog"}, {"site": "PSITE15"}):
                 self.assertEqual(self.dados("get_search_console_performance", dateRange="last_7_days", **args), {"ok": True, "rows": [1]})
-                self.assertEqual(m.call_args[0][0], "sc-domain:psite13-com.example")
+                self.assertEqual(m.call_args[0][0], "sc-domain:site-e.exemplo.com")
                 self.assertEqual(m.call_args[0][1]["dateRange"], "last_7_days")
 
     def test_ga4_oportunidades_inspecao_e_sem_acesso(self):
         with mock.patch.object(google, "relatorio_ga4", return_value={"x": 1}) as g:
-            self.dados("get_google_analytics_site_search", site="psite13")
+            self.dados("get_google_analytics_site_search", site="psite15")
         self.assertEqual(g.call_args[0][0], "100000006")
         self.assertEqual(g.call_args[0][2], "get_google_analytics_site_search")
         with mock.patch.object(google, "oportunidades_busca", return_value={"o": 1}) as o:
-            self.dados("get_search_opportunities", site="psite13")
-        self.assertEqual(o.call_args[0][:2], ("sc-domain:psite13-com.example", "100000006"))
-        with mock.patch.object(google, "desempenho_gsc", side_effect=google.SemAcesso("sc-domain:x", "user11@example.com")):
-            d = self.dados("get_search_console_performance", site="psite13")
+            self.dados("get_search_opportunities", site="psite15")
+        self.assertEqual(o.call_args[0][:2], ("sc-domain:site-e.exemplo.com", "100000006"))
+        with mock.patch.object(google, "desempenho_gsc", side_effect=google.SemAcesso("sc-domain:x", "user15@example.com")):
+            d = self.dados("get_search_console_performance", site="psite15")
         self.assertEqual(d["reason"], "hub_sem_acesso")
-        self.assertIn("user11@example.com", d["comoResolver"])
-        self.assertTrue(d["dadosDoHub"].endswith("gsc/psite13/latest.md"))
+        self.assertIn("user15@example.com", d["comoResolver"])
+        self.assertTrue(d["dadosDoHub"].endswith("gsc/psite15/latest.md"))
         with mock.patch.object(google, "desempenho_gsc", side_effect=google.ErroCredencial("PK secreta")):
-            r = self.chama("get_search_console_performance", site="psite13")
+            r = self.chama("get_search_console_performance", site="psite15")
         self.assertTrue(r["isError"])
         self.assertIn("credencial do Google", r["content"][0]["text"])
         self.assertNotIn("secreta", json.dumps(r))
@@ -170,8 +170,8 @@ class McpTest(unittest.TestCase):
     def test_c_site_desconhecido_e_uuid(self):
         d = self.dados("get_site_audit", site="nao-existe")
         self.assertEqual((d["ok"], d["reason"]), (False, "site_desconhecido"))
-        self.assertIn("psite13", d["sitesDoHub"])
-        self.assertIn("psite13", d["comoResolver"])
+        self.assertIn("psite15", d["sitesDoHub"])
+        self.assertIn("psite15", d["comoResolver"])
         self.assertNotIn("OpenSEO", d["comoResolver"])
         d = self.dados("get_search_console_performance", projectId="e8bb077e-a115-4cd0-acc3-04b5add8df27")
         self.assertEqual(d["reason"], "site_desconhecido")
@@ -189,57 +189,57 @@ class McpTest(unittest.TestCase):
 
     def test_list_projects_e_contexto(self):
         ps = {p["id"]: p for p in self.dados("list_projects")["projects"]}
-        self.assertEqual(ps["psite13"]["dominio"], "psite13-com.example")
-        self.assertEqual(ps["psite13"]["fontes"], {"gsc": True, "ga4": True, "clarity": True, "ranking": True})
-        c = self.dados("get_project_context", site="psite13")
-        self.assertEqual((c["id"], c["conselho"]), ("psite13", "CFP"))
+        self.assertEqual(ps["psite15"]["dominio"], "site-e.exemplo.com")
+        self.assertEqual(ps["psite15"]["fontes"], {"gsc": True, "ga4": True, "clarity": True, "ranking": True})
+        c = self.dados("get_project_context", site="psite15")
+        self.assertEqual((c["id"], c["conselho"]), ("psite15", "CFP"))
         self.assertIn("Zenklub", c["concorrentes"])
-        self.assertIn("palavras 1 psite13", c["ranking"]["palavras"])
-        self.assertEqual(c["ids"]["gsc"], "sc-domain:psite13-com.example")
+        self.assertIn("palavras 1 psite15", c["ranking"]["palavras"])
+        self.assertEqual(c["ids"]["gsc"], "sc-domain:site-e.exemplo.com")
         self.assertNotIn("openseo", c["ids"])
-        self.assertTrue(c["dados"]["gsc"].endswith("gsc/psite13/latest.md"))
+        self.assertTrue(c["dados"]["gsc"].endswith("gsc/psite15/latest.md"))
 
     def test_e_leitura_dos_arquivos_do_hub(self):
-        d = self.dados("get_clarity_insights", site="psite13")
+        d = self.dados("get_clarity_insights", site="psite15")
         self.assertEqual((d["ok"], d["coletadoEm"], d["janelaDias"]), (True, "2026-10-09", 3))
         self.assertEqual(d["metricas"][0]["metricName"], "DeadClickCount")
         self.assertEqual(self.dados("get_clarity_insights", site="asite01")["reason"], "sem_clarity")
-        d = self.dados("get_site_audit", site="psite13")
+        d = self.dados("get_site_audit", site="psite15")
         self.assertEqual((d["ok"], d["data"], d["itens"][0]["n"]), (True, "2026-10-08", 1))
         self.assertEqual(len(d["relatorio"]), 20000)
         self.assertEqual(self.dados("get_site_audit", site="asite01")["reason"], "sem_auditoria")
-        d = self.dados("get_hub_opportunities", site="psite13", tipo="vazamento", limite=1)
+        d = self.dados("get_hub_opportunities", site="psite15", tipo="vazamento", limite=1)
         self.assertEqual([o["busca"] for o in d["oportunidades"]], ["a"])
         self.assertEqual(d["total"], 2)
-        self.assertEqual(len(self.dados("get_hub_opportunities", site="psite13")["oportunidades"]), 3)
-        d = self.dados("get_ai_overview", site="psite13")
+        self.assertEqual(len(self.dados("get_hub_opportunities", site="psite15")["oportunidades"]), 3)
+        d = self.dados("get_ai_overview", site="psite15")
         self.assertEqual(d["analise"], "análise nova")
         self.assertEqual(len(d["buscas"]), 1)
         b = d["buscas"][0]
         self.assertEqual((b["data"], b["busca"], b["temAiOverview"], b["citado"], b["posicaoOrganica"]),
                          ("2026-10-07", "psicólogo brasileiro online", True, True, 4))
-        self.assertEqual(b["fontes"], ["https://psite13-com.example/x"])
+        self.assertEqual(b["fontes"], ["https://site-e.exemplo.com/x"])
         self.assertEqual(self.dados("get_ai_overview", site="asite01")["reason"], "sem_aio")
-        d = self.dados("get_rank_tracker", site="psite13")
+        d = self.dados("get_rank_tracker", site="psite15")
         self.assertEqual((d["ok"], d["palavras"][0]["posicao"]), (True, 3))
         self.assertEqual(self.dados("get_rank_tracker", site="asite01")["reason"], "sem_medicao")
 
     def test_f_bi(self):
-        d = self.dados("get_bi_metrics", site="psite13")
+        d = self.dados("get_bi_metrics", site="psite15")
         self.assertEqual(d["metricas"], [
             {"fonte": "ga4", "metrica": "sessoes", "primeiroDia": "2026-10-01", "ultimoDia": "2026-10-03", "dias": 2},
             {"fonte": "gsc", "metrica": "cliques", "primeiroDia": "2026-10-02", "ultimoDia": "2026-10-02", "dias": 1}])
-        d = self.dados("get_bi_metrics", site="psite13", fonte="ga4", metrica="sessoes", de="2026-10-01", ate="2026-10-03")
+        d = self.dados("get_bi_metrics", site="psite15", fonte="ga4", metrica="sessoes", de="2026-10-01", ate="2026-10-03")
         self.assertEqual(d["serie"], [{"dia": "2026-10-01", "valor": 10}, {"dia": "2026-10-02", "valor": None},
                                       {"dia": "2026-10-03", "valor": 5}])
         self.assertEqual((d["soma"], d["diasComDado"]), (15, 2))
         self.assertEqual(d["dims"], [{"dim": "organic", "valor": 8}])
-        d = self.dados("get_bi_metrics", site="psite13", fonte="ga4", metrica="sessoes", de="2026-10-01", ate="2026-10-02", dim="organic")
+        d = self.dados("get_bi_metrics", site="psite15", fonte="ga4", metrica="sessoes", de="2026-10-01", ate="2026-10-02", dim="organic")
         self.assertEqual(d["serie"], [{"dia": "2026-10-01", "valor": 7}, {"dia": "2026-10-02", "valor": None}])
         self.assertNotIn("dims", d)
-        self.assertTrue(self.chama("get_bi_metrics", site="psite13", fonte="ga4", metrica="sessoes", de="ontem")["isError"])
+        self.assertTrue(self.chama("get_bi_metrics", site="psite15", fonte="ga4", metrica="sessoes", de="ontem")["isError"])
         (self.base / "bi/metricas.db").unlink()
-        self.assertEqual(self.dados("get_bi_metrics", site="psite13")["reason"], "sem_armazem")
+        self.assertEqual(self.dados("get_bi_metrics", site="psite15")["reason"], "sem_armazem")
 
     def test_g_dataforseo(self):
         tarefa = {"status_code": 20000, "status_message": "Ok.", "cost": 0.0101, "result": [{"items": [
@@ -260,14 +260,14 @@ class McpTest(unittest.TestCase):
         self.assertEqual(d["itens"], [{"type": "organic", "rank_group": 1, "domain": "a-com.example", "url": "https://a-com.example/", "title": "A"}])
         with mock.patch.object(dataforseo, "post", return_value=[{"status_code": 20000, "cost": 0.01, "result": [{"items": [
                 {"keyword_data": {"keyword": "k", "keyword_info": {"search_volume": 10, "cpc": None}},
-                 "ranked_serp_element": {"serp_item": {"rank_group": 2, "url": "https://psite13-com.example/"}}}]}]}]) as p:
-            d = self.dados("get_ranked_keywords", site="psite13")
-        self.assertEqual(p.call_args[0][1][0]["target"], "psite13-com.example")
-        self.assertEqual(d["itens"], [{"keyword": "k", "rank_group": 2, "url": "https://psite13-com.example/", "search_volume": 10, "cpc": None}])
+                 "ranked_serp_element": {"serp_item": {"rank_group": 2, "url": "https://site-e.exemplo.com/"}}}]}]}]) as p:
+            d = self.dados("get_ranked_keywords", site="psite15")
+        self.assertEqual(p.call_args[0][1][0]["target"], "site-e.exemplo.com")
+        self.assertEqual(d["itens"], [{"keyword": "k", "rank_group": 2, "url": "https://site-e.exemplo.com/", "search_volume": 10, "cpc": None}])
         with mock.patch.object(dataforseo, "post", return_value=[{"status_code": 20000, "cost": 0.02, "result": [{"items": [
                 {"se_type": "google", "metrics": {"organic": {"etv": 12.5, "count": 7, "pos_1": 1, "pos_2_3": 2, "impressions_etv": 9},
                                                   "paid": {"etv": 0, "count": 0}}}]}]}]):
-            d = self.dados("get_domain_overview", target="psite13-com.example")
+            d = self.dados("get_domain_overview", target="site-e.exemplo.com")
         self.assertEqual(d["organico"], {"etv": 12.5, "count": 7, "pos_1": 1, "pos_2_3": 2})
         self.assertIsNone(d["pago"])
         with mock.patch.object(dataforseo, "post", return_value=[{"status_code": 20000, "cost": 0.01, "result": [{"items": [
@@ -279,8 +279,8 @@ class McpTest(unittest.TestCase):
 
     def test_dataforseo_alvo_por_target_domain_e_site(self):
         ok = [{"status_code": 20000, "cost": 0, "result": [{"items": []}]}]
-        casos = [({"site": "psite13", "domain": "zenklub-com-br.example"}, "zenklub-com-br.example"), ({"domain": "zenklub-com-br.example"}, "zenklub-com-br.example"),
-                 ({"site": "psite13", "target": "a-com.example", "domain": "b-com.example"}, "a-com.example"), ({"site": "psite13"}, "psite13-com.example")]
+        casos = [({"site": "psite15", "domain": "zenklub-com-br.example"}, "zenklub-com-br.example"), ({"domain": "zenklub-com-br.example"}, "zenklub-com-br.example"),
+                 ({"site": "psite15", "target": "a-com.example", "domain": "b-com.example"}, "a-com.example"), ({"site": "psite15"}, "site-e.exemplo.com")]
         for args, esperado in casos:
             with mock.patch.object(dataforseo, "post", return_value=ok) as p:
                 self.assertTrue(self.dados("get_ranked_keywords", **args)["ok"])
@@ -288,19 +288,19 @@ class McpTest(unittest.TestCase):
         self.assertEqual(self.dados("get_domain_overview", site="nao-existe", target="a-com.example")["reason"], "site_desconhecido")
 
     def test_site_com_barra_nao_vira_host(self):
-        for v in ("asite01/../fsite05", "fsite05/qualquer"):
+        for v in ("asite01/../fsite06", "fsite06/qualquer"):
             self.assertEqual(self.dados("get_project_context", site=v)["reason"], "site_desconhecido")
-        self.assertEqual(self.dados("get_project_context", site="https://www.psite13-com.example/blog")["id"], "psite13")
+        self.assertEqual(self.dados("get_project_context", site="https://www.site-e.exemplo.com/blog")["id"], "psite15")
 
     def test_sem_permissao_e_bi_sem_fato(self):
         with mock.patch.object(Path, "read_text", side_effect=PermissionError):
-            d = self.dados("get_clarity_insights", site="psite13")
+            d = self.dados("get_clarity_insights", site="psite15")
         self.assertEqual((d["ok"], d["reason"]), (False, "sem_permissao"))
         self.assertIn("Ana", d["comoResolver"])
         arq = self.base / "bi/metricas.db"
         arq.unlink()
         sqlite3.connect(arq).close()  # banco sem a tabela fato
-        self.assertEqual(self.dados("get_bi_metrics", site="psite13")["reason"], "sem_armazem")
+        self.assertEqual(self.dados("get_bi_metrics", site="psite15")["reason"], "sem_armazem")
 
     def test_dataforseo_erro_sem_chave(self):
         with mock.patch.object(dataforseo, "post", side_effect=RuntimeError("DataForSEO 40100: não autorizado")):
@@ -320,11 +320,11 @@ class McpTest(unittest.TestCase):
             return [{"status_code": 20000, "cost": 0.002, "result": [{"items": []}]}]
         with mock.patch.object(dataforseo, "post", side_effect=post):
             corpo = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                                "params": {"name": "get_serp_results", "arguments": {"keyword": "x", "site": "psite13"}}})
+                                "params": {"name": "get_serp_results", "arguments": {"keyword": "x", "site": "psite15"}}})
             self.req("POST", "/mcp", corpo, {"Content-Type": "application/json", "Accept": "application/json",
                                              "X-Origem": "seo-local<script>"})
         self.assertEqual([(v["origem"], v["site"], v["cliente"]) for v in vistos],
-                         [("mcp:get_serp_results", "psite13", "seo-localscript")])
+                         [("mcp:get_serp_results", "psite15", "seo-localscript")])
 
     def test_h_sse_so_quando_pede_so_sse(self):
         _, h, corpo = self.rpc("ping", accept="text/event-stream")
@@ -359,18 +359,18 @@ class McpTest(unittest.TestCase):
 
     def test_log_sem_argumentos(self):
         with mock.patch.object(mcp_proxy, "_log") as lg:
-            self.chama("get_site_audit", site="psite13", segredo="nao-logar")
+            self.chama("get_site_audit", site="psite15", segredo="nao-logar")
             for _ in range(100):  # o log sai depois da resposta, na thread do servidor
                 if lg.call_args:
                     break
                 time.sleep(0.02)
         linha = lg.call_args[0][0]
-        self.assertRegex(linha, r"^tool=get_site_audit site=psite13 resultado=ok ms=\d+$")
+        self.assertRegex(linha, r"^tool=get_site_audit site=psite15 resultado=ok ms=\d+$")
         self.assertNotIn("nao-logar", linha)
 
     def test_l_excecao_vira_isError_sem_traceback(self):
         with mock.patch.object(mcp_proxy.ranking, "ler", side_effect=ValueError("detalhe interno")):
-            r = self.chama("get_rank_tracker", site="psite13")
+            r = self.chama("get_rank_tracker", site="psite15")
         self.assertTrue(r["isError"])
         self.assertNotIn("detalhe interno", json.dumps(r))
 

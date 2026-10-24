@@ -19,13 +19,13 @@ agents: the queue, the rules, the gates and the memory that make many agents pro
 ## What it does
 
 ```
-You (WhatsApp / panel / Linear)
+You (WhatsApp / panel; Linear optional)
    │  plain-language request
    ▼
 Orchestrator ──► task contract (outcome, scope, what must not change, proof of done)
    │
    ▼
-Queue (Linear) ──► 4 agent accounts, one git worktree each (builder / operator lanes)
+Queue (built-in; Linear optional) ──► 4 agent accounts, one git worktree each (builder / operator lanes)
    │
    ▼
 Gates: tests (local CI) ─► second-model review (Codex) ─► merge ─► deploy ─► "is it live?" check
@@ -91,6 +91,31 @@ Screenshots of the panel with the demo data (dark and light theme):
 ![Goals, light theme](docs/img/painel-metas-claro.png)
 ![Proposals, dark theme](docs/img/painel-propostas-escuro.png)
 ![Proposals, light theme](docs/img/painel-propostas-claro.png)
+
+## Accounts you need
+
+| Account | Needed? | What for |
+|---|---|---|
+| Claude Code (1 to 4 accounts) | Required | The agents that do the work |
+| GitHub | Optional | Pull requests, the review and merge gates |
+| Linear | **Optional** | A hosted issue tracker. Without it the tasks live in the hub's own queue (panel, Issues) |
+| Codex | Optional | The second-model reviewer |
+
+## Issue queue
+
+The hub keeps its own issue queue (SQLite, in the data folder), so the whole cycle (request, issue, schedule, PR,
+Done) runs without paying for or depending on an outside service. It is the default of a new install
+(`[issues] provedor = "local"` in `krohnos.toml`; the ids look like `KRO-1`, set by `[issues] prefixo`). The panel shows
+it at **Issues** (board by state, conversation, move).
+
+- **Use Linear instead:** save the Linear API key in the first-run assistant (or `linear.env`) and set
+  `[issues] provedor = "linear"`. Nothing else changes for the agents.
+- **Migrate from Linear to the local queue:** `python3 -m hub.fila_issues importar-linear` shows what would be copied
+  (open issues by default, `--todas` adds Done and Canceled); add `--confirmar` to write it. Ids (``), state,
+  labels, priority, project and repo, comments and dates are kept, and running it twice duplicates nothing. Then set
+  `[issues] provedor = "local"`.
+- **What only exists in Linear:** the live agent session on the issue, project updates and the plan fronts by `plano-`
+  label. The hub reports these as unavailable instead of failing when the queue is local.
 
 ## What is inside
 

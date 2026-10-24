@@ -118,12 +118,15 @@ def sites(pasta=None, traefik_dir="/etc/dokploy/traefik/dynamic"):
 
 
 def _cerebro():
-    """Quem é quem e a infra que não muda toda semana: vem do cerebro.json da raiz (como o conselhos.json), não do código.
-    Não fica no hub.json: em produção ele é a cópia privada (/opt/repo-privado), que não acompanha o repo."""
-    try:
-        return json.loads((RAIZ / "cerebro.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+    """Quem é quem e a infra que não muda toda semana: vem de <caminhos.privado>/cerebro.json (nomes e hosts reais são do
+    repo privado); sem ele, do cerebro.json da raiz do repo; sem nenhum, vazio. Não fica no hub.json (cópia privada na VPS)."""
+    privado = config.get("caminhos.privado")
+    for p in ([Path(privado).expanduser() / "cerebro.json"] if privado else []) + [RAIZ / "cerebro.json"]:
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return {}
 
 def servidor_hub():
     return _vps_local().split(":", 1)[1]
@@ -502,6 +505,36 @@ def receitas():
     return [G.unidade("receitas:todas", ents, rels, peds)]
 
 
+# ---- referências conferidas do moedor: docs/referencias/<tema>.jsonl de cada repo, tipo `referencia` ----
+MAX_REFS_ENTIDADE = 3000
+
+
+def referencias(repos=None):
+    """Uma entidade por (repo, tema); cada referência conferida (título, autor, ano, trecho literal, link) é um pedaço buscável."""
+    try:
+        from hub import busca as K
+    except ImportError as _e:  # a busca é do repo privado: fora do snapshot público
+        from hub import faltou
+        if not faltou(_e, "hub.busca"):
+            raise
+        return []
+    ents, rels, peds = [], [], []
+    por = {}
+    for d in K.referencias(repos):
+        por.setdefault(d["caminho"], []).append(d)
+    for caminho, docs in sorted(por.items()):
+        tema = Path(caminho).stem
+        rid = f"referencia:{caminho}"
+        ents.append({"tipo": "referencia", "chave": caminho, "nome": f"Referências conferidas: {tema} ({caminho.split('/')[0]})", "alias": [tema, caminho],
+                     "data": max(d["data"] for d in docs), "caminho": caminho,
+                     "desc": f"{len(docs)} referências com trecho literal conferido na fonte (moedor, KRN-1135), tema {tema}."})
+        for d in docs[:MAX_REFS_ENTIDADE]:
+            peds.append((rid, "trecho", f"{d['pedacos'][0][1]}\nFonte: {d['url']}"))
+        for p in filter(None, docs[0]["projeto"].split(",")):
+            rels.append((rid, "aplica_em", f"projeto:{p}"))
+    return [G.unidade("referencias:todas", ents, rels, peds)]
+
+
 # ---- wiki compilada: páginas de estado atual, tipo `pagina` ----
 
 def wiki():
@@ -557,9 +590,9 @@ def _nomes_do_arquivo(p):
     return out
 
 
-# pedaço do caminho → projeto (para "a credencial do Supabase da fsite05" achar /root/banco-fsite05/segredos.env)
-PROJETO_DO_CAMINHO = [(r"fsite05", "fsite05", "Cliente A"), (r"asite01", "asite01", "Cliente C"), (r"clienteh|clientej", "clientej", "ClienteJ"),
-                      (r"clientei", "clientei", "ClienteI Pessoa Teixeira"), (r"psite13", "psite13", "Cliente G"), (r"clientee", "clientee", "ClienteE & Moraes")]
+# pedaço do caminho → projeto (para "a credencial do Supabase da fsite06" achar /root/banco-fsite06/segredos.env)
+PROJETO_DO_CAMINHO = [(r"fsite06", "fsite06", "Cliente A"), (r"asite01", "asite01", "Cliente C"), (r"clienteh|clientej", "clientej", "ClienteJ"),
+                      (r"clientei", "clientei", "ClienteI Pessoa Teixeira"), (r"psite15", "psite15", "Cliente G"), (r"clientee", "clientee", "ClienteE & Moraes")]
 
 
 def _segredo(nome, caminho, vps, onde):
@@ -808,12 +841,12 @@ def linear(consulta=None, completo=False, db=None):
 # ---- orquestra ----
 
 FONTES = {"sites": sites, "pessoas": pessoas, "infra": infra, "repos": repos, "memoria": memoria, "orch": orch, "receitas": receitas,
-          "wiki": wiki, "segredos": segredos, "relatorios": relatorios, "docker": docker, "dokploy_fontes": dokploy_fontes}
+          "referencias": referencias, "wiki": wiki, "segredos": segredos, "relatorios": relatorios, "docker": docker, "dokploy_fontes": dokploy_fontes}
 PREFIXO = {"sites": "sites:", "pessoas": "pessoas:", "infra": "infra:", "repos": "repo:", "memoria": "memoria:", "orch": "orch:", "receitas": "receitas:",
-           "wiki": "pagina:", "segredos": "segredos:", "relatorios": "relatorios:", "docker": "docker:", "dokploy_fontes": "dokploy:"}
-GRUPOS = {"rapido": ["sites", "pessoas", "infra", "repos", "memoria", "orch", "receitas", "wiki", "segredos", "relatorios", "linear"],
+           "referencias": "referencias:", "wiki": "pagina:", "segredos": "segredos:", "relatorios": "relatorios:", "docker": "docker:", "dokploy_fontes": "dokploy:"}
+GRUPOS = {"rapido": ["sites", "pessoas", "infra", "repos", "memoria", "orch", "receitas", "referencias", "wiki", "segredos", "relatorios", "linear"],
           "diario": ["dokploy_fontes", "docker", "infra", "segredos"],
-          "tudo": ["sites", "pessoas", "infra", "repos", "memoria", "orch", "receitas", "wiki", "segredos", "relatorios", "dokploy_fontes", "docker", "linear"]}
+          "tudo": ["sites", "pessoas", "infra", "repos", "memoria", "orch", "receitas", "referencias", "wiki", "segredos", "relatorios", "dokploy_fontes", "docker", "linear"]}
 
 
 def atualizar(alvos, db=None, embed=G.embeddar, log=print):

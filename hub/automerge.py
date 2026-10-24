@@ -1,10 +1,12 @@
 """Merge mecânico: issue In Review com label `merge`, PR aberto, local-ci verde (ou repo sem CI) e Revisão
 do Codex do commit da ponta sem achados sérios → o hub manda a execução fazer o merge, sem LLM no meio. Uma vez por ponta."""
+import datetime as dt
 import json
 import re
 import os
+import time
 
-from hub import faltou, github_api, config, conta, debugger, esperas, incidentes, linear, memorias, recibo, revisor_merge
+from hub import faltou, github_api, config, conta, consertos, debugger, esperas, incidentes, linear, memorias, recibo, revisor_merge
 
 try:  # os evals de agente são nossos: fora do snapshot público não há portão de evals no merge
     from hub.evals import vigia
@@ -30,6 +32,35 @@ def _estado(base_dados=None):
         return {}
 
 
+DESCANSO_PR = 300  # s: PR ainda não pronto não é reavaliado antes disso (231 chamadas gh em série por passada, 147 s)
+DONOS_EXTERNOS = {"clientee-moraes-site": "jpexemplo"}  # repo que não está na org do hub (a org do hub dá 404 nele)
+
+
+def repo_de(nome):
+    """`<dono>/<nome>`: a org do hub, ou o dono real do repo que mora fora dela."""
+    return f"{DONOS_EXTERNOS[nome]}/{nome}" if nome in DONOS_EXTERNOS else config.repo(nome)
+
+
+def _arq_visto(base_dados=None):
+    return conta.pasta(base_dados) / "automerge-visto.json"
+
+
+def _ler_visto(base_dados=None):
+    try:
+        return json.loads(_arq_visto(base_dados).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _gravar_visto(visto, agora, base_dados=None):
+    visto = {k: v for k, v in visto.items() if agora - v < 86400}
+    arq = _arq_visto(base_dados)
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    tmp = arq.with_suffix(".tmp")
+    tmp.write_text(json.dumps(visto), encoding="utf-8")
+    os.replace(tmp, arq)
+
+
 def _gravar(est, base_dados=None):
     arq = _arq(base_dados)
     arq.parent.mkdir(parents=True, exist_ok=True)
@@ -41,8 +72,8 @@ def _gravar(est, base_dados=None):
 OK_CHECK = ("success", "skipped", "neutral")
 
 
-def _pronto(repo, n, sha, chamar, usa_ci):
-    """(nota do CI, quem revisou) se o PR pode ir; None se não."""
+def _ci_verde(repo, sha, chamar, usa_ci):
+    """Nota do CI se a ponta está verde (checks do GitHub e, no repo com local-ci, o status); None se não."""
     runs = chamar(f"repos/{repo}/commits/{sha}/check-runs").get("check_runs") or []
     if any(r.get("status") != "completed" or r.get("conclusion") not in OK_CHECK for r in runs):
         return None
@@ -51,9 +82,15 @@ def _pronto(repo, n, sha, chamar, usa_ci):
                    if s.get("context") == esperas.CONTEXTO), None)
         if not ci or ci.get("state") != "success":
             return None
-        nota = "local-ci verde"
-    else:
-        nota = "checks do GitHub verdes" if runs else "repo sem CI"
+        return "local-ci verde"
+    return "checks do GitHub verdes" if runs else "repo sem CI"
+
+
+def _pronto(repo, n, sha, chamar, usa_ci):
+    """(nota do CI, quem revisou) se o PR pode ir; None se não."""
+    nota = _ci_verde(repo, sha, chamar, usa_ci)
+    if not nota:
+        return None
     rev = esperas._revisao(esperas.comentarios_pr(repo, n, chamar), sha, conta.agora())
     corpo = (rev or {}).get("body") or ""
     if LIMPA not in corpo or ACHADO in corpo or "revisão parcial" in corpo:
@@ -70,20 +107,32 @@ def evals_exigido(repo, sha, diff, chamar):
 
 
 def vigiar(consulta=None, chamar=None, base_dados=None, ocupadas=(), log=print, falar_fn=None, reabrir_fn=None,
-           aceitar=None, diff_fn=None):
+           aceitar=None, diff_fn=None, prazo=None, agora=None):
     """Devolve as Tarefas aceitas. `aceitar(tarefa)` é quem enfileira (disjuntor incluso) e diz se entrou: só então
-    o hub comenta e grava a ponta como mandada; recusada, tenta de novo no próximo tick. Erro de rede num PR: loga e segue."""
+    o hub comenta e grava a ponta como mandada; recusada, tenta de novo no próximo tick. Erro de rede num PR: loga e segue.
+    PR não pronto descansa DESCANSO_PR s (sem chamada ao GitHub) e `prazo` (time.monotonic) corta a passada;
+    o que ficou de fora é o primeiro da próxima, porque quem foi avaliado descansa."""
     aceitar, diff_fn = aceitar or (lambda t: True), diff_fn or memorias.diff_do_pr
     chamar, falar_fn, reabrir_fn = chamar or (lambda caminho: github_api.get(caminho, consumidor="automerge")), falar_fn or linear.falar, reabrir_fn or linear.reabrir
     est, voltar, ci_repo = _estado(base_dados), [], {}
+    agora = time.time() if agora is None else agora
+    visto = _ler_visto(base_dados)
     for issue in revisor_merge.em_revisao(consulta):
         ident = issue["identifier"]
         if "merge" not in {l["name"] for l in issue["labels"]["nodes"]} or f"linear-{ident.lower()}" in ocupadas \
                 or esperas.ler(ident, base_dados):  # na fila/rodando ou com espera gravada: a execução volta sozinha
             continue
         for repo, n in recibo._prs(issue):
+            if prazo is not None and time.monotonic() > prazo:
+                log("automerge: orçamento de tempo da passada acabou; o resto fica para a próxima")
+                _gravar_visto(visto, agora, base_dados)
+                return voltar
+            vkey = f"{ident} {repo}#{n}"
+            if agora - visto.get(vkey, 0) < DESCANSO_PR:
+                continue
             try:
                 pr = chamar(f"repos/{repo}/pulls/{n}")
+                visto[vkey] = agora
                 if pr.get("state") != "open" or pr.get("merged") or pr.get("draft"):
                     continue
                 sha, chave = pr["head"]["sha"], f"{ident} {repo}#{n}"
@@ -94,6 +143,7 @@ def vigiar(consulta=None, chamar=None, base_dados=None, ocupadas=(), log=print, 
                 r = _pronto(repo, n, sha, chamar, ci_repo[repo])
                 if not r:
                     continue
+                visto.pop(vkey, None)  # pronto: se o aceitar recusar, tenta de novo no próximo tick
                 ci, quem = r
                 diff = diff_fn(repo, n)
                 if not diff:  # sem ler o diff não há como conferir as decisões do dono: adia, nunca libera
@@ -119,6 +169,7 @@ def vigiar(consulta=None, chamar=None, base_dados=None, ocupadas=(), log=print, 
                 break  # uma Tarefa por issue
             except Exception as e:  # noqa: BLE001
                 log(f"{ident}: automerge {repo}#{n} falhou ({type(e).__name__}: {str(e)[:150]})")
+    _gravar_visto(visto, agora, base_dados)
     return voltar
 
 
@@ -130,8 +181,13 @@ def testes_do_diff(diff):
     return sorted(set(re.findall(r"^\+\+\+ b/((?:\S*/)?tests?/test_[\w.-]+\.py)$", diff or "", re.M)))
 
 
+RE_PR_INCIDENTE = re.compile(r"^fix\b[^\n]*\binc-\d+", re.I)
+
+
 def _do_debugger(pr):
-    return pr["head"]["ref"].startswith("codex/debugger-") or (pr.get("title") or "").lower().startswith("fix: inc")
+    """Branch `codex/debugger-*` ou `codex/inc-*`, ou título `fix: INC-…` / `fix: … (INC-xx)`."""
+    ref = pr["head"]["ref"]
+    return ref.startswith(("codex/debugger-", "codex/inc-")) or bool(RE_PR_INCIDENTE.search(pr.get("title") or ""))
 
 
 def vigiar_debugger(chamar=None, base_dados=None, log=print, rodar_gh=None, pedir=None, diff_fn=None, repos=None):
@@ -142,7 +198,7 @@ def vigiar_debugger(chamar=None, base_dados=None, log=print, rodar_gh=None, pedi
     chamar, diff_fn = chamar or (lambda caminho: github_api.get(caminho, consumidor="automerge")), diff_fn or memorias.diff_do_pr
     est, ci_repo, feitos = _estado(base_dados), {}, []
     for nome in repos or REPOS_DEBUGGER:
-        repo = config.repo(nome)
+        repo = repo_de(nome)
         try:
             pulls = chamar(f"repos/{repo}/pulls?state=open&per_page=100")
         except Exception as e:  # noqa: BLE001
@@ -201,6 +257,80 @@ def vigiar_debugger(chamar=None, base_dados=None, log=print, rodar_gh=None, pedi
     return feitos
 
 
+RE_BRANCH_MOEDOR = re.compile(r"moedor/\d{4}-\d{2}-\d{2}")
+PASTA_MOEDOR = "docs/referencias/"
+
+
+def _so_referencias(repo, n, chamar):
+    """True se o PR tem arquivos e todos ficam sob `docs/referencias/` (sem `..`). Lista paginada; o teto é 3000 arquivos,
+    o que a API devolve no máximo (o PR diário passou de 1000 arquivos e ficou barrado sem motivo)."""
+    arquivos = []
+    for pagina in range(1, 31):
+        lote = chamar(f"repos/{repo}/pulls/{n}/files?per_page=100&page={pagina}")
+        for f in lote:
+            arquivos += [f.get("filename") or "", f.get("previous_filename") or PASTA_MOEDOR]  # origem de renome também conta
+        if len(lote) < 100:
+            return bool(arquivos) and all(a.startswith(PASTA_MOEDOR) and ".." not in a.split("/") for a in arquivos)
+    return False
+
+
+def repos_moedor():
+    """Repos de saída do moedor (os das sementes) mais a biblioteca."""
+    try:  # o moedor não vai para o snapshot público: sem ele só a biblioteca (mesmo padrão do vigia de evals)
+        from hub.moedor_daemon import REPOS
+    except ImportError as e:
+        if not faltou(e, "hub.moedor_daemon"):
+            raise
+        return ["biblioteca"]
+    return sorted(set(REPOS.values()) | {"biblioteca"})
+
+
+def vigiar_moedor(chamar=None, base_dados=None, log=print, rodar_gh=None, repos=None):
+    """PR diário do moedor TURBO (branch `moedor/AAAA-MM-DD`, label `merge`, do próprio repo, só
+    `docs/referencias/`) entra no merge mecânico: ponta verde (local-ci onde o repo usa) e revisão sem achado sério
+    (sem revisão não trava: o PR é só dado conferido). Sem sessão, sem pedido de deploy. Uma tentativa por ponta."""
+    chamar = chamar or (lambda caminho: github_api.get(caminho, consumidor="automerge"))
+    est, ci_repo, feitos = _estado(base_dados), {}, []
+    for nome in repos or repos_moedor():
+        repo = repo_de(nome)
+        try:
+            pulls = chamar(f"repos/{repo}/pulls?state=open&per_page=100")
+        except Exception as e:  # noqa: BLE001
+            log(f"automerge moedor: {repo} sem lista de PRs ({type(e).__name__})")
+            continue
+        for p in pulls:
+            n = p["number"]
+            try:
+                head = p["head"]
+                if p.get("draft") or "merge" not in {l["name"] for l in p.get("labels") or []} \
+                        or not RE_BRANCH_MOEDOR.fullmatch(head["ref"]) or (head.get("repo") or {}).get("full_name") != repo:
+                    continue
+                sha, chave = head["sha"], f"moedor {repo}#{n}"
+                if est.get(chave) == sha:
+                    continue
+                if not _so_referencias(repo, n, chamar):
+                    log(f"moedor {repo}#{n}: merge barrado (o PR sai de {PASTA_MOEDOR})")
+                    continue
+                if repo not in ci_repo:
+                    ci_repo[repo] = esperas._usa_ci(repo, n, chamar)
+                if not _ci_verde(repo, sha, chamar, ci_repo[repo]):
+                    continue
+                rev = esperas._revisao(esperas.comentarios_pr(repo, n, chamar), sha, conta.agora())
+                if rev and (ACHADO in (rev.get("body") or "") or esperas.RE_SERIO.search(rev.get("body") or "")):
+                    continue
+                ok, erro = esperas.merge_pr({"repo": repo, "numero": n}, sha, rodar_gh, chamar)
+                est[chave] = sha
+                _gravar(est, base_dados)
+                if not ok:
+                    log(f"moedor {repo}#{n}: merge falhou: {erro}")
+                    continue
+                log(f"moedor {repo}#{n}: merge feito pelo hub ({sha[:8]})")
+                feitos.append((repo, n))
+            except Exception as e:  # noqa: BLE001
+                log(f"moedor {repo}#{n}: automerge falhou ({type(e).__name__}: {str(e)[:150]})")
+    return feitos
+
+
 def fechar_incidentes(base_dados=None, log=print, resultado=None, agora=None, pedir=None):
     """Depois do merge do PR do Debugger: o pedido `atualizar-*` voltou rc=0 → marca os incidentes do PR como [feito].
     rc≠0: fica pendente (o Debugger volta a tratar). Sem resultado ainda: espera o próximo tick."""
@@ -237,3 +367,89 @@ def fechar_incidentes(base_dados=None, log=print, resultado=None, agora=None, pe
     if mudou:
         est["_pos_merge"] = resta
         _gravar(est, base_dados)
+
+
+DIAS_BAIXA = 14
+PAGINAS_BAIXA = 3
+
+
+def _deploy_rc0(acao, desde, base_dados=None):
+    """True se o pedido `acao` rodou rc=0 começando depois de `desde` (merged_at do PR): o `atualizar-*` puxa a main inteira."""
+    from hub import raiz
+    for arq in (raiz.pasta(base_dados) / "resultados").glob("*.json"):
+        try:
+            r = json.loads(arq.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if r.get("acao") == acao and r.get("codigo") == 0 and conta.de_iso(r["em"]) >= desde:
+            return True
+    return False
+
+
+def baixar_incidentes_de_prs_mergeados(chamar=None, base_dados=None, log=print, diff_fn=None, repos=None, agora=None,
+                                       deploy_ok=None):
+    """PR `fix: INC-…` mergeado por fora do hub (sessão, humano) nunca passa por `vigiar_debugger`, e o incidente
+    ficava [pendente] com o conserto no ar. Para cada incidente pendente citado (título ou corpo) num PR mergeado nos últimos
+    14 dias: com o pedido `atualizar-*` do repo rc=0 depois do merge e `tests/test_*.py` no diff → [feito]. Sem teste no diff:
+    não marca e registra no diário (uma vez por PR). Sem deploy ainda: tenta no próximo tick."""
+    chamar, diff_fn = chamar or (lambda caminho: github_api.get(caminho, consumidor="automerge")), diff_fn or memorias.diff_do_pr
+    deploy_ok = deploy_ok or (lambda acao, desde: _deploy_rc0(acao, desde, base_dados))
+    agora = agora or conta.agora()
+    corte = agora - dt.timedelta(days=DIAS_BAIXA)
+    est, baixados = _estado(base_dados), []
+    for nome in repos or REPOS_DEBUGGER:
+        repo, acao = repo_de(nome), debugger.PEDIDO_POS_MERGE.get(nome)
+        if not acao:
+            continue
+        pulls = []
+        try:
+            for pagina in range(1, PAGINAS_BAIXA + 1):  # ordenado por updated: para na página que já é mais velha que o corte
+                lote = chamar(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=50&page={pagina}")
+                pulls += lote
+                if len(lote) < 50 or all(p.get("updated_at") and conta.de_iso(p["updated_at"]) < corte for p in lote):
+                    break
+        except Exception as e:  # noqa: BLE001
+            log(f"baixa de incidentes: {repo} sem lista de PRs ({type(e).__name__})")
+            if not pulls:
+                continue
+        for p in pulls:
+            n = p["number"]
+            try:
+                if not p.get("merged_at") or conta.de_iso(p["merged_at"]) < corte:
+                    continue
+                chave = f"baixa {repo}#{n}"
+                if est.get(chave):
+                    continue
+                incs = sorted(set(debugger.RE_INC.findall(f"{p.get('title') or ''} {p.get('body') or ''}")))
+                pendentes = [i["id"] for i in incidentes.listar(so_pendentes=True, base_dados=base_dados, agora=agora)
+                             if i["id"] in incs]
+                if not pendentes:
+                    continue
+                if not deploy_ok(acao, conta.de_iso(p["merged_at"])):
+                    continue
+                url = f"https://github.com/{repo}/pull/{n}"
+                testes = testes_do_diff(diff_fn(repo, n))
+                if not testes:
+                    est[chave] = pendentes
+                    _gravar(est, base_dados)
+                    log(f"baixa {repo}#{n}: {', '.join(pendentes)} seguem pendentes (sem teste de regressão no diff)")
+                    consertos.registrar(f"{', '.join(pendentes)}: PR {url} mergeado e no ar, sem tests/ no diff",
+                                        "baixa automática exige o teste de regressão (KRN-1095)",
+                                        "incidente segue pendente; falta o teste ou 'sem teste: <motivo>' à mão",
+                                        "tentando", por="hub-debugger", base_dados=base_dados, agora=agora)
+                    continue
+                recusados = []
+                for inc in pendentes:
+                    try:
+                        incidentes.marcar(inc, "feito", f"PR {url}; {acao} rc=0; testes {', '.join(testes)}",
+                                          base_dados=base_dados, agora=agora, gh=chamar)
+                        baixados.append(inc)
+                    except ValueError as e:
+                        recusados.append(inc)
+                        log(f"baixa {repo}#{n}: {inc}: {e}")
+                if not recusados:  # recusa não é definitiva: tenta de novo no próximo tick
+                    est[chave] = pendentes
+                    _gravar(est, base_dados)
+            except Exception as e:  # noqa: BLE001
+                log(f"baixa {repo}#{n}: falhou ({type(e).__name__}: {str(e)[:150]})")
+    return baixados

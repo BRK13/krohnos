@@ -46,7 +46,7 @@ SEO = """# Checklist de SEO técnico
 Schema, canonical e sitemap em 20 itens.
 
 ## Onde aplicar
-- fsite05 e ClienteI.
+- fsite06 e ClienteI.
 """
 GENERICA = """# Ferramenta genérica de ossium
 
@@ -255,13 +255,13 @@ class UsoTest(Base):
                                                      "receitas/a/b-c_d.md"])
         self.assertEqual(U.receitas_citadas(None), [])
 
-    def pr(self, n, corpo, data="2026-10-16T10:00:00Z", repo="example-org/filmes"):
+    def pr(self, n, corpo, data="2026-10-16T10:00:00Z", repo="acme/filmes"):
         return {"url": f"https://github.com/{repo}/pull/{n}", "repository": {"nameWithOwner": repo}, "title": f"PR {n}",
                 "body": corpo, "createdAt": data}
 
     def test_coletar_grava_uso_e_relatorio_mostra_sem_uso(self):
-        prs = {"example-org": [self.pr(1, "Fixes KRN-5\nReceita: receitas/motion/video.md"), self.pr(2, "sem citação")],
-               "jpexemplo": [self.pr(3, "Receita: receitas/ferramentas/clienten.md\nKRN-7", "2026-08-01T00:00:00Z", "jpexemplo/s")]}
+        prs = {"acme": [self.pr(1, "Fixes KRN-5\nReceita: receitas/motion/video.md"), self.pr(2, "sem citação")],
+               "terceiro": [self.pr(3, "Receita: receitas/ferramentas/clienten.md\nKRN-7", "2026-08-01T00:00:00Z", "terceiro/s")]}
         gh = lambda args: prs[args[args.index("--owner") + 1]]
         self.assertEqual(U.coletar(gh=gh), 2)
         self.assertEqual(U.coletar(gh=gh), 2)  # idempotente
@@ -286,13 +286,13 @@ class UsoTest(Base):
             U.bloco_da_issue(self.item("KRN-1"), embed=embed_falso)
             U.bloco_da_issue(self.item("KRN-2", "Outra coisa", "sem relação nenhuma xyzzy"), embed=embed_falso)
         hoje = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        U.coletar(gh=lambda a: [self.pr(1, "Fixes KRN-1\nReceita: receitas/motion/video.md", hoje)] if "example-org" in a else [])
+        U.coletar(gh=lambda a: [self.pr(1, "Fixes KRN-1\nReceita: receitas/motion/video.md", hoje)] if "acme" in a else [])
         b = U.balanco(7)
         self.assertEqual((b["issues_despachadas"], b["com_receita"], b["usaram"]), (2, 1, 1))
 
     def test_tela_de_uso(self):
         from hub import biblioteca_tela
-        U.coletar(gh=lambda a: [self.pr(1, "Fixes KRN-5\nReceita: receitas/motion/video.md", "2099-01-01T00:00:00Z")] if "example-org" in a else [])
+        U.coletar(gh=lambda a: [self.pr(1, "Fixes KRN-5\nReceita: receitas/motion/video.md", "2099-01-01T00:00:00Z")] if "acme" in a else [])
         h = biblioteca_tela.uso()
         self.assertIn("Receitas aplicadas", h)
         self.assertIn("Vídeo de lançamento com Remotion", h)

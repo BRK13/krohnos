@@ -20,33 +20,34 @@ def issue(ident, projeto="Cliente A", cat="seo-fix", prio=3, criada="2026-10-08T
             "team": {"states": {"nodes": [{"id": "todo", "name": "Todo"}]}}}
 
 
-def uso(cinco, semana, reset_semana="2026-10-12T12:00:00+00:00"):
-    return {"cinco_horas": {"pct": cinco, "reset": None}, "semana": {"pct": semana, "reset": reset_semana}, "fonte": "oauth"}
+def uso(cinco):
+    return {"cinco_horas": {"pct": cinco, "reset": None}, "fonte": "oauth"}
 
 
 class FolgaTest(unittest.TestCase):
-    def test_conta_no_ritmo_tem_folga_e_acima_nao(self):
-        # reset em 3 dias = 96 h já passaram da semana: ritmo = 100*96/168 + 10 = 67,1
-        d = {"contas": {"1": uso(30, 50), "2": uso(30, 80), "3": uso(80, 10), "4": uso(10, 10)}}
-        self.assertEqual(esteira.folga(d, AGORA, ocupadas=0, contas_ativas=TRES), {"1": True, "2": False, "3": False})
-        self.assertEqual(esteira.folga(d, AGORA, ocupadas=0, contas_ativas=QUATRO),
-                         {"1": True, "2": False, "3": False, "4": True})
+    def test_folga_so_pela_janela_de_5h(self):
+        d = {"contas": {"1": uso(30), "2": uso(69.9), "3": uso(80), "4": uso(10)}}
+        self.assertEqual(esteira.folga(d, ocupadas=0, contas_ativas=TRES), {"1": True, "2": True, "3": False})
+        self.assertEqual(esteira.folga(d, ocupadas=0, contas_ativas=QUATRO),
+                         {"1": True, "2": True, "3": False, "4": True})
 
-    def test_reset_semanal_none_nao_quebra_e_cai_no_fallback(self):
-        # de_iso(None) levanta AttributeError; sem reset, _ritmo devolve 100 e a conta com 50% tem folga
-        self.assertTrue(esteira.folga({"contas": {"1": uso(30, 50, reset_semana=None)}}, AGORA, ocupadas=0)["1"])
+    def test_semana_cheia_no_json_nao_tira_a_folga(self):
+        # conta Claude não tem limite semanal; "semana" 99 de um JSON antigo é ignorada
+        d = {"contas": {"1": {**uso(10), "semana": {"pct": 99.0, "reset": "2026-10-12T12:00:00+00:00"}},
+                        "2": {**uso(10), "semana": {"pct": 99.0, "reset": None}}}}
+        self.assertEqual(esteira.folga(d, ocupadas=0, contas_ativas=("1", "2")), {"1": True, "2": True})
 
     def test_sem_dado_so_tem_folga_com_fila_vazia(self):
-        self.assertEqual(esteira.folga({"contas": {}}, AGORA, ocupadas=0, contas_ativas=TRES), {"1": True, "2": True, "3": True})
-        self.assertEqual(esteira.folga({"contas": {}}, AGORA, ocupadas=1, contas_ativas=QUATRO), dict.fromkeys(QUATRO, False))
+        self.assertEqual(esteira.folga({"contas": {}}, ocupadas=0, contas_ativas=TRES), {"1": True, "2": True, "3": True})
+        self.assertEqual(esteira.folga({"contas": {}}, ocupadas=1, contas_ativas=QUATRO), dict.fromkeys(QUATRO, False))
 
     def test_conta_sem_login_fica_fora(self):
         # a 4 ainda sem login: não conta como folga (senão a esteira despacharia para quem não roda)
         home = home_com_login(self, TRES)
         Path(home, ".claude-4").mkdir()
-        self.assertEqual(set(esteira.folga({"contas": {}}, AGORA, ocupadas=0)), set(TRES))
+        self.assertEqual(set(esteira.folga({"contas": {}}, ocupadas=0)), set(TRES))
         Path(home, ".claude-4", ".credentials.json").write_text("{}")
-        self.assertEqual(set(esteira.folga({"contas": {}}, AGORA, ocupadas=0)), set(QUATRO))
+        self.assertEqual(set(esteira.folga({"contas": {}}, ocupadas=0)), set(QUATRO))
 
     def test_vagas_desconta_o_que_ja_esta_na_fila_ou_rodando(self):
         v = esteira.VAGAS_POR_CONTA
@@ -70,7 +71,7 @@ class EscolherTest(unittest.TestCase):
     def test_criar_recusa_animacao(self):
         from hub import linear
         with mock.patch.object(linear, "criar_issue") as criar, self.assertRaises(SystemExit):
-            linear.main(["criar", "--repo", "example-org/filmes", "--titulo", "Gerar o clipe 'x'", "--label", "esteira",
+            linear.main(["criar", "--repo", "acme/filmes", "--titulo", "Gerar o clipe 'x'", "--label", "esteira",
                          "--label", "Animacao"])
         criar.assert_not_called()
 

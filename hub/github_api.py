@@ -176,12 +176,27 @@ def _credenciais(rodar=None):
     return achadas
 
 
+def _com_tentativas(fn, vezes=4, espera=3):
+    """Os consumidores de gh gravam no mesmo banco; escritor concorrente segura o lock além do timeout (cron github-cota 1×)."""
+    for i in range(vezes):
+        try:
+            return fn()
+        except sqlite3.OperationalError as e:
+            if 'locked' not in str(e) or i == vezes - 1:
+                raise
+            time.sleep(espera)
+
+
+def _banco_com_tentativas(base_dados=None):
+    return _com_tentativas(lambda: _banco(base_dados))
+
+
 def amostrar_cota(base_dados=None, rodar=None, agora=None):
     """Lê GET /rate_limit (não conta no limite) por credencial; grava cota, cota_hist e incidente <500."""
     agora = time.time() if agora is None else agora
     rodar = rodar or subprocess.run
     feitas = []
-    con = _banco(base_dados)
+    con = _banco_com_tentativas(base_dados)
     try:
         for rotulo, token in _credenciais(rodar):
             ident_ = ident(token)
@@ -192,10 +207,11 @@ def amostrar_cota(base_dados=None, rodar=None, agora=None):
                 restante, limite, reset = int(core['remaining']), int(core['limit']), float(core['reset'])
             except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
                 continue  # sem texto de erro: pode conter dados privados
-            con.execute('INSERT OR REPLACE INTO cota VALUES (?, ?, ?)', (ident_, restante, reset))
-            con.execute('INSERT OR REPLACE INTO credencial VALUES (?, ?)', (ident_, rotulo))
-            con.execute('INSERT INTO cota_hist VALUES (?, ?, ?, ?)', (int(agora), ident_, restante, limite))
-            con.commit()
+            _com_tentativas(lambda: (
+                con.execute('INSERT OR REPLACE INTO cota VALUES (?, ?, ?)', (ident_, restante, reset)),
+                con.execute('INSERT OR REPLACE INTO credencial VALUES (?, ?)', (ident_, rotulo)),
+                con.execute('INSERT INTO cota_hist VALUES (?, ?, ?, ?)', (int(agora), ident_, restante, limite)),
+                con.commit()))
             _incidente_cota(ident_, restante, reset, base_dados)
             feitas.append((rotulo, ident_, restante, limite))
         con.execute('DELETE FROM cota_hist WHERE hora < ?', (int(agora) - 8*86400,))
@@ -273,12 +289,15 @@ def get(caminho, consumidor='esperas', urgente=False, base_dados=None, agora=Non
             # Não propagar stderr: pode conter URLs/dados privados.
             raise ErroHTTP(status)
         valor = json.loads(corpo)
-        con.execute('INSERT OR REPLACE INTO cache VALUES (?, ?, ?, ?)',
-                    (chave, agora, headers.get('etag', cache[1] if status == 304 and cache else ''), corpo))
-        # Limita retenção sem apagar a amostra corrente; cache antigo não é mais útil.
-        con.execute('DELETE FROM cache WHERE em < ?', (agora-86400,))
-        con.execute('DELETE FROM consumo WHERE hora < ?', (int(agora//3600)-24*8,))
-        con.commit()
+        try:
+            con.execute('INSERT OR REPLACE INTO cache VALUES (?, ?, ?, ?)',
+                        (chave, agora, headers.get('etag', cache[1] if status == 304 and cache else ''), corpo))
+            # Limita retenção sem apagar a amostra corrente; cache antigo não é mais útil.
+            con.execute('DELETE FROM cache WHERE em < ?', (agora-86400,))
+            con.execute('DELETE FROM consumo WHERE hora < ?', (int(agora//3600)-24*8,))
+            con.commit()
+        except sqlite3.Error:  # cache é melhor-esforço: banco corrompido não pode derrubar a leitura já feita
+            pass
         return valor
     finally:
         con.close()

@@ -16,7 +16,7 @@ from hub.mcp_grupos import ErroUso, dfs, local, pasta
 
 CARO = " Custa crédito do DataForSEO."
 PROJETO = {"projectId": {"type": "string", "description": "id do site no hub (o mesmo que site)"},
-           "site": {"type": "string", "description": "id do site no hub (ex.: psite13), domínio ou nome"}}
+           "site": {"type": "string", "description": "id do site no hub (ex.: psite15), domínio ou nome"}}
 LOCAL = {"locationCode": {"type": "integer", "minimum": 1, "description": "código de local do DataForSEO (padrão: Brasil)"},
          "languageCode": {"type": "string", "description": "código de idioma (ex.: pt, en); padrão: pt"}}
 ESCOPOS = ("exact_url", "subfolder", "domain", "subdomains")

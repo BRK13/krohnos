@@ -9,7 +9,7 @@ import sys
 
 from hub import config, claude, conta, github_api
 
-REPOS = "clienteh repo-privado bot_whatsapp cliente-c cliente-a-v2 clienteipsi-v2 psite13 infra".split()
+REPOS = "clienteh repo-privado bot_whatsapp cliente-c cliente-a-v2 clienteipsi-v2 psite15 infra".split()
 CORTE = 150_000
 SISTEMA = "Você é um revisor de código que responde em português do Brasil, direto, só com o que foi pedido."
 PEDIDO = ("Revise só o que este PR muda (o diff está abaixo, não rode comandos). Aponte bug real, quebra de produção, "

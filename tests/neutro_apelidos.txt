@@ -1,0 +1,16 @@
+# Apelidos que o saneamento do snapshot público dá à nossa operação (ids de site, clientes, servidores, caminhos da VPS).
+# Cada um sozinho é neutro; juntos desenham a topologia do dono no repo aberto (KRN-1913). Não é segredo: a lista é
+# versionada e vai junto para o repo público, onde tests/test_neutro.py a lê sem variável nenhuma.
+# Um termo por linha, sem diferenciar maiúscula; casa com borda (letra ou dígito colado não conta: "servidor_atende" passa).
+# Teto por arquivo: tests/neutro_base.json, chave "apelidos" (só desce; arquivo fora dela tem teto 0).
+clienteipsi
+moraes
+emoraesadv
+fsite05
+asite01
+psite13
+clientej
+fabrica_exemplo
+servidor_a
+servidor_b
+SERVIDOR_HUB

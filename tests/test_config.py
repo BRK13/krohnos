@@ -7,6 +7,9 @@ from unittest import mock
 import hub
 from hub import config
 
+# a org do legado da VPS vem de privado/legado-vps.json (fora do snapshot): o teste lê o valor do próprio legado
+ORG = config.LEGADO_VALOR.get("github.org", "")
+
 CHAVES = ("CLAUDE_HOME", "HUB_DATA", "NIMBUS_HOME", "KROHNOS_CAMINHOS_DADOS", "KROHNOS_CONFIG")
 
 
@@ -38,14 +41,13 @@ class TestConfig(ConfigBase):
 
     def test_apelido_legado_vence_toml(self):
         self.toml('[caminhos]\ndados = "/do/toml"\n')
-        os.environ["HUB_DATA"] = "/legado"
-        self.assertEqual(config.get("caminhos.dados"), "/legado")
+        with mock.patch.dict(os.environ, {"HUB_DATA": "/legado"}):  # sem restaurar, o HUB_DATA vazava para a suíte inteira
+            self.assertEqual(config.get("caminhos.dados"), "/legado")
 
     def test_env_krohnos_vence_apelido_e_toml(self):
         self.toml('[caminhos]\ndados = "/do/toml"\n')
-        os.environ["HUB_DATA"] = "/legado"
-        os.environ["KROHNOS_CAMINHOS_DADOS"] = "/env"
-        self.assertEqual(config.get("caminhos.dados"), "/env")
+        with mock.patch.dict(os.environ, {"HUB_DATA": "/legado", "KROHNOS_CAMINHOS_DADOS": "/env"}):
+            self.assertEqual(config.get("caminhos.dados"), "/env")
 
     def test_toml_vence_padrao_e_converte_tipos(self):
         self.toml('[painel]\nporta = 9000\n[agentes]\ncontas = ["1", "2"]\n')
@@ -191,25 +193,28 @@ class TestIdentidade(ConfigBase):
                 config.repo("x")
             self.assertEqual(config.get("whatsapp.remetentes"), {})
 
+    @unittest.skipUnless(ORG, "sem privado/legado-vps.json (snapshot): não há legado de org")
     def test_legado_vps_sem_toml_reproduz_hoje(self):
         with self.vps():
             self.assertEqual(config.dono(), "Fulano")
-            self.assertEqual(config.repo("x"), "example-org/x")
-            self.assertEqual(config.get("whatsapp.remetentes"), {"fsite05": "crm", "asite01": "numero"})
+            self.assertEqual(config.repo("x"), f"{ORG}/x")
+            self.assertEqual(config.get("whatsapp.remetentes"), {"fsite06": "crm", "asite01": "numero"})
 
+    @unittest.skipUnless(ORG, "sem legado de org")
     def test_toml_e_env_vencem_o_legado(self):
         with self.vps():
             self.toml('[dono]\nnome = "Ana"\n')
             self.assertEqual(config.dono(), "Ana")
-            self.assertEqual(config.get("github.org"), "example-org")  # chave ausente preserva VPS antiga
+            self.assertEqual(config.get("github.org"), ORG)  # chave ausente preserva VPS antiga
             os.environ["KROHNOS_GITHUB_ORG"] = "org"
             self.assertEqual(config.repo("x"), "org/x")
 
+    @unittest.skipUnless(ORG, "sem legado de org")
     def test_toml_antigo_preserva_integracoes_na_vps(self):
         with self.vps():
             self.toml('[caminhos]\ndados = "/tmp/dados"\n')
-            self.assertEqual(config.repo("hub"), "example-org/hub")
-            self.assertEqual(config.get("whatsapp.remetentes"), {"fsite05": "crm", "asite01": "numero"})
+            self.assertEqual(config.repo("hub"), f"{ORG}/hub")
+            self.assertEqual(config.get("whatsapp.remetentes"), {"fsite06": "crm", "asite01": "numero"})
             self.toml('[github]\norg = ""\n[whatsapp]\nremetentes = {}\n')
             self.assertNotEqual(config.get("github.org"), "evil")
             self.assertEqual(config.get("whatsapp.remetentes"), {})
@@ -252,11 +257,12 @@ class TestIdentidade(ConfigBase):
         from hub import propostas
         projetos = self.dir / "projetos"
         projetos.mkdir()
-        (projetos / "x.json").write_text('{"remetentes": {"fsite05": "numero"}}')
+        (projetos / "x.json").write_text('{"remetentes": {"fsite06": "numero"}}')
         with self.vps(existe=True), mock.patch.object(propostas, "PASTA_PROJETOS", projetos):
-            erros = propostas._erros_do_tipo("whatsapp", {"conteudo": "oi"}, {"remetente": "fsite05", "numero": "5500000000001"})
+            erros = propostas._erros_do_tipo("whatsapp", {"conteudo": "oi"}, {"remetente": "fsite06", "numero": "5500000000001"})
             self.assertTrue(any("tipo diferente" in e for e in erros))
 
+    @unittest.skipUnless(ORG, "sem legado de org")
     def test_migrar_grava_identidade_da_vps(self):
         saida = self.dir / "o.toml"
         os.environ["HUB_DATA"] = str(self.dir / "dados")  # o marcador do assistente não pode cair na pasta real
@@ -264,8 +270,8 @@ class TestIdentidade(ConfigBase):
                      "--painel-env", str(self.dir / "p.env")])
         os.environ["KROHNOS_CONFIG"] = str(saida)
         config.recarregar()
-        self.assertEqual((config.dono(), config.get("github.org")), ("Fulano", "example-org"))
-        self.assertEqual(config.get("whatsapp.remetentes"), {"fsite05": "crm", "asite01": "numero"})
+        self.assertEqual((config.dono(), config.get("github.org")), ("Fulano", ORG))
+        self.assertEqual(config.get("whatsapp.remetentes"), {"fsite06": "crm", "asite01": "numero"})
         config.validar()
 
 

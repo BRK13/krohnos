@@ -40,8 +40,8 @@ MENU = [
                             ("/destaques", "Destaques"), ("/portfolio", "Portfólio"), ("/fabrica", "Fábrica"), ("/provas", "Provas")]),
     ("Crescimento", "tendencia", [("/seo", "Auditoria"), ("/velocidade", "Velocidade"), ("/concorrentes", "Concorrentes"),
                                   ("/relatorio", "Coleta diária")]),
-    ("Operação", "servidor", [("/agentes", "Agentes"), ("/linear", "Linear"), ("/uso", "Uso e cotas"), ("/github", "GitHub"), ("/monitor", "Monitor"),
-                              ("/redteam", "Red team"), ("/biblioteca", "Biblioteca"), ("/mapa", "Mapa"), ("/erros", "Erros"), ("/avaliacoes", "Avaliações"),
+    ("Operação", "servidor", [("/agentes", "Agentes"), ("/issues", "Issues"), ("/linear", "Linear"), ("/uso", "Uso e cotas"), ("/github", "GitHub"), ("/monitor", "Monitor"),
+                              ("/redteam", "Red team"), ("/biblioteca", "Biblioteca"), ("/moedor", "Moedor"), ("/mapa", "Mapa"), ("/erros", "Erros"), ("/backlinks", "Backlinks"), ("/avaliacoes", "Avaliações"),
                               ("/confiabilidade", "Confiabilidade")]),
     # Configurar: cada tarefa da frente 3 acrescenta o seu item quando a tela existe. Alvo final: Projetos
     # (/config/projetos), Cofre, Conexões (/config/conexoes), Agentes (/agentes), Rotinas (/config/rotinas), Plugins (/config/plugins).
@@ -69,7 +69,9 @@ def menu(dono=False):
     """MENU com os itens dos plugins ligados. Item (grupo, caminho, rótulo[, antes]): grupo novo vira o último, ícone ponto.
     dono: acrescenta as telas de dono ao grupo Configurar (só o dono as abre)."""
     from hub import plugins
-    grupos = [(g, ic, list(itens)) for g, ic, itens in MENU]
+    from hub import fila_issues
+    sem = "/linear" if fila_issues.local() else None  # Linear é opcional: sem o provedor, a tela dele não aparece
+    grupos = [(g, ic, [it for it in itens if it[0] != sem]) for g, ic, itens in MENU]
     for grupo, caminho, rotulo, *resto in plugins.menu():
         grupo = ALIAS_GRUPO.get(grupo, grupo)
         alvo = next((i for g, _, i in grupos if g == grupo), None)
@@ -589,10 +591,10 @@ ICONES = {
 ICONES_ITEM = {
     "/pendencias": "check", "/metas": "alvo", "/operacao": "pulso", "/cerebro": "rede", "/fluxo": "fluxo", "/propostas": "caixa",
     "/bi": "barras", "/bi/comparar": "comparar", "/funil": "funil", "/virais": "chama", "/destaques": "estrela", "/portfolio": "pasta", "/fabrica": "cubo",
-    "/provas": "escudo", "/video": "video", "/bi/fsite05/mercado": "tendencia", "/bi/fsite05/local": "mapa",
+    "/provas": "escudo", "/video": "video", "/bi/fsite06/mercado": "tendencia", "/bi/fsite06/local": "mapa",
     "/seo": "lupa", "/velocidade": "raio", "/concorrentes": "pessoas", "/relatorio": "calendario",
-    "/agentes": "robo", "/linear": "lista", "/uso": "medidor", "/github": "ramo", "/monitor": "tela", "/redteam": "mira",
-    "/biblioteca": "livro", "/mapa": "mapa", "/erros": "alerta", "/avaliacoes": "estrela", "/confiabilidade": "escudo",
+    "/agentes": "robo", "/linear": "lista", "/issues": "lista", "/uso": "medidor", "/github": "ramo", "/monitor": "tela", "/redteam": "mira",
+    "/biblioteca": "livro", "/moedor": "funil", "/mapa": "mapa", "/erros": "alerta", "/backlinks": "ramo", "/avaliacoes": "estrela", "/confiabilidade": "escudo",
     "/config/projetos": "camadas", "/config/cofre": "cofre", "/config/conexoes": "tomada", "/config/agentes": "robo",
     "/config/rotinas": "relogio", "/config/plugins": "cubo", "/config/usuarios": "usuario",
 }
@@ -1031,7 +1033,7 @@ def _ativo(caminho):
     if partes[:1] == ["mapa"]:
         return "/mapa"
     if partes[:1] == ["bi"] and len(partes) == 3 and partes[2] in ("local", "mercado"):
-        return f"/bi/fsite05/{partes[2]}"
+        return f"/bi/fsite06/{partes[2]}"
     return c
 
 
@@ -1085,7 +1087,7 @@ def _menu(ativo, n_pend, caminho, dono=False, contadores=None):
 
 
 def pagina(titulo, corpo, ativo=None, *, olho="", sub="", acoes="", cabeca="", n_pend=0, publica=False, caminho=None, topo=True,
-           dono=False, contadores=None):
+           dono=False, contadores=None, sair_link=False):
     """Página inteira: menu agrupado em acordeões (lateral no desktop, gaveta no celular), topo com título/sub/ações (`olho` ainda é aceito e não aparece: o menu já diz onde a tela mora),
     View Transitions, Speculation Rules e JS no fim. publica: sem menu, com noindex (relatório aberto /r/...).
     cabeca: HTML extra no <head> (ex.: <script> do ECharts). corpo/acoes/sub já são HTML. topo=False: o corpo traz o h1.
@@ -1095,7 +1097,8 @@ def pagina(titulo, corpo, ativo=None, *, olho="", sub="", acoes="", cabeca="", n
     else:
         lado, barra_cel = _menu(ativo, n_pend, caminho, dono, contadores)
     js_md = JS_MD if "md-src" in corpo else ""
-    sair = "" if publica else '<a class="sair" href="/sair">Sair</a>'  # no celular o menu lateral some
+    # no celular o menu lateral some; sair_link: página sem menu mas com sessão (tela do cliente)
+    sair = "" if publica and not sair_link else '<a class="sair" href="/sair">Sair</a>'
     topo = "" if not topo else (f'<div class="topo"><div><h1>{e(titulo)}</h1>'
             f'{f"<p class=sub>{sub}</p>" if sub else ""}</div>{f"<div class=acoes>{acoes}</div>" if acoes else ""}</div>')
     robots = '<meta name="robots" content="noindex">'

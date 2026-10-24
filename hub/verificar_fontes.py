@@ -163,7 +163,7 @@ def clarity(site, cliente=None):
 
 
 def gmb(site, cliente=None):
-    """Sem integração utilizável com o Perfil da Empresa no hub (hub/apps.py só serve a fsite05): nunca verde sem prova.
+    """Sem integração utilizável com o Perfil da Empresa no hub (hub/apps.py só serve a fsite06): nunca verde sem prova.
     Confere só o formato do CID; `cliente` fica na assinatura por simetria e não é usado."""
     cid = _ids(site).get("gmb_cid")
     if not cid:

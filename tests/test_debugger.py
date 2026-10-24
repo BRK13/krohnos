@@ -1,6 +1,8 @@
 import datetime as dt
 import json
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -57,7 +59,7 @@ class DebuggerTest(unittest.TestCase):
         self.assertTrue(itens[1]['pronto'])
 
     def test_alerta_velho_e_incidente(self):
-        p = self.base / 'alertas/fsite05/a.json'
+        p = self.base / 'alertas/fsite06/a.json'
         p.parent.mkdir(parents=True)
         p.write_text(json.dumps({'desde': OLD, 'estado': 'falha', 'mensagem': 'CRM caiu'}))
         itens = debugger.coletar(self.base, self.gh(), NOW, repos=['test'])
@@ -100,10 +102,11 @@ class DebuggerTest(unittest.TestCase):
 
     def test_no_medidas_e_contadores(self):
         self.vigiar([self.item()])
-        n = next(n for n in cerebro.nos(self.base, NOW) if n['id'] == 'debugger')
+        with patch.dict('os.environ', {'KROHNOS_CEREBRO_CI': 'true', 'KROHNOS_CEREBRO_DEBUGGER': 'true'}):   # nó só com a esteira ligada
+            n = next(n for n in cerebro.nos(self.base, NOW) if n['id'] == 'debugger')
+            self.assertIn(('ci', 'debugger'), cerebro.arestas({}))
         self.assertTrue(n['alerta'])
         self.assertEqual(n['medidas']['ci_aberto'], 1)
-        self.assertIn(('ci', 'debugger'), cerebro.ARESTAS)
         self.vigiar([], 5)
         m = debugger.painel(self.base, NOW + dt.timedelta(minutes=5))
         self.assertEqual(m['ci_aberto'], 0)
@@ -121,6 +124,29 @@ class DebuggerTest(unittest.TestCase):
         self.vigiar([self.item()])
         agenda.agendar({}, conta.agora(), self.base)  # 16/10: saía como "tarefa não existe mais" a cada minuto
         self.assertTrue(any(i.get("debugger") for i in agenda.fila(self.base)))
+
+    def test_coleta_paralela_preserva_ordem_e_conserva_o_vermelho_do_repo_fora(self):
+        """um repo por thread (em série eram ~89 s); a saída segue a ordem dos repos e o repo fora mantém o vermelho."""
+        repos = ['org/d', 'org/a', 'org/fora', 'org/c']
+        anterior = {**self.item(), 'repo': 'org/fora', 'alvo': 'develop'}
+        debugger.salvar({'itens': {debugger.chave(anterior): anterior}}, self.base)
+        barreira = threading.Barrier(3, timeout=5)  # em série a barreira quebra e os 3 repos sãos caem como fonte fora
+        base_gh = self.gh()
+        atraso = {'org/d': 0.3, 'org/a': 0.2, 'org/c': 0.0}  # o primeiro da lista termina por último
+
+        def gh(url):
+            repo = '/'.join(url.split('/')[1:3])
+            if repo == 'org/fora':
+                raise OSError('rede')
+            if url == f'repos/{repo}':
+                barreira.wait()
+                time.sleep(atraso[repo])
+                return {'default_branch': 'develop'}
+            return base_gh(url)
+        foto = debugger.coletar(self.base, gh, NOW, repos=repos)
+        ci = [(i['repo'], i['alvo']) for i in foto if i['tipo'] == 'ci']
+        self.assertEqual(ci, [('org/d', 'develop'), ('org/d', 'pr:1'), ('org/a', 'develop'), ('org/a', 'pr:1'),
+                              ('org/fora', 'develop'), ('org/c', 'develop'), ('org/c', 'pr:1')])
 
     def test_fonte_fora_nao_resolve_vermelho(self):
         self.vigiar([self.item()])
@@ -180,8 +206,8 @@ class DebuggerTest(unittest.TestCase):
         self.assertNotIn('consertado', (self.base / 'consertos.jsonl').read_text())
 
     def test_json_invalido_nao_derruba_fontes_saudaveis(self):
-        for nome, conteudo in [('alertas/fsite05/quebrado.json', '{'),
-                                ('alertas/fsite05/incompleto.json', '{}'),
+        for nome, conteudo in [('alertas/fsite06/quebrado.json', '{'),
+                                ('alertas/fsite06/incompleto.json', '{}'),
                                 ('vigia-clientej/config.json', '{"desde": "invalido"}'),
                                 ('claude/main-vermelho/repo.json', '[]'),
                                 ('alertas/estado.json', '{"itens": {"x": {}}}')]:
@@ -194,7 +220,7 @@ class DebuggerTest(unittest.TestCase):
         self.assertEqual(len(agenda.fila(self.base)), 1)
 
     def test_fonte_alerta_corrompida_conserva_aberto(self):
-        p = self.base / 'alertas/fsite05/a.json'
+        p = self.base / 'alertas/fsite06/a.json'
         p.parent.mkdir(parents=True)
         p.write_text(json.dumps({'desde': OLD, 'estado': 'falha', 'mensagem': 'CRM caiu'}))
         foto = debugger.coletar(self.base, self.gh(), NOW, repos=[])
@@ -205,7 +231,7 @@ class DebuggerTest(unittest.TestCase):
         self.assertEqual(len(debugger.painel(self.base, NOW)['abertos']), 1)
 
 
-HUB = 'example-org/repo-privado'
+HUB = config.repo('repo-privado')  # os gabaritos vigiados dos evals casam o repo do hub na org da config
 
 
 def gh_prs(**por_numero):
@@ -253,9 +279,45 @@ class PrAbertoTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             debugger.tratar(k, 'conserto no PR #414; atualizar-hub rc=0', self.base, NOW, gh)
 
+    def recusa(self, k, nota):
+        # a asserção, não o ValueError, é o que falha sem o portão (teste_vermelho só aceita falha por asserção)
+        try:
+            debugger.tratar(k, nota, self.base, NOW, gh_prs())
+        except ValueError:
+            return True
+        return False
+
+    def test_tratar_inc_sem_entrega_recusa_caso_bru_1137(self):
+        # (21/10): testes verdes, zero PR, INC encerrado. O portão barra; a nota com laudo passa.
+        k = self.alerta()
+        caso = ('INC-62 confirmado como falso positivo; o orquestrador liberou e encerrou o incidente. '
+                '20 testes focados passaram. Sem mudança de código ou PR.')
+        for nota in (caso, 'sem mudança de código INC-62: causa: era cache; prova: 20 testes passaram',
+                     'sem mudança de código: causa: era cache expirado; prova: KRN-5', 'corrigi e conferi',
+                     'corrigi a issue #5', 'ver KRN-1137 #5'):
+            self.assertTrue(self.recusa(k, nota), nota)
+        self.assertNotIn('tratado', debugger.ler(self.base)['itens'][k])
+
+    def test_tratar_inc_exige_laudo_com_causa_e_prova(self):
+        k = self.alerta()
+        ruins = ('sem mudança de código INC-9: causa: falso positivo; prova: KRN-1424',  # outro INC
+                 'sem mudança de código INC-62: prova: `git log -1`',  # sem causa
+                 'sem mudança de código INC-62: causa: falso positivo da campanha',  # sem prova
+                 'sem mudança de código INC-62: causa: falso positivo; prova: testes passaram')
+        for nota in ruins:
+            self.assertTrue(self.recusa(k, nota), nota)
+        debugger.tratar(k, 'Sem mudança de código INC-62.\ncausa: falso positivo, campanha autorizada;\n'
+                        'prova: KRN-1424 e `python3 -m hub.incidentes listar` mostra INC-62 feito', self.base, NOW, gh_prs())
+        self.assertIn('tratado', debugger.ler(self.base)['itens'][k])
+
+    def test_tratar_inc_com_commit_passa(self):
+        k = self.alerta()
+        debugger.tratar(k, 'conserto no commit 1a2b3c4d', self.base, NOW, gh_prs())
+        self.assertIn('tratado', debugger.ler(self.base)['itens'][k])
+
     def test_tratar_sem_mudanca_de_codigo_e_sem_pr(self):
         k = self.alerta()
-        debugger.tratar(k, 'sem mudança de código: era cache; issue #5', self.base, NOW, gh_prs())
+        debugger.tratar(k, 'sem mudança de código INC-62: causa: era cache expirado; prova: KRN-5 e `git log -1`', self.base, NOW, gh_prs())
         self.assertIn('tratado', debugger.ler(self.base)['itens'][k])
 
     def test_numero_que_e_issue_nao_barra(self):
@@ -263,7 +325,7 @@ class PrAbertoTest(unittest.TestCase):
         def gh(url):
             raise subprocess.CalledProcessError(1, 'gh', stderr='gh: Not Found (HTTP 404)')
         k = self.alerta()
-        debugger.tratar(k, 'conferi a issue #5 e o log', self.base, NOW, gh)
+        debugger.tratar(k, 'conferi a issue #5 e o log; conserto no commit 1a2b3c4d', self.base, NOW, gh)
 
     def test_incidente_feito_com_pr_aberto_recusa(self):
         inc = incidentes.registrar('parou', 'pronto_sem_recibo', 'hub/recibo.py', base_dados=self.base, agora=NOW)
@@ -378,6 +440,14 @@ class MergeDoDebuggerTest(unittest.TestCase):
         self.pr = {**self.pr, 'title': 'feat: outra coisa', 'head': {'ref': 'krn-9', 'sha': SHA}}
         self.assertEqual(self.rodar(), [])
 
+    def test_pr_de_incidente_com_titulo_e_branch_antigos_tambem_vai(self):
+        """`fix: … (INC-99)` em `codex/inc-*` (formato dos PRs de 17/10) entra no merge do hub."""
+        self.pr = {**self.pr, 'title': 'fix: protege decisões do SEOmator (INC-99)', 'head': {'ref': 'codex/inc-99-x', 'sha': SHA}}
+        self.assertEqual(self.rodar(), [(HUB, 414)])
+        self.pr = {**self.pr, 'head': {'ref': 'outra', 'sha': 'v-2'}}
+        self.assertTrue(self.automerge._do_debugger(self.pr))
+        self.assertFalse(self.automerge._do_debugger({**self.pr, 'title': 'fix: algo sem incidente'}))
+
     def test_incidentes_so_ficam_feitos_com_atualizar_hub_rc0(self):
         for n in (62, 88):
             incidentes.registrar(f'f{n}', 'pronto_sem_recibo', 'hub/recibo.py', base_dados=self.base, agora=NOW)
@@ -429,3 +499,90 @@ class MergeDoDebuggerTest(unittest.TestCase):
         self.assertEqual(refeitos, ['atualizar-hub'])
         self.assertEqual(self.automerge._estado(self.base)['_pos_merge'][0]['pedido'], 'v-2')
         self.assertEqual({i['estado'] for i in incidentes.listar(base_dados=self.base)}, {'pendente'})
+
+
+class BaixaDePrMergeadoTest(unittest.TestCase):
+    """PR `fix: INC-N` mergeado por fora do hub baixa o incidente quando o deploy deu rc=0 e há teste no diff."""
+    MERGED = '2026-10-19T20:37:00+00:00'
+
+    def setUp(self):
+        from hub import automerge
+        self.automerge = automerge
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.agora = dt.datetime(2026, 10, 19, 21, tzinfo=dt.timezone.utc)
+        self.logs = []
+        self.diff = '+++ b/hub/x.py\n+ok\n+++ b/tests/test_x.py\n+ok\n'
+        self.pr = {'number': 651, 'title': 'fix: INC-1, INC-2', 'body': '', 'merged_at': self.MERGED, 'state': 'closed', 'merged': True}
+        self.deploy = True
+        for n in (1, 2, 3):
+            incidentes.registrar(f'f{n}', 'pronto_sem_recibo', 'hub/recibo.py', base_dados=self.base, agora=self.agora)
+
+    def gh(self, url):
+        if '/pulls?state=closed' in url:
+            if '&page=2' in url:
+                return [self.pr]
+            return self.pagina1 if getattr(self, 'pagina1', None) is not None else [self.pr]
+        if url.endswith('/pulls/651'):
+            return self.pr
+        raise AssertionError(url)
+
+    def rodar(self):
+        return self.automerge.baixar_incidentes_de_prs_mergeados(
+            self.gh, self.base, self.logs.append, lambda r, n: self.diff, ['repo-privado'], self.agora,
+            lambda acao, desde: self.deploy and acao == 'atualizar-hub')
+
+    def estados(self):
+        return {i['id']: i['estado'] for i in incidentes.listar(base_dados=self.base)}
+
+    def test_mergeado_com_teste_e_deploy_baixa_so_os_citados(self):
+        self.assertEqual(self.rodar(), ['INC-1', 'INC-2'])
+        self.assertEqual(self.estados(), {'INC-1': 'feito', 'INC-2': 'feito', 'INC-3': 'pendente'})
+
+    def test_sem_deploy_rc0_segue_pendente_e_tenta_de_novo(self):
+        self.deploy = False
+        self.assertEqual(self.rodar(), [])
+        self.assertEqual(set(self.estados().values()), {'pendente'})
+        self.deploy = True
+        self.assertEqual(self.rodar(), ['INC-1', 'INC-2'])
+
+    def test_sem_teste_no_diff_nao_marca_e_registra_uma_vez(self):
+        self.diff = '+++ b/hub/x.py\n+ok\n'
+        with patch('hub.consertos.registrar') as diario:
+            self.assertEqual(self.rodar(), [])
+            self.rodar()
+        self.assertEqual(set(self.estados().values()), {'pendente'})
+        self.assertEqual(diario.call_count, 1)
+
+    def test_pr_aberto_ou_fechado_sem_merge_segue_pendente(self):
+        self.pr = {**self.pr, 'merged_at': None, 'merged': False}
+        self.assertEqual(self.rodar(), [])
+        self.assertEqual(set(self.estados().values()), {'pendente'})
+
+    def test_recusa_do_marcar_nao_grava_como_processado(self):
+        with patch('hub.incidentes.marcar', side_effect=ValueError('recusado')):
+            self.assertEqual(self.rodar(), [])
+        self.assertEqual(self.rodar(), ['INC-1', 'INC-2'])
+
+    def test_pr_elegivel_na_segunda_pagina_e_achado(self):
+        velho = {**self.pr, 'number': 1, 'merged_at': None, 'updated_at': '2026-10-19T20:50:00+00:00'}
+        self.pagina1 = [{**velho, 'number': k} for k in range(50)]
+        self.assertEqual(self.rodar(), ['INC-1', 'INC-2'])
+
+    def test_pr_velho_demais_nao_baixa(self):
+        self.pr = {**self.pr, 'merged_at': '2026-09-01T10:00:00+00:00'}
+        self.assertEqual(self.rodar(), [])
+
+    def test_deploy_rc0_so_conta_depois_do_merge(self):
+        from hub import raiz
+        res = self.base / 'vps/resultados'
+        res.mkdir(parents=True)
+        antes = {'id': 'a', 'acao': 'atualizar-hub', 'codigo': 0, 'em': '2026-10-19T20:00:00+00:00'}
+        (res / 'a.json').write_text(json.dumps(antes))
+        desde = conta.de_iso(self.MERGED)
+        self.assertFalse(self.automerge._deploy_rc0('atualizar-hub', desde, self.base))
+        (res / 'b.json').write_text(json.dumps({**antes, 'id': 'b', 'em': '2026-10-19T20:40:00+00:00'}))
+        self.assertTrue(self.automerge._deploy_rc0('atualizar-hub', desde, self.base))
+        (res / 'b.json').write_text(json.dumps({**antes, 'id': 'b', 'codigo': 1, 'em': '2026-10-19T20:40:00+00:00'}))
+        self.assertFalse(self.automerge._deploy_rc0('atualizar-hub', desde, self.base))

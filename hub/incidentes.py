@@ -12,7 +12,7 @@ import re
 from hub import conta
 
 # As 7 primeiras são da; o resto vem da mineração das ~1.000 tarefas (docs/licoes/classes.json: peça por classe).
-CLASSES = ("pronto_sem_recibo", "tarefa_parada", "espera_ci_na_sessao", "regra_so_no_prompt", "main_vermelho",
+CLASSES = ("pendencia_sem_destino", "fechou_sem_entrega", "pronto_sem_recibo", "tarefa_parada", "espera_ci_na_sessao", "regra_so_no_prompt", "main_vermelho",
            "teste_em_dado_real", "outra",
            "laco_de_execucoes", "repetiu_decisao_do_fulano", "cota_estourada", "entrega_visual_sem_conferir",
            "deploy_nao_subiu_comentado", "executou_sem_pedir", "recurso_compartilhado", "espera_aprovacao_desnecessaria",
@@ -20,7 +20,12 @@ CLASSES = ("pronto_sem_recibo", "tarefa_parada", "espera_ci_na_sessao", "regra_s
            "entrega_incompleta_ou_fora_do_canal", "numero_inventado", "copy_fora_do_padrao", "pede_trabalho_ao_fulano",
            "deploy_nao_verificado", "acao_duplicada", "frentes_em_paralelo", "reconstruiu_pronto", "hub_quebrado_em_producao",
            "bug_de_logica", "perda_de_dado_ou_segredo", "duplicacao_ou_corrida", "frente_dada_por_pronta",
-           "aviso_falso_ao_dono")  # o alarme da confiabilidade (hub/confiabilidade.py) abre como P1
+           "aviso_falso_ao_dono",  # o alarme da confiabilidade (hub/confiabilidade.py) abre como P1
+          "cli_sem_resultado",  # a CLI sai em 0 sem o result
+          "execucao_sem_tipo",  # o guarda `retomada.exigir_tipo` (motivo de execução que ninguém classificou)
+          "in_review_parada",  # mais de 10 In Review paradas > 2 h por 30 min (hub/in_review.py)
+          "pedido_sem_prerequisito",  # Pedido vps gravado sem conferir no host as variáveis que exige (propostas.exige_env)
+          "destino_errado_de_execucao")  # Pedido vps com script de coleta numa máquina que não o produz
 ESTADOS = ("pendente", "feito")
 # (F2): fechar exige o teste de regressão citado na nota (tests/test_x.py, tests.test_x ou test_x.py). Isento só o
 # que não teve conserto: "descartado: ..." (falso positivo, duplicata), "sem mudança de código" ou "sem teste: <motivo>".
@@ -86,6 +91,14 @@ def listar(horas=None, so_pendentes=False, base_dados=None, agora=None):
     return itens
 
 
+def _norm(texto):
+    return re.sub(r"\s+", " ", texto).strip().lower()
+
+
+def _issues(i):
+    return i.get("issues") or ([i["issue"]] if i.get("issue") else [])
+
+
 def registrar(falha, classe, peca, issue="", estado="pendente", chave="", base_dados=None, agora=None, prioridade=2):
     if classe not in CLASSES:
         raise ValueError(f"classe tem que ser uma de {', '.join(CLASSES)}")
@@ -98,10 +111,27 @@ def registrar(falha, classe, peca, issue="", estado="pendente", chave="", base_d
             for i in listar(so_pendentes=True, base_dados=base_dados, agora=agora):
                 if i.get("chave") == chave:
                     return i
+        if issue.strip():
+            ident = issue.strip()[:20]
+            norm = _norm(falha.strip()[:500])
+            pendentes = listar(so_pendentes=True, base_dados=base_dados, agora=agora)
+            # mesma issue, classe e falha ainda pendente = mesma ocorrência, não outro INC
+            # mesma classe e mesma peça em OUTRA issue = a mesma causa; soma e junta a issue no INC aberto
+            for i in pendentes:
+                mesma_issue = ident in _issues(i)
+                if i["classe"] == classe and ((mesma_issue and _norm(i["falha"]) == norm)
+                                              or (not mesma_issue and i["peca"] == peca.strip()[:300])):
+                    visto = {"id": i["id"], "ocorrencias": i.get("ocorrencias", 1) + 1,
+                             "issues": _issues(i) + ([] if mesma_issue else [ident]),
+                             "visto_em": conta.iso(agora or conta.agora())}
+                    _gravar(visto, base_dados)
+                    return {**i, **visto}
         reg = {"id": f"INC-{len({r['id'] for r in _linhas(base_dados)}) + 1}",
                "em": conta.iso(agora or conta.agora()), "falha": falha.strip()[:500], "classe": classe,
                "peca": peca.strip()[:300], "issue": issue.strip()[:20], "estado": estado, "chave": chave[:120],
                "prioridade": prioridade}
+        if reg["issue"]:
+            reg["issues"] = [reg["issue"]]
         _gravar(reg, base_dados)
         return reg
 
@@ -121,6 +151,13 @@ def marcar(id_, estado="feito", nota="", base_dados=None, agora=None, gh=None):
         reg = {"id": id_, "estado": estado, "nota": nota.strip()[:300],
                "marcado_em": conta.iso(agora or conta.agora())}
         _gravar(reg, base_dados)
+        if estado == "feito" and cita_teste(nota):  # conserto mergeado cobre as ocorrências anteriores da mesma causa
+            alvo = next(i for i in listar(base_dados=base_dados, agora=agora) if i["id"] == id_)
+            quando = conta.de_iso(reg["marcado_em"])
+            for i in listar(so_pendentes=True, base_dados=base_dados, agora=agora):
+                if i["classe"] == alvo["classe"] and i["peca"] == alvo["peca"] and conta.de_iso(i["em"]) < quando:
+                    _gravar({"id": i["id"], "estado": "feito", "nota": f"coberto por {id_}", "marcado_em": reg["marcado_em"]},
+                            base_dados)
         return reg
 
 
@@ -130,6 +167,6 @@ def texto_retro(horas=24, base_dados=None, agora=None):
         return "## Incidentes do harness\n- nenhum"
     linhas = ["## Incidentes do harness (do dia e os pendentes)"]
     for i in itens:
-        linhas.append(f"- {i['id']} [{i['estado']}]{' P1' if i.get('prioridade') == 1 else ''} {i['classe']}{' · ' + i['issue'] if i.get('issue') else ''}: "
+        linhas.append(f"- {i['id']} [{i['estado']}]{' P1' if i.get('prioridade') == 1 else ''} {i['classe']}{' · ' + ', '.join(_issues(i)) if _issues(i) else ''}{' ×' + str(i['ocorrencias']) if i.get('ocorrencias', 1) > 1 else ''}: "
                       f"{i['falha']} → muda: {i['peca']}{' (' + i['nota'] + ')' if i.get('nota') else ''}")
     return "\n".join(linhas)

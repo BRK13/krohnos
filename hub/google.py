@@ -1,7 +1,7 @@
 """Search Console pela conta de serviço do hub ($NIMBUS_HOME/credenciais/google-conta-servico.json).
 
 Só leitura. Propriedade do GSC que a conta de serviço não vê (403) é tentada de novo com o OAuth do dono
-(credenciais/google-oauth-fulano.json, gerado pelo deploy a partir do /etc/agente-fsite05.env), que é usuário em propriedades
+(credenciais/google-oauth-fulano.json, gerado pelo deploy a partir do /etc/agente-fsite06.env), que é usuário em propriedades
 de terceiros (ClienteE). Sem acesso por nenhum dos dois, devolve SemAcesso com o e-mail a autorizar.
 """
 import base64
@@ -879,9 +879,11 @@ def periodo_utc(dias, hoje=None):
     return periodo(dias, 3, hoje or dt.datetime.now(dt.timezone.utc).date())
 
 
-def gsc_consultas_cru(propriedade, dias=90, dimensoes=("query",), limite=1000, hoje=None):
-    """Um POST de searchAnalytics/query, com o corpo e a resposta que o so.mjs `google gsc-consultas` sempre teve (snapshots da coleta das 4h)."""
-    inicio, fim = periodo_utc(dias, hoje)
+def gsc_consultas_cru(propriedade, dias=90, dimensoes=("query",), limite=1000, hoje=None, inicio=None, fim=None):
+    """Um POST de searchAnalytics/query, com o corpo e a resposta que o so.mjs `google gsc-consultas` sempre teve (snapshots da coleta das 4h).
+    `inicio` e `fim` (aaaa-mm-dd) trocam a janela de `dias` por um período escolhido (apps leem pelo hub)."""
+    if not (inicio and fim):
+        inicio, fim = periodo_utc(dias, hoje)
     return _api(_base(propriedade) + "/searchAnalytics/query", propriedade,
                 {"startDate": inicio, "endDate": fim, "dimensions": list(dimensoes), "rowLimit": limite})
 
@@ -894,11 +896,23 @@ def _corpo_runreport(dimensoes, metricas, inicio, fim, limite, eventos=()):
     return corpo
 
 
-def ga4_relatorio_cru(propriedade, dias=28, dimensoes=(), metricas=("sessions",), limite=1000, hoje=None):
-    """Um POST de runReport, igual ao so.mjs `google ga4-relatorio`."""
-    inicio, fim = periodo_utc(dias, hoje)
+def ga4_relatorio_cru(propriedade, dias=28, dimensoes=(), metricas=("sessions",), limite=1000, hoje=None, inicio=None, fim=None):
+    """Um POST de runReport, igual ao so.mjs `google ga4-relatorio`. `inicio` e `fim` trocam a janela de `dias` por um período escolhido."""
+    if not (inicio and fim):
+        inicio, fim = periodo_utc(dias, hoje)
     return _ga(_ANALYTICS + str(propriedade).removeprefix("properties/") + ":runReport", propriedade,
                _corpo_runreport(dimensoes, metricas, inicio, fim, limite))
+
+
+def gsc_corpo_cru(propriedade, corpo):
+    """Um POST de searchAnalytics/query com o corpo que o app montou (já validado por `hub.snapshots_api`), na propriedade do cadastro."""
+    return _api(_base(propriedade) + "/searchAnalytics/query", propriedade, corpo)
+
+
+def ga4_corpo_cru(propriedade, corpo, tempo_real=False):
+    """Um POST de runReport (ou runRealtimeReport) com o corpo que o app montou, na propriedade do cadastro."""
+    metodo = ":runRealtimeReport" if tempo_real else ":runReport"
+    return _ga(_ANALYTICS + str(propriedade).removeprefix("properties/") + metodo, propriedade, corpo)
 
 
 def ga4_paginado(propriedade, dimensoes, metricas, inicio, fim, limite=100000, buscar=None, eventos=()):

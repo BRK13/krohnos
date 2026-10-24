@@ -17,18 +17,15 @@ import os
 import re
 import sqlite3
 import sys
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 
-from hub.comum.segredos import chave_openrouter
 from hub import biblioteca as B, config, data
 
 MODELO = "openai/text-embedding-3-small"
 DIM = 768
-URL = "https://openrouter.ai/api/v1/embeddings"
 LOTE = 64
 PEDACO = 1800          # caracteres por pedaço (parte um corpo longo em parágrafos)
 MAX_CONTEUDO = 10      # pedaços de "conteúdo original" por receita (o resto é a cópia literal de artigo/prompt)
@@ -145,24 +142,9 @@ def _licenca(texto):
 
 # ---- embeddings ----
 
-def _chave():
-    return chave_openrouter()
-
-
 def embeddar(textos, timeout=60):
-    """Lista de vetores (list[float]) na ordem de textos; levanta se a chamada falhar."""
-    k = _chave()
-    if not k:
-        raise RuntimeError("sem OPENROUTER_API_KEY")
-    corpo = json.dumps({"model": MODELO, "input": [t[:6000] or " " for t in textos], "dimensions": DIM}).encode()
-    req = urllib.request.Request(URL, data=corpo, method="POST", headers={
-        "Authorization": f"Bearer {k}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        d = json.loads(r.read())
-    itens = sorted(d["data"], key=lambda i: i["index"])
-    if len(itens) != len(textos) or any(len(i["embedding"]) != DIM for i in itens):
-        raise RuntimeError("resposta de embeddings fora do formato")
-    return [i["embedding"] for i in itens]
+    """Desligado: a OpenRouter fica só no WhatsApp; quem chama já cai em BM25."""
+    raise RuntimeError("embeddings desligados: OpenRouter só serve o WhatsApp (KRN-1445); a busca segue em BM25")
 
 
 def _blob(v):

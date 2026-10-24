@@ -3,20 +3,26 @@ import json
 import tempfile
 
 # identidade de mentira: nada de teste depende do toml nem do legado da VPS (config.LEGADO_VALOR). Os dados do dono não estão
-# no repo (1.6): sites/tarefas/hub.json vêm de exemplos/ ou de fixtures. O GitHub segue na org example-org para os testes de repo/recibo.
+# no repo (1.6): sites/tarefas/hub.json vêm de exemplos/ ou de fixtures. O GitHub segue na org acme para os testes de repo/recibo.
 # dados do dono dos testes: cadastro e hub.json fictícios em tests/fixtures/dados; tarefas = exemplos/tarefas (padrão neutro)
 _DADOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "dados")
 os.environ["KROHNOS_PROJETOS"] = os.path.join(_DADOS, "projetos")
 os.environ["KROHNOS_HUB_JSON"] = os.path.join(_DADOS, "hub.json")
 os.environ["KROHNOS_CONFIG"] = "/nao/existe/krohnos.toml"
 os.environ["KROHNOS_DONO_NOME"] = "Ana"
-os.environ["KROHNOS_GITHUB_ORG"] = "example-org"
-os.environ["KROHNOS_WHATSAPP_REMETENTES"] = '{"fsite05": "crm", "asite01": "numero"}'
+os.environ["KROHNOS_GITHUB_ORG"] = "acme"
+os.environ["KROHNOS_PAINEL_DOMINIO"] = "painel.exemplo.com.br"  # ORIGEM do BI, URL das metas e dos relatórios
+os.environ["KROHNOS_MARCAS_DOMINIOS"] = '{"fsite06": "site-b.exemplo.com", "clientei": "site-c.exemplo.com", "clientej": "site-d.exemplo.com"}'
+os.environ["KROHNOS_MARCAS_EMAILS"] = '{"licitacoes": "user3@example.com", "listagens": "user4@example.com", "pesquisa": "user5@example.com", "hub": "user6@example.com"}'
+os.environ["KROHNOS_WHATSAPP_REMETENTES"] = '{"fsite06": "crm", "asite01": "numero"}'
 
 # Configuração explícita dos testes: o BI e as mensagens não dependem do host.
-os.environ["KROHNOS_BI_NEGOCIOS"] = json.dumps({"asite01": "asite01", "clientej": "ClienteJ", "fsite05": "Cliente A", "clientei": "ClienteI", "psite13": "Cliente G", "clientee": "ClienteE"})
+os.environ["KROHNOS_BI_NEGOCIOS"] = json.dumps({"asite01": "asite01", "clientej": "ClienteJ", "fsite06": "Cliente A", "clientei": "ClienteI", "psite15": "Cliente G", "clientee": "ClienteE"})
 os.environ["KROHNOS_PRODUTO_NOME"] = "Krohnos"
 os.environ["KROHNOS_PLUGINS_LIGADOS"] = '["*"]'  # os plugins de privado/plugins ligados (as telas deles são testadas aqui)
+# os testes da ponte simulam o Linear (chave/gql mockados) como a VPS de hoje; sem segredo do Linear o provedor
+# vazio cairia na fila local. Os testes da fila local (test_fila_*) põem "local" eles mesmos.
+os.environ.setdefault("KROHNOS_ISSUES_PROVEDOR", "linear")
 
 # testes nunca gravam no custos.jsonl de verdade do DataForSEO (hub/dataforseo.py); o custo de mentira que somam não
 # pode bater no teto diário de outro teste (o teste do teto põe o próprio)
@@ -26,6 +32,10 @@ os.environ["DATAFORSEO_TETO_DIA_USD"] = "1000000"
 # testes nunca gravam nos dados de verdade do hub: sem isso, data() cai no /var/lib/nimbus/reports da VPS e o
 # teste da agenda punha "· Arrumar rodapé" com falha na fila do resumo do WhatsApp (o Fulano recebia, 14/10/2026)
 os.environ["HUB_DATA"] = tempfile.mkdtemp(prefix="hub-testes-")
+# KROHNOS_CAMINHOS_* do ambiente do root (atualizar-hub) vencem o apelido HUB_DATA em config.definido(): sem isto data() voltava
+# a apontar para a produção e test_guarda_dados reprovava o deploy (22/10)
+for _v in [v for v in os.environ if v.startswith("KROHNOS_CAMINHOS_")]:
+    os.environ.pop(_v)
 
 # as caixas do bot (avisos ao Fulano, respostas do WhatsApp, fila do agente, pedidos) também são produção:
 # um teste que esquece o mock não pode mandar nada ao Fulano nem ler pedido de verdade

@@ -317,7 +317,7 @@ class TestRastreio(Base):
         self.assertTrue(rastreio.limpar(dentro, []).startswith("MINHA_KEY=••• "))
 
     def test_texto_normal_nao_e_mascarado(self):
-        for t in ("keyboard shortcut", "token count 5", "a chave do problema", "https://github.com/example-org/x/pull/3",
+        for t in ("keyboard shortcut", "token count 5", "a chave do problema", "https://github.com/acme/x/pull/3",
                   "import re_compile", "pass the test", "senha incorreta, tente de novo"):
             self.assertEqual(rastreio.limpar(t, []), t)
 

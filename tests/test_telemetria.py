@@ -5,7 +5,7 @@ from unittest import mock
 from hub import conta, github_api, telemetria
 
 UTC = dt.timezone.utc
-PR = "https://github.com/example-org/repo-privado/pull/20"
+PR = "https://github.com/acme/repo-privado/pull/20"
 REG = {"inicio": "2026-10-17T16:42:15+00:00", "fim": "2026-10-17T16:50:15+00:00", "origem": "tarefa", "conta": "4",
        "nome": "linear-krn-1083", "modelo": "haiku", "ok": True, "limite": False, "interrompida": False,
        "custo_usd": 0.0187, "tokens": {"entrada": 24, "saida": 7429, "cache_leitura": 591797, "cache_escrita": 45586},
@@ -65,9 +65,9 @@ class Telemetria(unittest.TestCase):
     def test_pr_da_saida_pega_a_ultima_url(self):
         arq = conta.pasta(self.d) / "saida.md"
         arq.parent.mkdir(parents=True, exist_ok=True)
-        arq.write_text("antes https://github.com/example-org/a/pull/1 e no fim https://github.com/example-org/b/pull/2/files\n")
+        arq.write_text("antes https://github.com/acme/a/pull/1 e no fim https://github.com/acme/b/pull/2/files\n")
         r = {**REG, "motivo_volta": "sem link", "saida": str(arq)}
-        self.assertEqual(telemetria.de_uso(r)["pr"], "https://github.com/example-org/b/pull/2")
+        self.assertEqual(telemetria.de_uso(r)["pr"], "https://github.com/acme/b/pull/2")
         self.assertIsNone(telemetria.de_uso({**r, "saida": str(arq) + ".nao"})["pr"])
         self.assertIsNone(telemetria.de_uso({**r, "nome": "retro-diaria"})["pr"])  # só issue KRN-N
 
@@ -90,10 +90,10 @@ class Telemetria(unittest.TestCase):
                          ("falha", "outro", 0, 0, "claude", 0))
 
     def test_pr_extraido_do_motivo_ou_campo_pr(self):
-        r = {**REG, "motivo_volta": f"ver {PR}/ e https://github.com/example-org/x/pull/9#issuecomment-1"}
+        r = {**REG, "motivo_volta": f"ver {PR}/ e https://github.com/acme/x/pull/9#issuecomment-1"}
         self.assertEqual(telemetria.de_uso(r)["pr"], PR)
-        r = {**REG, "motivo_volta": "sem link", "pr": "https://github.com/example-org/x/pull/9#diff"}
-        self.assertEqual(telemetria.de_uso(r)["pr"], "https://github.com/example-org/x/pull/9")
+        r = {**REG, "motivo_volta": "sem link", "pr": "https://github.com/acme/x/pull/9#diff"}
+        self.assertEqual(telemetria.de_uso(r)["pr"], "https://github.com/acme/x/pull/9")
         self.assertIsNone(telemetria.de_uso({**REG, "motivo_volta": "nada"})["pr"])
 
     def test_retrabalho_por_tipo(self):
@@ -180,7 +180,7 @@ class Telemetria(unittest.TestCase):
     def _prs(self, n):
         for i in range(n):
             telemetria.registrar(telemetria.de_uso({**REG, "inicio": f"2026-10-17T1{i}:00:00+00:00",
-                                                    "motivo_volta": f"https://github.com/example-org/r/pull/{i + 1}"}),
+                                                    "motivo_volta": f"https://github.com/acme/r/pull/{i + 1}"}),
                                  base_dados=self.d)
 
     def test_atualizar_prs_grava_e_propaga_merge(self):
@@ -193,7 +193,7 @@ class Telemetria(unittest.TestCase):
 
         agora = dt.datetime(2026, 10, 17, 22, 0, tzinfo=UTC)
         self.assertEqual(telemetria.atualizar_prs(get=get, base_dados=self.d, agora=agora), 2)
-        self.assertCountEqual(pedidos, ["repos/example-org/r/pulls/1", "repos/example-org/r/pulls/2"])
+        self.assertCountEqual(pedidos, ["repos/acme/r/pulls/1", "repos/acme/r/pulls/2"])
         por_pr = {l["pr"][-1]: l["merge_em"] for l in self._linhas()}
         self.assertEqual(por_pr["1"], "2026-10-17T20:00:00+00:00")
         self.assertIsNone(por_pr["2"])
@@ -204,10 +204,10 @@ class Telemetria(unittest.TestCase):
         self._prs(3)
         agora = dt.datetime(2026, 10, 17, 22, 0, tzinfo=UTC)
         con = telemetria.conectar(self.d)
-        con.execute("insert into pr values ('https://github.com/example-org/r/pull/1', 'x', 'merged', ?, NULL)", (conta.iso(agora),))
-        con.execute("insert into pr values ('https://github.com/example-org/r/pull/2', NULL, 'closed', ?, NULL)",
+        con.execute("insert into pr values ('https://github.com/acme/r/pull/1', 'x', 'merged', ?, NULL)", (conta.iso(agora),))
+        con.execute("insert into pr values ('https://github.com/acme/r/pull/2', NULL, 'closed', ?, NULL)",
                     (conta.iso(agora - dt.timedelta(hours=2)),))
-        con.execute("insert into pr values ('https://github.com/example-org/r/pull/3', NULL, 'open', ?, NULL)",
+        con.execute("insert into pr values ('https://github.com/acme/r/pull/3', NULL, 'open', ?, NULL)",
                     (conta.iso(agora - dt.timedelta(minutes=10)),))
         con.commit()
         con.close()
@@ -297,7 +297,7 @@ class Telemetria(unittest.TestCase):
         with mock.patch("hub.github_api.get", return_value={"state": "open"}) as g:
             telemetria.atualizar_prs(base_dados=self.d)
         g.assert_called_once()
-        self.assertEqual(g.call_args.args[0], "repos/example-org/r/pulls/1")
+        self.assertEqual(g.call_args.args[0], "repos/acme/r/pulls/1")
         self.assertEqual((g.call_args.kwargs["consumidor"], g.call_args.kwargs["urgente"]), ("telemetria", False))
 
     def test_main_importar(self):

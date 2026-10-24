@@ -2,7 +2,8 @@
 
 Toda chamada vai para $HUB_DATA/dataforseo/custos.jsonl (em, endpoint, origem, site, custo que a própria resposta
 devolve, nº de tarefas). Teto diário: com o gasto do dia (BRT) em TETO_DIA_USD ou mais, POST pago é recusado
-(TetoAtingido), menos o de origem essencial (ranking semanal). GET (locations, task_get, user_data) não é barrado.
+(TetoAtingido), menos o de origem essencial (ranking semanal). Pausa por gasto anormal barra todo POST,
+inclusive essencial. GET (locations, task_get, user_data) não é barrado.
 Quem chama a API fora deste cliente (o coletor de SERP do ClienteJ) importa este módulo e usa
 conferir_teto() antes de cada lote e registrar() depois de cada chamada: um registro e um teto para todos.
 
@@ -157,6 +158,10 @@ def registrar(endpoint, custo, origem, tarefas=1, status=20000, site=None, metod
 
 def conferir_teto(origem=None, essencial=False, avisar=None):
     """TetoAtingido se o gasto do dia (todos os chamadores) chegou ao teto; avisa o dono uma vez por dia."""
+    from hub import gasto_anormal  # gasto anormal por hora pausa o serviço (inclusive o coletor de SERP do ClienteJ)
+    pausa = gasto_anormal.pausado("dataforseo")
+    if pausa:
+        raise TetoAtingido(f"DataForSEO {pausa}; {origem or _contexto()['origem']} não chamou.")
     if essencial:
         return
     gasto, limite = gasto_hoje(), teto()

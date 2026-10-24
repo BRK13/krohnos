@@ -37,21 +37,21 @@ class SiteDoProjetoTest(unittest.TestCase):
     def test_projetos_do_linear_ligam_ao_site_certo(self):
         ids = {p: (impacto.site_do_projeto(p) or {}).get("id") for p in
                ("Cliente A", "Cliente F", "Cliente G", "ClienteJ", "Cliente C", "Nimbus")}
-        self.assertEqual(ids, {"Cliente A": "fsite05", "Cliente F": "clientei", "Cliente G": "psite13",
+        self.assertEqual(ids, {"Cliente A": "fsite06", "Cliente F": "clientei", "Cliente G": "psite15",
                                "ClienteJ": "clientej", "Cliente C": "asite01", "Nimbus": None})
 
     def test_url_da_linha_medir_depois(self):
-        d = "**O que fazer:** x\n**Medir depois:** clientea-com.example/dores/ciatico, consulta \"dor ciático\""
-        self.assertEqual(impacto.url_medir(d, "clientea-com.example"), "https://clientea-com.example/dores/ciatico")
-        self.assertEqual(impacto.url_medir("**Medir depois:** `/blog/x` (cliques)", "clientea-com.example"),
-                         "https://clientea-com.example/blog/x")
-        self.assertEqual(impacto.url_medir("**Medir depois:** https://clientea-com.example/.", "clientea-com.example"),
-                         "https://clientea-com.example/")
-        self.assertEqual(impacto.url_medir("**Medir depois:** [clientea-com.example/dores](https://clientea-com.example/dores)",
-                                           "clientea-com.example"), "https://clientea-com.example/dores")
-        self.assertEqual(impacto.url_medir("**Medir depois:**\n- clientea-com.example/x", "clientea-com.example"),
-                         "https://clientea-com.example/x")
-        self.assertIsNone(impacto.url_medir("sem a linha", "clientea-com.example"))
+        d = "**O que fazer:** x\n**Medir depois:** site-b.exemplo.com/dores/ciatico, consulta \"dor ciático\""
+        self.assertEqual(impacto.url_medir(d, "site-b.exemplo.com"), "https://site-b.exemplo.com/dores/ciatico")
+        self.assertEqual(impacto.url_medir("**Medir depois:** `/blog/x` (cliques)", "site-b.exemplo.com"),
+                         "https://site-b.exemplo.com/blog/x")
+        self.assertEqual(impacto.url_medir("**Medir depois:** https://site-b.exemplo.com/.", "site-b.exemplo.com"),
+                         "https://site-b.exemplo.com/")
+        self.assertEqual(impacto.url_medir("**Medir depois:** [site-b.exemplo.com/dores](https://site-b.exemplo.com/dores)",
+                                           "site-b.exemplo.com"), "https://site-b.exemplo.com/dores")
+        self.assertEqual(impacto.url_medir("**Medir depois:**\n- site-b.exemplo.com/x", "site-b.exemplo.com"),
+                         "https://site-b.exemplo.com/x")
+        self.assertIsNone(impacto.url_medir("sem a linha", "site-b.exemplo.com"))
 
 
 class MedirTest(unittest.TestCase):
@@ -74,7 +74,7 @@ class MedirTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def gql(self, q, **v):
-        return {"issue": {"description": "**Medir depois:** clientea-com.example/x", "state": {"type": self.estados[v["id"]]}}}
+        return {"issue": {"description": "**Medir depois:** site-b.exemplo.com/x", "state": {"type": self.estados[v["id"]]}}}
 
     def gsc(self, site_url, args):
         self.gsc_args.append(args)
@@ -85,9 +85,9 @@ class MedirTest(unittest.TestCase):
     def test_mede_so_concluida_madura_e_acumula_historico(self):
         medidas = impacto.medir(hoje=dt.date(2026, 10, 9), base_dados=self.base, gql=self.gql, gsc=self.gsc)
         self.assertEqual([m["issue"] for m in medidas], ["KRN-1"])
-        self.assertEqual(self.gsc_sites[0], "sc-domain:clientea-com.example")
+        self.assertEqual(self.gsc_sites[0], "sc-domain:site-b.exemplo.com")
         self.assertNotIn("projectId", self.gsc_args[0])
-        self.assertEqual(self.gsc_args[0]["filters"][0]["expression"], "https://clientea-com.example/x")
+        self.assertEqual(self.gsc_args[0]["filters"][0]["expression"], "https://site-b.exemplo.com/x")
         self.assertEqual((self.gsc_args[0]["startDate"], self.gsc_args[0]["endDate"]), ("2026-08-18", "2026-09-14"))
         salvo = json.loads((self.base / "claude" / "esteira-impacto.json").read_text())
         por = {e["issue"]: e for e in salvo["entregas"]}

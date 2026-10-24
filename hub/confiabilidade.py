@@ -241,7 +241,8 @@ def linha_de_base(dia, base_dados=None):
     rate = sum(1 for r in usos if r.get("turnos") is None and RE_RATE.search(str(r.get("erro") or "")))
     rate += sum(1 for i in incs if i.get("classe") == "cota_estourada")
     ok = sum(1 for r in usos if r.get("ok"))
-    return {"dia": dia, "fila_parada": [i for i in incs if i.get("classe") == "tarefa_parada"],
+    return {"dia": dia, "fila_parada": [{**i, "issue": x} for i in incs if i.get("classe") == "tarefa_parada"
+                            for x in incidentes._issues(i) or [""]],  # um INC pode juntar várias issues
             "pausa_falsa": [a for a in _avisos(ini, fim, base_dados) if a["caso"] in ("limite_sem_chamar", "pausa_desmentida")],
             "rate_limit_github": rate, "execucoes": len(usos), "ok": ok, "taxa": _taxa(ok, len(usos))}
 
@@ -280,6 +281,8 @@ def tela(base_dados=None, agora=None):
     if not r["janela"]["execucoes"] and not _execucoes(base_dados):
         return ui.card("Confiabilidade", ui.vazio("Sem execuções no banco de telemetria ainda.",
                                                   "Rode `python3 -m hub.telemetria importar` para trazer o uso.jsonl."))
+    from hub import ociosidade
+    oc = ociosidade.resumo(base_dados, agora)
     im, cu, rt, av = r["issue_merge_horas"], r["custo_por_issue_fechada"], r["retrabalho"], r["avisos_falsos"]
     sem = f"{cu['sem_custo']} execuções sem custo medido (Codex)" if cu["sem_custo"] else ""
     kp = ui.kpis(
@@ -288,7 +291,9 @@ def tela(base_dados=None, agora=None):
                nota=e(f"p90 {'—' if im['p90'] is None else ui.num(im['p90'], casas=1) + ' h'} · {im['n']} issues")),
         ui.kpi("Custo por issue fechada", ui.num(cu["usd"], moeda="US$"), nota=e(f"{USD} · {cu['issues']} issues" + (f" · {sem}" if sem else ""))),
         ui.kpi("Retrabalho", _pct(rt["taxa"]), nota=e(f"{rt['issues']} issues · {rt['execucoes']} voltas")),
-        ui.kpi("Avisos falsos", str(av["n"]), tom="ruim" if av["n"] else "ok", quente=av["n"] > 0, nota=e("últimos 7 dias")))
+        ui.kpi("Avisos falsos", str(av["n"]), tom="ruim" if av["n"] else "ok", quente=av["n"] > 0, nota=e("últimos 7 dias")),
+        ui.kpi("Esperando >10 min com conta ociosa", str(oc["atual"]), tom="ruim" if oc["atual"] else "ok", quente=oc["atual"] > 0,
+               nota=e(f"p1; {oc['minutos_com_item']} min com item nas últimas 24 h" + (f" · {oc['incidente']}" if oc["incidente"] else ""))))
     tipos = ui.tabela(["Tipo", "n", "ok", "Taxa"], [[k, ui.num(v["n"]), ui.num(v["ok"]), _pct(v["taxa"])]
                                                     for k, v in r["sucesso_por_tipo"].items()], num=(1, 2, 3))
     execs = ui.tabela(["Executor", "n", "ok", "Taxa", USD], [[k, ui.num(v["n"]), ui.num(v["ok"]), _pct(v["taxa"]),

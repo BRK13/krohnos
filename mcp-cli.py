@@ -1,4 +1,4 @@
-"""Chamada avulsa ao MCP do hub: python3 mcp-cli.py <ferramenta> [--file args.json] [--json '{"site":"fsite05"}']."""
+"""Chamada avulsa ao MCP do hub: python3 mcp-cli.py <ferramenta> [--file args.json] [--json '{"site":"fsite06"}']."""
 import argparse
 import json
 import os

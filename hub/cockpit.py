@@ -78,8 +78,7 @@ def agentes(base=None, agora=None):
                       "titulo": r.get("titulo"),
                       "desde": desde, "minutos": minutos,
                       "ultimos_passos": [_sem_segredo(str(x)) for x in linear.passos_do_registro(r["log"], 5)] if r.get("log") else [],
-                      "cinco_horas": (u.get("cinco_horas") or {}).get("pct"), "reset_5h": (u.get("cinco_horas") or {}).get("reset"),
-                      "semana": (u.get("semana") or {}).get("pct")})
+                      "cinco_horas": (u.get("cinco_horas") or {}).get("pct"), "reset_5h": (u.get("cinco_horas") or {}).get("reset")})
     return saida
 
 
@@ -124,7 +123,15 @@ def linear_resumo(agora=None, gql=None, base=None):
 
 # Backlog com comentário de falha do Claude (hub.linear.concluir comenta "Falhou (conta): ...")
 Q_FALHAS = ('{ issues(first: 100, filter: {state: {name: {eq: "Backlog"}}}) '
-            '{ nodes { identifier comments(first: 50) { nodes { body } } } } }')
+            '{ nodes { identifier comments(first: 50) { nodes { body createdAt } } } } }')
+
+
+def falhou_sem_estacionar(comentarios):
+    """Tem "Falhou (" e nenhum "Estacionada pelo orquestrador" depois dele: estacionar de propósito não é travar."""
+    falha = max((c.get("createdAt") or "" for c in comentarios if "Falhou (" in (c.get("body") or "")), default=None)
+    estac = max((c.get("createdAt") or "" for c in comentarios if (c.get("body") or "").startswith("Estacionada pelo orquestrador")),
+                default=None)
+    return falha is not None and (estac is None or falha > estac)
 
 Q_PERGUNTAS = ('{ agentSessions(first: 30, orderBy: updatedAt) { nodes { status issue { identifier title url } '
                'activities(first: 50) { nodes { createdAt content { __typename ... on AgentActivityElicitationContent '
@@ -187,7 +194,7 @@ def pendencias(base=None, agora=None, gql=None):
         return set()
     try:
         falhas = _cache("falhas", 60, lambda: {i["identifier"] for i in gql(Q_FALHAS)["issues"]["nodes"]
-                                               if any("Falhou (" in (c.get("body") or "") for c in i["comments"]["nodes"])})
+                                               if falhou_sem_estacionar(i["comments"]["nodes"])})
         for i in linear_resumo(agora, gql, base)["issues"]:
             motivo = None
             if i["estado"] == "Backlog" and i["identifier"] in falhas:

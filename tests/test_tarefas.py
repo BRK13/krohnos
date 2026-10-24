@@ -11,7 +11,7 @@ quando: 0 8 * * *   # todo dia
 prioridade: 1
 modelo: haiku
 timeout: 10m
-repos: [example-org/a, example-org/b]
+repos: [acme/a, acme/b]
 externo: false
 descricao: Resumo # com cerquilha
 ---
@@ -23,7 +23,7 @@ class ContratoTest(unittest.TestCase):
     def test_parse_ok(self):
         t = T.parse(OK, "resumo-diario")
         self.assertEqual((t.quando, t.prioridade, t.modelo, t.timeout_s), ("0 8 * * *", 1, "haiku", 600))
-        self.assertEqual(t.repos, ["example-org/a", "example-org/b"])
+        self.assertEqual(t.repos, ["acme/a", "acme/b"])
         self.assertFalse(t.externo)
         self.assertEqual(t.descricao, "Resumo # com cerquilha")
         self.assertEqual(t.prompt, "Faça o resumo.")

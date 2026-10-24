@@ -18,12 +18,12 @@ class ArmazemTest(unittest.TestCase):
         self.assertEqual(armazem.soma("asite01", "gsc", "cliques", "2026-10-01", "2026-10-03", base_dados=self.d), (42.0, 2))
 
     def test_dims_e_ultimo_sem_total_soma_as_dims(self):
-        g = dict(negocio="fsite05", fonte="ga4", metrica="sessoes")
+        g = dict(negocio="fsite06", fonte="ga4", metrica="sessoes")
         armazem.gravar([f("2026-10-01", 5, "google / organic", **g), f("2026-10-02", 7, "google / organic", **g),
                         f("2026-10-02", 3, "(direct) / (none)", **g)], self.d)
-        self.assertEqual(armazem.dims("fsite05", "ga4", "sessoes", "2026-10-01", "2026-10-02", base_dados=self.d),
+        self.assertEqual(armazem.dims("fsite06", "ga4", "sessoes", "2026-10-01", "2026-10-02", base_dados=self.d),
                          [("google / organic", 12.0), ("(direct) / (none)", 3.0)])
-        self.assertEqual(armazem.ultimo("fsite05", "ga4", "sessoes", base_dados=self.d), ("2026-10-02", 10.0))
+        self.assertEqual(armazem.ultimo("fsite06", "ga4", "sessoes", base_dados=self.d), ("2026-10-02", 10.0))
 
     def test_ultimo_com_total_usa_so_o_total(self):
         armazem.gravar([f("2026-10-01", 99), f("2026-10-02", 20), f("2026-10-02", 12, "a"), f("2026-10-02", 8, "b")], self.d)

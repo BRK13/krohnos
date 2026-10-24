@@ -368,6 +368,14 @@ class TestSegredos(Base):
         self.assertNotIn(SENTINELA, out.getvalue() + err.getvalue())
         self.assertIn("***", out.getvalue())
 
+    def test_erro_cortado_no_meio_do_segredo_nao_vaza(self):
+        G.registrar_segredos([SENTINELA])
+        e = RuntimeError("x" * (150 - len(SENTINELA) // 2) + SENTINELA)  # o corte de 150 cairia no meio do valor
+        d = G.descrever_erro(e)
+        self.assertLessEqual(len(d), 150)
+        for i in range(4, len(SENTINELA) + 1):
+            self.assertNotIn(SENTINELA[:i], d)
+
     def test_ler_cookies_registra_para_o_log(self):
         p = self.dir / "c.json"
         p.write_text(json.dumps({"auth_token": SENTINELA}))

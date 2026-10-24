@@ -156,7 +156,7 @@ class UsuariosTest(unittest.TestCase):
         self.assertEqual(usuarios.contar(), 1)
         l = usuarios.listar()
         self.assertEqual(l[0]["papel"], "dono")
-        self.assertEqual(set(l[0]), {"email", "papel", "criado", "ativo"})
+        self.assertEqual(set(l[0]), {"email", "papel", "criado", "ativo", "sites"})
         with self.assertRaises(ValueError):
             usuarios.trocar_papel("ana@x.test", "root")
         with self.assertRaises(ValueError):

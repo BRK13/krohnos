@@ -81,8 +81,7 @@ class ColetarTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=http_erro(401)):
             r = U.coletar(self.home, AGORA)
         for n in "123":
-            self.assertEqual(r["contas"][n], {"cinco_horas": {"pct": None, "reset": None},
-                                              "semana": {"pct": None, "reset": None}, "fonte": "estimativa"})
+            self.assertEqual(r["contas"][n], {"cinco_horas": {"pct": None, "reset": None}, "fonte": "estimativa"})
         self.assertNotIn("SEGREDO", json.dumps(r))
 
     def test_oauth_ok_e_token_expirado_sem_rede(self):
@@ -96,7 +95,7 @@ class ColetarTest(unittest.TestCase):
         self.assertEqual(m.call_count, 2)  # a conta 2 expirada nem sai para a rede (sem renovar token)
         self.assertEqual(r["contas"]["1"]["fonte"], "oauth")
         self.assertEqual(r["contas"]["1"]["cinco_horas"]["pct"], 12.5)
-        self.assertIsNone(r["contas"]["1"]["semana"]["pct"])
+        self.assertNotIn("semana", r["contas"]["1"])
         self.assertEqual(r["contas"]["2"]["fonte"], "estimativa")
 
     def _cred_orq(self, expira_ms):
@@ -109,8 +108,9 @@ class ColetarTest(unittest.TestCase):
             {"five_hour": {"utilization": 7, "resets_at": "x"}, "seven_day": {"utilization": 30, "resets_at": "y"}}).encode()
         with mock.patch("urllib.request.urlopen", return_value=resp):
             r = U.coletar(self.home, AGORA)
-        self.assertEqual((r["orquestrador"]["fonte"], r["orquestrador"]["cinco_horas"]["pct"], r["orquestrador"]["semana"]["pct"]),
-                         ("oauth", 7.0, 30.0))
+        self.assertEqual((r["orquestrador"]["fonte"], r["orquestrador"]["cinco_horas"]["pct"]),
+                         ("oauth", 7.0))
+        self.assertNotIn("semana", r["orquestrador"])  # seven_day veio preenchido e foi ignorado
         self.assertEqual(set(r["contas"]), {"1", "2", "3"})
         self.assertNotIn("SEGREDO", json.dumps(r))
 
@@ -133,7 +133,7 @@ class ColetarTest(unittest.TestCase):
         self.assertEqual((ausente, vencido), (U.VAZIA, U.VAZIA))
         self.assertEqual(m.call_count, 2 * n3)  # só as 3 contas saem para a rede
 
-    def test_semana_e_sessao_pelo_limits(self):
+    def test_sessao_pelo_limits_sem_semana(self):
         resp = mock.MagicMock()
         resp.__enter__.return_value.read.return_value = json.dumps({"five_hour": None, "seven_day": None, "limits": [
             {"kind": "session", "percent": 11, "resets_at": "2026-10-09T02:00:00+00:00"},
@@ -141,8 +141,17 @@ class ColetarTest(unittest.TestCase):
             {"kind": "weekly_all", "percent": 42, "resets_at": "2026-10-10T02:00:00+00:00"}]}).encode()
         with mock.patch("urllib.request.urlopen", return_value=resp):
             c = U.coletar(self.home, AGORA)["contas"]["1"]
-        self.assertEqual((c["cinco_horas"]["pct"], c["semana"]["pct"], c["fonte"]), (11.0, 42.0, "oauth"))
-        self.assertEqual(c["semana"]["reset"], "2026-10-10T02:00:00+00:00")
+        self.assertEqual((c["cinco_horas"]["pct"], c["fonte"]), (11.0, "oauth"))
+        self.assertNotIn("semana", c)  # weekly_all do limits[] não é mais lido
+
+    def test_so_semana_sem_cinco_horas_cai_em_estimativa(self):
+        resp = mock.MagicMock()
+        resp.__enter__.return_value.read.return_value = json.dumps(
+            {"five_hour": None, "seven_day": {"utilization": 42, "resets_at": "x"}}).encode()
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            c = U.coletar(self.home, AGORA)["contas"]["1"]
+        self.assertEqual(c, U.VAZIA)
+        self.assertNotIn("semana", U.VAZIA)
 
     def test_excecao_http_de_uma_conta_nao_derruba(self):
         import http.client
@@ -201,9 +210,8 @@ class PainelUsoTest(unittest.TestCase):
             (c / "uso.jsonl").write_text("\n".join(json.dumps(lin(h, n)) for h, n in ((1, None), (2, "2"), (3, "3"))))
             (c / "uso-contas.json").write_text(json.dumps({"em": AGORA.isoformat(), "contas": {
                 "1": {"cinco_horas": {"pct": 40.0, "reset": "2026-10-08T15:00:00+00:00"},
-                      "semana": {"pct": None, "reset": None}, "fonte": "oauth"}},
-                "orquestrador": {"cinco_horas": {"pct": 25.0, "reset": None}, "semana": {"pct": 60.0, "reset": None},
-                                 "fonte": "oauth"}}))
+                      "fonte": "oauth"}},
+                "orquestrador": {"cinco_horas": {"pct": 25.0, "reset": None}, "fonte": "oauth"}}))
             (c / "pausa-2.json").write_text(json.dumps({"ate": "2999-01-01T00:00:00+00:00"}))
             with mock.patch.dict(os.environ, {"HUB_DATA": t}):
                 status, corpo = painel.rota("/uso")

@@ -15,7 +15,7 @@ TAMANHOS = (50, 100, 200)
 LIMITE_SPAM = 40
 MAX_CONDICOES = 8  # teto de condições de filtro por tarefa do DataForSEO
 
-_SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite13), domínio ou nome"},
+_SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite15), domínio ou nome"},
          "projectId": {"type": "string", "description": "o mesmo que site (nome usado pela ferramenta antiga)"}}
 _ALVO = {"type": "string", "minLength": 1, "maxLength": 2048,
          "description": "Domínio ou URL a analisar (ex.: 'example.com' ou 'https://example.com/blog'). Sem ele, vale domain/dominio ou o domínio do site."}

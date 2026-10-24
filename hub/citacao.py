@@ -4,7 +4,7 @@
   hosts_alternativos, hosts_citacao). Subdomínio qualquer não conta: blog.exemplo.com só vale se declarado.
 - Menção: o nome aparece como palavra inteira (sem diferença de maiúscula ou acento). Aliases só os
   declarados. Marca de nome genérico (ex.: "ClienteJ") não conta pelo nome, só pelos aliases.
-- Nomes que se sobrepõem ("fsite05" e "Cliente A") contam uma vez por ocorrência.
+- Nomes que se sobrepõem ("fsite06" e "Cliente A") contam uma vez por ocorrência.
 """
 import re
 import unicodedata

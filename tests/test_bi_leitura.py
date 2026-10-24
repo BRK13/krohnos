@@ -96,7 +96,7 @@ class VigiaTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.d)
         self.avisos = []
 
-    def base(self, fonte="app", metrica="leads", valor=10, ontem=5, semanas=(7, 14, 21, 28), negocio="fsite05"):
+    def base(self, fonte="app", metrica="leads", valor=10, ontem=5, semanas=(7, 14, 21, 28), negocio="fsite06"):
         d = [f(dia(1 + k), valor, fonte, metrica, negocio=negocio) for k in semanas]
         if ontem is not None:
             d.append(f(dia(1), ontem, fonte, metrica, negocio=negocio))
@@ -108,10 +108,10 @@ class VigiaTest(unittest.TestCase):
     def test_queda_de_50_dispara(self):
         self.base()
         q = L.quedas(HOJE, self.d)
-        self.assertEqual([(x["negocio"], x["sinal"]) for x in q], [("fsite05", "contatos novos")])
+        self.assertEqual([(x["negocio"], x["sinal"]) for x in q], [("fsite06", "contatos novos")])
         self.assertAlmostEqual(q[0]["queda"], 0.5)
         msg = self.vigiar()
-        self.assertIn("https://nimbus.clientec-com.example/bi/fsite05", msg)
+        self.assertIn("https://painel.exemplo.com.br/bi/fsite06", msg)
         self.assertTrue(msg.startswith("Queda forte no BI (Krohnos):"))  # o WhatsApp cita o painel pelo nome
 
     def test_queda_de_40_exata_ou_menor_nao_dispara(self):
@@ -142,7 +142,7 @@ class VigiaTest(unittest.TestCase):
         self.base(negocio="asite01")
         self.vigiar()
         self.assertEqual(len(self.avisos), 1)
-        self.assertIn("fsite05", self.avisos[0])
+        self.assertIn("fsite06", self.avisos[0])
         self.assertIn("asite01", self.avisos[0])
 
     def test_so_avisa_uma_vez_por_dia(self):
@@ -150,8 +150,8 @@ class VigiaTest(unittest.TestCase):
         self.vigiar()
         self.vigiar()
         self.assertEqual(len(self.avisos), 1)
-        armazem.gravar([f(dia(0), 4, "app", "leads", negocio="fsite05")] +
-                       [f(dia(k), 10, "app", "leads", negocio="fsite05") for k in (7, 14, 21, 28)], self.d)
+        armazem.gravar([f(dia(0), 4, "app", "leads", negocio="fsite06")] +
+                       [f(dia(k), 10, "app", "leads", negocio="fsite06") for k in (7, 14, 21, 28)], self.d)
         self.vigiar(HOJE + dt.timedelta(days=1))
         self.assertEqual(len(self.avisos), 2)
 

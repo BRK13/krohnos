@@ -10,7 +10,7 @@ from hub import agenda, conta, esperas, linear, travadas
 
 UTC = dt.timezone.utc
 T0 = dt.datetime(2026, 10, 16, 20, 0, tzinfo=UTC)
-PR = "https://github.com/example-org/clienteh/pull/805"
+PR = "https://github.com/acme/clienteh/pull/805"
 
 
 def comentario(corpo, quando="2026-10-16T10:00:00Z", app=True):
@@ -132,7 +132,7 @@ class VarrerTest(Base):
 
     def test_pr_do_comentario_novo_vale_mais_que_o_da_descricao(self):  # revisão do Codex no PR #384
         i = self.issue("KRN-519", [comentario(f"PR novo {PR} aberto.")])
-        i["description"] = "Antes: https://github.com/example-org/clienteh/pull/100"
+        i["description"] = "Antes: https://github.com/acme/clienteh/pull/100"
         self.assertEqual(travadas._prs(i), PR)
 
     def test_sem_pr_chama_o_orquestrador(self):  # padrão 5:, timer vencido sem ninguém ler

@@ -142,6 +142,13 @@ def montar(pasta, nomes, biblioteca_=None):
     return {"plugin": str(plugin), "ligadas": ligadas, "faltando": faltando}
 
 
+def hook_json():
+    """Settings só com o hook PreToolUse (Bash) que barra as armadilhas do ambiente (hub/hook_bash.py)."""
+    from hub import RAIZ
+    return {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+        {"type": "command", "command": f"PYTHONPATH={RAIZ} python3 -m hub.hook_bash"}]}]}}
+
+
 def settings_json(config_dir):
     """Settings extra da execução: TTL do cache dos subagentes e plugins da conta (fora do base) desligados."""
     try:
@@ -153,6 +160,7 @@ def settings_json(config_dir):
              "enabledPlugins": {p: False for p in sorted(habilitados) if p not in base_}}
     if excluir := claude_md_duplicado(config_dir):
         extra["claudeMdExcludes"] = excluir
+    extra.update(hook_json())
     return json.dumps(extra)
 
 

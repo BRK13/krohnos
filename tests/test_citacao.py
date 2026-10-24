@@ -2,13 +2,13 @@ import unittest
 
 from hub import citacao, sites
 
-FSITE05 = {"nome": "Cliente A", "nomes": ["Cliente A", "ClienteA"], "identificador": None,
-         "hosts": {"clientea-com.example", "www.clientea-com.example"}}
+FSITE06 = {"nome": "Cliente A", "nomes": ["Cliente A", "ClienteA"], "identificador": None,
+         "hosts": {"site-b.exemplo.com", "www.site-b.exemplo.com"}}
 
 
 class MencaoTest(unittest.TestCase):
     def test_palavra_inteira_sem_acento_e_sem_dupla_contagem(self):
-        self.assertEqual(citacao.mencoes("Cliente A, CLIENTE A e áfsite05", ["fsite05", "Cliente A"])[0], 2)
+        self.assertEqual(citacao.mencoes("Cliente A, CLIENTE A e áfsite06", ["fsite06", "Cliente A"])[0], 2)
         self.assertEqual(citacao.mencoes("Método ClienteM", ["metodo clientem"])[0], 1)
         self.assertEqual(citacao.mencoes("clienteaissimo", ["ClienteA"])[0], 0)
 
@@ -19,24 +19,24 @@ class MencaoTest(unittest.TestCase):
     def test_marca_de_nome_generico_so_pelos_aliases(self):
         a = citacao.alvo(sites.site("clientej"))
         self.assertNotIn("ClienteJ", a["nomes"])
-        r = citacao.medir_resposta("Pesquise clientej do STJ no jsite10.", [], a, ["jsite10"])
+        r = citacao.medir_resposta("Pesquise clientej do STJ no jsite12.", [], a, ["jsite12"])
         self.assertFalse(r["marca_mencionada"])
-        r = citacao.medir_resposta("Use o clientej-com-br.example.", [], a, [])
+        r = citacao.medir_resposta("Use o site-d.exemplo.com.", [], a, [])
         self.assertTrue(r["marca_mencionada"])
 
 
 class CitacaoTest(unittest.TestCase):
     def test_host_exato_ou_declarado(self):
-        urls = ["https://evilclientea-com.example/a", "https://clientea-com.example.evil.com/b", "https://blog.clientea-com.example/c"]
-        self.assertFalse(citacao.citado(urls, FSITE05["hosts"]))  # subdomínio não declarado não conta
-        self.assertTrue(citacao.citado(["https://www.clientea-com.example/"], FSITE05["hosts"]))
-        self.assertTrue(citacao.citado(["https://clientea-com.example./x"], FSITE05["hosts"]))
-        self.assertTrue(citacao.citado(["https://blog.clientea-com.example/c"], FSITE05["hosts"] | {"blog.clientea-com.example"}))
+        urls = ["https://evilsite-b.exemplo.com/a", "https://site-b.exemplo.com.evil.com/b", "https://blog.site-b.exemplo.com/c"]
+        self.assertFalse(citacao.citado(urls, FSITE06["hosts"]))  # subdomínio não declarado não conta
+        self.assertTrue(citacao.citado(["https://www.site-b.exemplo.com/"], FSITE06["hosts"]))
+        self.assertTrue(citacao.citado(["https://site-b.exemplo.com./x"], FSITE06["hosts"]))
+        self.assertTrue(citacao.citado(["https://blog.site-b.exemplo.com/c"], FSITE06["hosts"] | {"blog.site-b.exemplo.com"}))
 
     def test_hosts_vem_do_cadastro(self):
         a = citacao.alvo(sites.site("asite01"))
-        self.assertEqual(a["hosts"], {"clientec-com.example", "www.clientec-com.example", "app.clientec-com.example"})
-        self.assertTrue(citacao.citado(["https://app.clientec-com.example/login"], a["hosts"]))
+        self.assertEqual(a["hosts"], {"site-a.exemplo.com", "www.site-a.exemplo.com", "app.site-a.exemplo.com"})
+        self.assertTrue(citacao.citado(["https://app.site-a.exemplo.com/login"], a["hosts"]))
 
     def test_url_lixo_nao_quebra(self):
         self.assertEqual(citacao.host("http://[::1"), "")
@@ -44,8 +44,8 @@ class CitacaoTest(unittest.TestCase):
 
 class MedirRespostaTest(unittest.TestCase):
     def test_sem_nome_no_prompt(self):
-        texto = "Opções: ClienteR, depois a Cliente A (https://clientea-com.example/convenios)."
-        r = citacao.medir_resposta(texto, [], FSITE05, ["ClienteR", "Posture"], "Qual a melhor clínica?")
+        texto = "Opções: ClienteR, depois a Cliente A (https://site-b.exemplo.com/convenios)."
+        r = citacao.medir_resposta(texto, [], FSITE06, ["ClienteR", "Posture"], "Qual a melhor clínica?")
         self.assertFalse(r["com_marca"])
         self.assertTrue(r["marca_mencionada"])
         self.assertTrue(r["dominio_citado"])

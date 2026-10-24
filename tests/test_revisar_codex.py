@@ -58,7 +58,7 @@ class RevisarCodexTest(unittest.TestCase):
         if a[1] == "view":
             return json.dumps({"headRefOid": self.head})
         self.comentarios.append((a[2], a[-1]))
-        return "https://github.com/example-org/infra/pull/" + a[2]
+        return "https://github.com/acme/infra/pull/" + a[2]
 
     def feitos(self):
         arq = Path(self.dados) / "claude" / "revisoes-claude.txt"

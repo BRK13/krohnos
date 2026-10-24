@@ -10,11 +10,11 @@ from hub.mcp_grupos import ErroUso
 
 NOMES = ("create_rank_tracker", "add_rank_tracking_keywords", "remove_rank_tracking_keywords", "pin_rank_tracking_keywords",
          "estimate_rank_tracker_cost", "run_rank_tracker")
-PSI = [f"palavras {i} psite13" for i in range(1, 8)]  # as do cadastro de teste (tests/fixtures/dados/projetos/psite13.json)
+PSI = [f"palavras {i} psite15" for i in range(1, 8)]  # as do cadastro de teste (tests/fixtures/dados/projetos/psite15.json)
 
 
 def ex(nome, **args):
-    return mcp_proxy.executar(nome, {"site": "psite13", **args})
+    return mcp_proxy.executar(nome, {"site": "psite15", **args})
 
 
 class Test(unittest.TestCase):
@@ -28,7 +28,7 @@ class Test(unittest.TestCase):
         self.tmp.cleanup()
 
     def cfg(self):
-        return ranking.config(next(s for s in sites.carregar() if s["id"] == "psite13"))
+        return ranking.config(next(s for s in sites.carregar() if s["id"] == "psite15"))
 
     def test_schemas_como_o_original(self):
         props = {
@@ -54,18 +54,18 @@ class Test(unittest.TestCase):
     def test_estimativa_confere_a_conta(self):
         r = ex("estimate_rank_tracker_cost")
         # profundidade 40: 0.002 + 3 × 0.0015 = 0.0065 por palavra → 7 créditos
-        self.assertEqual((r["trackerId"], r["keywordCount"], r["costCredits"], r["costUsd"], r["method"]), ("psite13", 7, 49, 0.0455, "live"))
+        self.assertEqual((r["trackerId"], r["keywordCount"], r["costCredits"], r["costUsd"], r["method"]), ("psite15", 7, 49, 0.0455, "live"))
         self.assertEqual(r["scheduledEstimate"], {"scheduleInterval": "weekly", "costUsd": 0.0455, "costCredits": 49, "checksPerMonth": 4,
                                                   "monthlyCostUsd": 0.182, "monthlyCostCredits": 196})
-        r = ex("estimate_rank_tracker_cost", additionalKeywords=["site:psite13-com.example terapia"], additionalKeywordCount=50)
+        r = ex("estimate_rank_tracker_cost", additionalKeywords=["site:site-e.exemplo.com terapia"], additionalKeywordCount=50)
         self.assertEqual((r["additionalKeywordCount"], r["costCredits"], r["costUsd"]), (1, 49 + 33, 0.078))  # site: custa 5×
         self.assertEqual(ex("estimate_rank_tracker_cost", additionalKeywordCount=3)["totalChecks"], 10)
-        self.assertFalse((Path(self.tmp.name) / "mcp/ranking/psite13/config.json").exists())
+        self.assertFalse((Path(self.tmp.name) / "mcp/ranking/psite15/config.json").exists())
 
     def test_create_add_remove_pin_gravam_na_pasta_do_mcp(self):
-        arq = Path(self.tmp.name) / "mcp/ranking/psite13/config.json"
-        r = ex("create_rank_tracker", domain="https://www.psite13-com-br.example/x", serpDepth=20, devices="desktop", scheduleInterval="daily")
-        self.assertEqual(r["config"], {"domain": "psite13-com-br.example", "locationCode": 2076, "languageCode": "pt", "devices": "desktop",
+        arq = Path(self.tmp.name) / "mcp/ranking/psite15/config.json"
+        r = ex("create_rank_tracker", domain="https://www.site-e.exemplo.com.br/x", serpDepth=20, devices="desktop", scheduleInterval="daily")
+        self.assertEqual(r["config"], {"domain": "site-e.exemplo.com.br", "locationCode": 2076, "languageCode": "pt", "devices": "desktop",
                                        "serpDepth": 20, "scheduleInterval": "weekly", "palavras": PSI, "fixadas": []})
         self.assertEqual(set(json.loads(arq.read_text(encoding="utf-8"))), {"palavras", "fixadas", "local", "idioma", "dispositivo", "profundidade"})
         r = ex("add_rank_tracking_keywords", keywords=["Terapia Online", "terapia online", PSI[0], "Psi Rio"], matchCase=False)
@@ -76,7 +76,7 @@ class Test(unittest.TestCase):
         r = ex("pin_rank_tracking_keywords", keywordIds=["psi rio", "psi rio", "nao existe"], pinned=True)
         self.assertEqual((r["requested"], r["updated"], r["updatedIds"], r["pinned"]), (3, 1, ["psi rio"], True))
         self.assertEqual(ex("pin_rank_tracking_keywords", keywordIds=["psi rio"], pinned=True)["updated"], 0)
-        r = ex("remove_rank_tracking_keywords", keywordIds=["psi rio", "nao existe", "psi rio"], trackerId="psite13")
+        r = ex("remove_rank_tracking_keywords", keywordIds=["psi rio", "nao existe", "psi rio"], trackerId="psite15")
         self.assertEqual((r["requested"], r["removed"], r["removedIds"]), (3, 1, ["psi rio"]))
         c = self.cfg()
         self.assertEqual((c["palavras"], c["fixadas"], c["profundidade"], c["dispositivo"]), (PSI + ["terapia online", "Psi Rio"], [], 20, "desktop"))
@@ -85,11 +85,11 @@ class Test(unittest.TestCase):
     def test_teto_do_add_nao_grava(self):
         with self.assertRaises(ErroUso):
             ex("add_rank_tracking_keywords", keywords=["nova"], maxEstimatedScheduledCheckCredits=55)
-        self.assertFalse((Path(self.tmp.name) / "mcp/ranking/psite13/config.json").exists())
+        self.assertFalse((Path(self.tmp.name) / "mcp/ranking/psite15/config.json").exists())
         self.assertEqual(ex("add_rank_tracking_keywords", keywords=["nova"], maxEstimatedScheduledCheckCredits=56)["added"], 1)
 
     def test_teto_de_1000_palavras_nao_grava(self):
-        arq = Path(self.tmp.name) / "mcp/ranking/psite13/config.json"
+        arq = Path(self.tmp.name) / "mcp/ranking/psite15/config.json"
         self.assertEqual(ex("add_rank_tracking_keywords", keywords=[f"p{i}" for i in range(992)])["added"], 992)  # 7 + 992 = 999
         antes = arq.read_text(encoding="utf-8")
         with self.assertRaisesRegex(ErroUso, "1000"):
@@ -128,21 +128,21 @@ class Test(unittest.TestCase):
 
         def post(caminho, tarefas):
             chamadas.append((caminho, tarefas))
-            itens = [{"type": "organic", "domain": "www.psite13-com.example", "rank_group": 3, "url": "https://psite13-com.example/"}]
+            itens = [{"type": "organic", "domain": "www.site-e.exemplo.com", "rank_group": 3, "url": "https://site-e.exemplo.com/"}]
             return [{"status_code": 20000, "cost": 0.0065, "result": [{"items": itens if tarefas[0]["keyword"] == PSI[0] else []}]}]
 
         with mock.patch.object(dataforseo, "post", post):
-            r = ex("run_rank_tracker", maxCostCredits=49, trackerId="psite13")
+            r = ex("run_rank_tracker", maxCostCredits=49, trackerId="psite15")
         self.assertEqual(len(chamadas), 7)
         self.assertEqual(chamadas[0], ("serp/google/organic/live/advanced", [{"keyword": PSI[0], "location_code": 2076,
                                                                               "language_code": "pt", "device": "mobile", "depth": 40}]))
         self.assertEqual((r["ok"], r["started"], r["runId"], r["custo"]), (True, True, r["dia"], 0.0455))
-        self.assertEqual(r["itens"][0], {"palavra": PSI[0], "posicao": 3, "url": "https://psite13-com.example/"})
+        self.assertEqual(r["itens"][0], {"palavra": PSI[0], "posicao": 3, "url": "https://site-e.exemplo.com/"})
         base = Path(self.tmp.name)
-        self.assertTrue((base / f"mcp/ranking/psite13/medicoes/{r['dia']}.json").exists())
+        self.assertTrue((base / f"mcp/ranking/psite15/medicoes/{r['dia']}.json").exists())
         self.assertFalse((base / "bi/metricas.db").exists())
         self.assertFalse((base / "ranking").exists())
-        self.assertEqual(mcp_proxy.executar("get_rank_tracker", {"site": "psite13"})["palavras"][0]["posicao"], 3)
+        self.assertEqual(mcp_proxy.executar("get_rank_tracker", {"site": "psite15"})["palavras"][0]["posicao"], 3)
 
 
 if __name__ == "__main__":

@@ -47,7 +47,8 @@ def _medicao(negocio):
 def _ga4_eventos(j, dia, n):
     """GA4 date × eventName: só os eventos declarados em sites/<id>.json (medicao.eventos); page_view e afins ficam fora."""
     eventos = set(_medicao(n).get("eventos") or [])
-    nomes = [h["name"] for h in j["metricHeaders"]]
+    # o snapshot da coleta guarda só as linhas (sem metricHeaders): a ordem pedida é eventCount, totalUsers
+    nomes = [h["name"] for h in j["metricHeaders"]] if "metricHeaders" in j else ["eventCount", "totalUsers"]
     for r in j["rows"]:
         v, evento = r["dimensionValues"][0]["value"], r["dimensionValues"][1]["value"]
         if evento not in eventos:
@@ -91,7 +92,7 @@ def ingerir_snapshot(pasta, base_dados=None):
                 break
         else:
             continue  # status, ga4 (janela), latest etc.
-        # prefixo mais longo vence (fsite06 antes de fsite05)
+        # prefixo mais longo vence (fsite07 antes de fsite06)
         negocio = max((i for i in ids if arq.stem == f"{i}-{tipo}"), key=len, default=None)
         if not negocio:
             continue

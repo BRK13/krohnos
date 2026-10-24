@@ -11,8 +11,8 @@ from pathlib import Path
 from hub import biblioteca as B, biblioteca_indice as I
 
 ARQ = Path(__file__).resolve().parent.parent / "tests" / "biblioteca_gabarito.json"
-PROJETOS_NOME = {"Cliente C": "asite01", "ClienteJ": "clientej", "Cliente A": "fsite05", "Cliente F": "clientei",
-                 "Cliente G": "psite13", "ClienteE & Moraes": "clientee", "Nimbus": "hub", "Cliente P": "apartamento"}
+PROJETOS_NOME = {"Cliente C": "asite01", "ClienteJ": "clientej", "Cliente A": "fsite06", "Cliente F": "clientei",
+                 "Cliente G": "psite15", "ClienteE & Moraes": "clientee", "Nimbus": "hub", "Cliente P": "apartamento"}
 
 
 def carregar():

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from hub import migrar, sites
 
-MAPA = {"clienteipsi-v2": "clientei", "cliente-a": "fsite05", "clienteh": "clientej"}
+MAPA = {"clienteipsi-v2": "clientei", "cliente-a": "fsite06", "clienteh": "clientej"}
 
 
 def escrever(caminho, texto="x"):
@@ -22,19 +22,19 @@ class MigrarTest(unittest.TestCase):
         escrever(self.dados / "aio/clienteipsi-v2/terapia/2026-10-06.json", "a" * 10)
         escrever(self.dados / "aio/clienteipsi-v2/painel/2026-W41.jsonl", "b")
         escrever(self.dados / "geo-new/cliente-a/latest.json", "c")
-        escrever(self.dados / "geo-new/psite13/latest.json", "não muda")
+        escrever(self.dados / "geo-new/psite15/latest.json", "não muda")
         escrever(self.dados / "snapshots/2026-10-07/cliente-a-status.json", "d")
-        escrever(self.dados / "snapshots/2026-10-07/fsite06-status.json", "não muda")
+        escrever(self.dados / "snapshots/2026-10-07/fsite07-status.json", "não muda")
         escrever(self.dados / "snapshots/2026-10-07/clienteh-gsc.json", "e")
         escrever(self.home / "credenciais/clarity/clienteh.json", '{"token": "t"}')
 
     def test_mapa_real_vem_do_cadastro(self):
         m = sites.mapa_ids_antigos()
         self.assertEqual(m["clienteipsi-v2"], "clientei")
-        self.assertEqual(m["cliente-a"], "fsite05")
+        self.assertEqual(m["cliente-a"], "fsite06")
         self.assertEqual(m["cliente-c"], "asite01")
-        self.assertNotIn("psite13", m)  # id igual: nada a mover
-        self.assertNotIn("fsite06", m)
+        self.assertNotIn("psite15", m)  # id igual: nada a mover
+        self.assertNotIn("fsite07", m)
 
     def test_plano_nao_muda_nada(self):
         r = migrar.migrar(MAPA, self.dados, self.home)
@@ -47,9 +47,9 @@ class MigrarTest(unittest.TestCase):
         self.assertEqual(len(r["movimentos"]), 5)
         self.assertEqual((self.dados / "aio/clientei/terapia/2026-10-06.json").read_text(encoding="utf-8"), "a" * 10)
         self.assertTrue((self.dados / "aio/clientei/painel/2026-W41.jsonl").exists())
-        self.assertTrue((self.dados / "geo-new/fsite05/latest.json").exists())
-        self.assertTrue((self.dados / "snapshots/2026-10-07/fsite05-status.json").exists())
-        self.assertTrue((self.dados / "snapshots/2026-10-07/fsite06-status.json").exists())  # prefixo parecido, intocado
+        self.assertTrue((self.dados / "geo-new/fsite06/latest.json").exists())
+        self.assertTrue((self.dados / "snapshots/2026-10-07/fsite06-status.json").exists())
+        self.assertTrue((self.dados / "snapshots/2026-10-07/fsite07-status.json").exists())  # prefixo parecido, intocado
         self.assertTrue((self.dados / "snapshots/2026-10-07/clientej-gsc.json").exists())
         self.assertEqual(json.loads((self.home / "credenciais/clarity/clientej.json").read_text()), {"token": "t"})
         self.assertFalse((self.dados / "aio/clienteipsi-v2").exists())
@@ -65,7 +65,7 @@ class MigrarTest(unittest.TestCase):
         self.assertFalse((self.dados / "aio/clienteipsi-v2").exists())
 
     def test_conflito_aborta_sem_mexer_em_nada(self):
-        escrever(self.dados / "snapshots/2026-10-07/fsite05-status.json", "já existe")
+        escrever(self.dados / "snapshots/2026-10-07/fsite06-status.json", "já existe")
         with self.assertRaisesRegex(RuntimeError, "conflito"):
             migrar.migrar(MAPA, self.dados, self.home, executar=True)
         self.assertTrue((self.dados / "aio/clienteipsi-v2/terapia/2026-10-06.json").exists())

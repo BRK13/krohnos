@@ -18,7 +18,7 @@ from hub import conta, home_agentes
 
 URL = "https://api.anthropic.com/api/oauth/usage"
 JANELAS = (("5h", 5), ("24h", 24), ("7d", 168))
-VAZIA = {"cinco_horas": {"pct": None, "reset": None}, "semana": {"pct": None, "reset": None}, "fonte": "estimativa"}
+VAZIA = {"cinco_horas": {"pct": None, "reset": None}, "fonte": "estimativa"}  # conta Claude não tem limite semanal
 
 
 def _dir(n, home):
@@ -40,7 +40,7 @@ def _janela(j):
 
 
 def _limite(j, kind):
-    """Linha de limits[] da CLI (kind session | weekly_all), no formato de janela; {} se não houver."""
+    """Linha de limits[] da CLI (kind session), no formato de janela; {} se não houver."""
     return next((x for x in j.get("limits") or [] if isinstance(x, dict) and x.get("kind") == kind), {})
 
 
@@ -61,11 +61,10 @@ def _cota(caminho, agora):
     except (OSError, ValueError, http.client.HTTPException):  # HTTPError e URLError são OSError; a mensagem pode ecoar o pedido, então não vai adiante
         return json.loads(json.dumps(VAZIA))
     if isinstance(j, dict):
-        # seven_day/five_hour vêm null em algumas contas; aí vale limits[] (weekly_all = semana inteira da conta)
+        # five_hour vem null em algumas contas; aí vale a linha session de limits[]. A conta Claude não tem limite semanal.
         cinco = _janela(j.get("five_hour") or _limite(j, "session"))
-        sem = _janela(j.get("seven_day") or _limite(j, "weekly_all"))
-        if cinco["pct"] is not None or sem["pct"] is not None:
-            return {"cinco_horas": cinco, "semana": sem, "fonte": "oauth"}
+        if cinco["pct"] is not None:
+            return {"cinco_horas": cinco, "fonte": "oauth"}
     return json.loads(json.dumps(VAZIA))
 
 
@@ -153,4 +152,4 @@ def main():
 if __name__ == "__main__":
     r = main()
     for n, c in {**r["contas"], "orch": r["orquestrador"]}.items():
-        print(n, c["fonte"], c["cinco_horas"]["pct"], c["semana"]["pct"])
+        print(n, c["fonte"], c["cinco_horas"]["pct"])

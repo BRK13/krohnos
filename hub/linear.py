@@ -1,4 +1,8 @@
-"""Ponte Linear → fila do Claude da VPS. O Linear é a interface: qualquer fala do dono lá vira pedido para o Claude.
+"""Ponte das issues → fila do Claude da VPS. Qualquer fala do dono numa issue vira pedido para o Claude.
+
+O Linear é opcional: `[issues] provedor = "local"` (padrão sem segredo do Linear) guarda as issues na fila
+própria em SQLite (hub/fila_issues.py, KRO-N, quadro no painel) e `gql` resolve nela as mesmas consultas; sem sessões de
+agente, updates de projeto, frentes nem rede. `provedor = "linear"` é o caminho abaixo, inalterado.
 
 O Claude é um usuário-app do workspace (OAuth app "Claude", token por client_credentials, actor=app). Cada pedido
 roda numa sessão de agente na issue: o painel do agente mostra ao vivo o que ele pensa e cada ação (hub/agenda.py
@@ -39,12 +43,13 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from hub import backoff, config, RAIZ, codigo, data, faltou, segredos, esperas, incidentes, linear_uso, retomada, roteamento, tarefas as T
+from hub import backoff, config, RAIZ, codigo, data, faltou, segredos, esperas, fila_issues, incidentes, linear_uso, retomada, roteamento, tarefas as T
 from hub.comum import env as comum_env
 
 API = "https://api.linear.app/graphql"
@@ -69,8 +74,9 @@ COMO = """
   de tipos e os testes dos arquivos que você mudou; o build e a suíte completa são do CI (local-ci) e do deploy. Nunca
   rode `scripts/ci-local.sh` nem o build do repo à mão: o local-ci é do runner (um por vez na máquina); espere o
   status `local-ci` no PR (`gh pr checks`). local-ci vermelho: leia o log antes. O log completo
-  (/home/usuario/.cache/clienteh-ci-local/logs/<sha>.log) NÃO abre para você (só o runner lê): use o fim que o retorno da
-  espera traz e, se faltar, o job do `ci.yml` da mesma branch (`gh api repos/<org>/<repo>/actions/runs?branch=<branch>`,
+  (/home/usuario/.cache/clienteh-ci-local/logs/<sha>.log, na vps-parceiro) NÃO abre para você (só o runner lê): o erro está no
+  comentário do PR `<!-- local-ci-log <sha> -->` (testes que falharam e as últimas 80 linhas; o runner o reescreve a cada
+  rodada: `gh api repos/<org>/<repo>/issues/<n>/comments`) e no fim que o retorno da espera traz; se faltar, o job do `ci.yml` da mesma branch (`gh api repos/<org>/<repo>/actions/runs?branch=<branch>`,
   depois `.../actions/jobs/<id>/logs`: mesma suíte; `gh run view --log-failed` falha). Só comente `/local-ci` no PR (nova rodada) se o
   log mostrar timeout, ENOSPC ou falha de infra; erro de teste ou build é do código: corrija. Não rode em paralelo.
   O que você deixar rodando em segundo plano morre quando a tarefa termina.{ci}
@@ -78,7 +84,7 @@ COMO = """
   build local como prova antes do merge (asite01: `tsc` + `vitest` + `build`, e de novo no combinado antes de cada merge).
   Rode UM, com `nice`, em segundo plano e com timeout longo (no asite01 o build e o vitest levam 20+ min), nunca dois ao
   mesmo tempo. Todo build, render em loop (Playwright), `tsc` grande e suíte completa entra na fila de 1 por vez da
-  máquina: `pesado nice -n 19 <comando>` (espera a vez; a servidor_hub caiu por OOM em 17/10 com 6 juntos, KRN-1125). psite13: `typecheck`, `lint` e os testes dos arquivos tocados (o build é do deploy do Dokploy).
+  máquina: `pesado nice -n 19 <comando>` (espera a vez e roda em scope próprio com 8G, fora dos 4G da sessão: build que morria com 137 passa por aqui; a servidor_hub caiu por OOM em 17/10 com 6 juntos, KRN-1125). psite15: `typecheck`, `lint` e os testes dos arquivos tocados (o build é do deploy do Dokploy).
   clienteh, clienteipsi-v2 e demais com local-ci: nunca build nem suíte à mão; o `tsc` do clienteh só dos
   arquivos mudados (tsconfig temporário dentro da worktree).
 - Código: branch própria a partir da base do repo, commits claros, PR{fixes}. Não faça merge, exceto: melhoria do
@@ -87,10 +93,28 @@ COMO = """
   `merge` (seção "Merge liberado", se houver). Sem isso, PR aberto e `pr_merge` só se a regra do repo exigir.
 - Rotina agendada é tarefa do hub na VPS (tarefas/*.md do repo privado dos dados, lidas pelo hub; contrato em
   docs/tarefas-contrato.md) ou rotina do app no Dokploy; workflow e Vercel o portão `hub.memorias checar --diff` barra.
-  Nunca `push --force`.
+  Nunca `push --force`. PR atrás da base ou CONFLICTING: `git merge origin/<base>` na sua branch, resolva e faça push
+  normal. Nunca `rebase` em branch já publicada (obriga `--force`/`--force-with-lease`).
 - Pergunta ou conversa: responda direto, sem mexer em repo.
 - O seu texto final vira a resposta no Linear ({id}): curto, em português, com o link do PR quando houver. Ele também é o
   resumo do estado para a próxima execução: diga, em até 10 linhas, o que foi feito, o PR e o que falta.
+- Done exige recibo de todas as entregas. "Falta, para a próxima rodada" continua sendo pendência, mesmo com PR
+  mergeado ou aceite do orquestrador para adiar achados da revisão. Corrija e prove na própria issue; se o escopo
+  foi separado, crie a issue responsável e cite seu KRN-N junto de cada pendência antes de encerrar. Sem destino
+  concreto, mantenha In Progress; não declare a issue encerrada prometendo outra rodada (INC-187).
+- Memória alterada também é entrega: confira o commit no repositório fonte antes de Done. Se a nota ainda não
+  está commitada, mantenha In Progress. Script corrigido precisa de execução de ponta a ponta do fluxo prometido;
+  testar só o trecho à mão não prova o fluxo. Registre comando e resultado, ou issue KRN-N responsável (INC-196).
+- Auditoria do orquestrador e triagem de amostras exigidas pela issue também são entregas: postar as amostras
+  ou conferir a existência das fontes não prova aprovação nem relevância. Registre o resultado da auditoria e
+  da triagem antes de Done; enquanto faltarem, mantenha In Progress, mesmo sem deploy a conferir (INC-188).
+
+- Estado da issue é operado pelo hub: após registrar o recibo completo, use `python3 -m hub.linear mover {alvo} Done`.
+  Com a espera gravada (comando acima), não chame `mover Done`: a volta da espera fecha. O comando valida o portão; se recusar, resolva a falta e mantenha In Progress. Não deixe "Falta só mover a
+  issue para Done" como entrega final nem alegue ausência de comando sem tentar o comando disponível.
+  Estar em Done não dispensa testes e outras provas ainda pendentes (INC-189).
+- In Review parada há mais de 2 h com conta ociosa volta sozinha para a fila (KRN-1600). Se a issue espera uma data marcada,
+  declare no comentário final `voltar-em: AAAA-MM-DD`: até lá ela fica fora da varredura.
 
 ## Submissão de app a diretórios externos (INC-53)
 Antes de enviar ou reenviar, siga `docs/checklist-submissao-app.md`: teste a conta do revisor em dispositivo novo,
@@ -276,6 +300,13 @@ def conferir_automacao_git(time="KRN", consulta=None):
 
 
 def gql(query, app=False, usuario=False, cache=0, **variaveis):
+    """Consulta das issues: na fila local (`fila_issues.consulta`, app=True = comentário/issue do Claude) ou no Linear."""
+    if fila_issues.local():
+        return fila_issues.consulta(query, app=app, **variaveis)
+    return _gql_linear(query, app=app, usuario=usuario, cache=cache, **variaveis)
+
+
+def _gql_linear(query, app=False, usuario=False, cache=0, **variaveis):
     """GraphQL do Linear. app=True fala como o usuário-app Claude; senão, com o claude2 e, quando ele bate no limite da
     hora, dá 401 ou não tem permissão para a ação, passa para a chave do dono. 429/5xx/RATELIMITED: backoff.
     cache=<s>: leitura repetida dentro desses segundos vem do cache em arquivo (mutação limpa o cache todo)."""
@@ -381,6 +412,21 @@ def _eh_meu(c):
     return MARCA in (c.get("body") or "") or bool((c.get("user") or {}).get("app")) or _eh_bot(c)
 
 
+# (laço do teto:): o portão de Done comenta pela chave do dono ("Done barrado pelo
+# portão", "Portão de Done", "Voltou de Done", assinado pelo hub), então contava como fala, soltava o teto de 8 execuções e
+# zerava os freios. Acorda a issue (_eh_meu não o pega), mas não é fala de gente: não recomeça a contagem.
+RE_DO_HUB = re.compile(r"^\s*(?:Done barrado pelo portão|Portão de Done|Voltou de Done)\b", re.I)
+
+
+def _eh_do_hub(c):
+    return bool(RE_DO_HUB.search(c.get("body") or ""))
+
+
+def _libera_freio(c):
+    """Fala que recomeça a contagem dos freios (ultima_fala): de gente ou repasse do orquestrador, nunca o portão."""
+    return _eh_fala(c) and not _eh_do_hub(c)
+
+
 def _eh_repasse(c):
     return bool(RE_REPASSE.search(c.get("body") or ""))
 
@@ -474,8 +520,10 @@ def _ja_comentado(issue_id, texto):
 
 
 def comentar(alvo_id, texto, campo="issueId"):
+    # Na fila local sai como o Claude (no Linear a chave padrão é o app claude2): a fala do dono vem do painel
+    # (fila_issues.comentar); como dono, o comentário do Done ou o "Na fila" reabririam a issue em laço.
     gql(f"mutation($id: String!, $b: String!) {{ commentCreate(input: {{{campo}: $id, body: $b}}) {{ success }} }}",
-        id=alvo_id, b=texto[:20000])
+        app=fila_issues.local(), id=alvo_id, b=texto[:20000])
 
 
 # (lição 6): "o deploy ainda não subiu" nunca vira comentário (119 comentários em 14/10): o hub
@@ -525,6 +573,10 @@ def falar(alvo, texto, update=False, repasse=False):
         texto = f"{texto}\n\n_{REPASSE}._"
     if update:
         return comentar_update(alvo, f"{texto}\n\n_{MARCA}._")
+    if fila_issues.local():  # comentário do Claude na fila, sem passar pelo token do app
+        gql("mutation($i: String!, $b: String!) { commentCreate(input: {issueId: $i, body: $b}) { success } }",
+            app=True, i=alvo, b=texto[:20000])
+        return
     if token_app():
         try:
             gql("mutation($i: String!, $b: String!) { commentCreate(input: {issueId: $i, body: $b}) { success } }",
@@ -592,10 +644,21 @@ def atividade(sessao, tipo, corpo=None, efemera=False, **extra):
     gql("mutation($i: AgentActivityCreateInput!) { agentActivityCreate(input: $i) { success } }", app=True, i=entrada)
 
 
+RE_NOME_RUIM = re.compile(r"[^\w.-]")  # nome do anexo local: sem espaço nem barra
+
+
 def subir_arquivo(caminho):
-    """Sobe um arquivo pro armazenamento do Linear (fileUpload + PUT) e devolve a URL para pôr no markdown."""
+    """Sobe um arquivo pro armazenamento do Linear (fileUpload + PUT) e devolve a URL para pôr no markdown. Na fila
+    local, copia para <dados>/issues/anexos/<sha12>-<nome> e devolve o link do painel (/issues/anexo/...)."""
     import mimetypes
     p = Path(caminho)
+    if fila_issues.local():
+        import shutil
+        nome = f"{_sha(p)[:12]}-{RE_NOME_RUIM.sub('_', p.name)}"
+        pasta = fila_issues._pasta() / "anexos"
+        pasta.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(p, pasta / nome)
+        return f"{config.painel_url()}/issues/anexo/{nome}"
     tipo = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
     up = gql("mutation($t: String!, $n: String!, $s: Int!) { fileUpload(contentType: $t, filename: $n, size: $s) "
              "{ success uploadFile { uploadUrl assetUrl headers { key value } } } }",
@@ -631,7 +694,7 @@ def item_da_issue(issue):
             "projeto": (issue.get("project") or {}).get("name") or "",
             "comentarios": _comentarios(issue["comments"]["nodes"]),
             # hora da última fala do dono (o disjuntor só conta rodadas depois dela)
-            "ultima_fala": max([c["createdAt"] for c in issue["comments"]["nodes"] if _eh_fala(c)], default=None),
+            "ultima_fala": max([c["createdAt"] for c in issue["comments"]["nodes"] if _libera_freio(c)], default=None),
             # até quando a conversa acima foi lida: o que vier depois entra na largada (reler) ou no fim (falas_nao_lidas).
             # O comentário mais novo lido, não a hora atual: a fala entre a consulta e agora ficaria antes do corte
             # última mudança de estado que não seja o vaivém In Progress ↔ In Review (tipo "started") que o
@@ -713,74 +776,125 @@ def precisa_altitude(item):
     return bool(item.get("plano") or RE_PLANO.search(item.get("descricao") or ""))
 
 
+def _blocos_pesados(item):
+    """Os blocos do prompt que indexam memórias, issues, receitas e wiki; cada um nunca falha."""
+    corpo = []
+    from hub import biblioteca_uso
+    bloco = biblioteca_uso.bloco_da_issue(item)
+    if bloco:
+        corpo += ["", bloco]
+    try:
+        import hub.busca as busca  # a busca indexa memórias e issues nossas: fora do snapshot público
+    except ImportError as _e:
+        if not faltou(_e, "hub.busca"):
+            raise
+        busca = None
+    ja_existe = busca.bloco_da_issue(item) if busca else None
+    if ja_existe:
+        corpo += ["", ja_existe]
+    try:
+        import hub.wiki as wiki  # a wiki é do repo privado: fora do snapshot público
+    except ImportError as _e:
+        if not faltou(_e, "hub.wiki"):
+            raise
+        wiki = None
+    pagina = wiki.bloco_da_issue(item) if wiki else None
+    if pagina:
+        corpo += ["", pagina]
+    return corpo
+
+
+def _isolado(fn, *args, limite=180):
+    """Roda fn(*args) -> list[str] num filho (fork) e devolve o resultado; falha ou estouro de `limite` s devolve [].
+    construir esses índices levava o RSS do tick de 35 para ~480 MB, e o tick o carregava pela execução
+    inteira; no filho a memória volta ao sistema quando ele sai. Sem fork (Windows), roda no próprio processo."""
+    if not hasattr(os, "fork"):
+        return fn(*args)
+    import select
+    leitura, escrita = os.pipe()
+    pid = os.fork()
+    if pid == 0:  # filho: nunca volta para o código do pai
+        try:
+            os.close(leitura)
+            with os.fdopen(escrita, "wb") as f:
+                f.write(json.dumps(fn(*args)).encode("utf-8"))
+        except BaseException as e:  # noqa: BLE001
+            print(f"aviso: bloco do prompt sem injeção: {type(e).__name__}: {str(e)[:200]}", file=sys.stderr)
+        finally:
+            os._exit(0)
+    os.close(escrita)
+    pedacos, fim, completo = [], time.monotonic() + limite, False
+    try:
+        while (falta := fim - time.monotonic()) > 0 and select.select([leitura], [], [], falta)[0]:
+            if not (parte := os.read(leitura, 65536)):
+                completo = True
+                break
+            pedacos.append(parte)
+        if not completo:
+            print(f"aviso: bloco do prompt passou de {limite} s; seguindo sem ele", file=sys.stderr)
+            return []
+    finally:
+        os.close(leitura)
+        if not completo:  # estouro ou exceção na leitura: não espera um filho travado (prenderia o tick e a trava)
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, 9)
+        with contextlib.suppress(ChildProcessError):
+            os.waitpid(pid, 0)
+    try:
+        return json.loads(b"".join(pedacos).decode("utf-8"))
+    except ValueError:
+        return []
+
 def tarefa(item):
     """Item linear da fila → Tarefa (com .linear = item)."""
     ident = item["identifier"]
     eh_issue = item.get("tipo", "issue") == "issue"
-    corpo = [f"Pedido do {config.dono()} pelo Linear: {ident} · {item['titulo']}", item["url"], "", item["descricao"].strip()]
-    if item["comentarios"]:
-        comentarios, resumiu = conversa_enxuta(item["comentarios"])
-        corpo += ["", f"## Conversa (do mais antigo ao mais novo; responda a última fala do {config.dono()})"]
-        if resumiu:
-            corpo.append("Conversa longa: respostas antigas do Claude resumidas; o estado está na última.")
-            if prs := prs_citados(item["comentarios"]):
-                corpo.append("PRs citados na conversa: " + ", ".join(prs))
-        corpo += [f"- {c}" for c in comentarios]
-    fixes = f' com "Fixes {ident}" na descrição (o Linear liga a issue ao PR)' if eh_issue else ""
-    alvo = ident if eh_issue else f"--update {item['id']}"
-    codex = item.get("executor") == "codex"
-    if codex:
-        corpo.append(CODEX.format(branch=ident.lower()))
-    if eh_issue and precisa_altitude(item):
-        corpo.append(ALTITUDE)
-    ci = VOLTAR_QUANDO.format(id=ident, codigo=codigo()) if eh_issue else "\n- Espere o status do CI no PR em vez de repetir."
-    corpo.append(COMO.format(dono=config.dono(), codigo=codigo(), id=ident, fixes=fixes, alvo=alvo, ci=ci))
-    if eh_issue:
-        from hub import memorias
-        if instrucoes := memorias.instrucoes_da_issue(item):
-            corpo += ["", "## Decisões vigentes do dono", instrucoes]
-    if item.get("merge"):  # vem depois do COMO: vale mais que o "não faça merge" de lá
-        corpo += ["", "## Merge liberado", f"Esta issue tem a label `merge` (o {config.dono()} liberou): com os testes dos arquivos e o CI (local-ci) verdes, "
-                  "faça o merge e confira o deploy no ar. Siga a regra de branch do repo (cliente-c: base develop; sem local-ci, "
-                  "a prova é `tsc` + `vitest` + `build` do combinado; a promoção develop → main é do orquestrador, GOVERNANCE regras 5 e 7).",
-                  "Antes do merge, espere o comentário \"Revisão do Claude\" no PR (sai em até 15 min do último push; "
-                  "`gh api repos/<org>/<repo>/issues/<n>/comments` (o `gh pr view --comments` falha por Projects classic)). Achado sério: corrija e faça push. Achado errado: responda no PR em uma "
-                  "linha. " + ESPERA_FORA if codex else
-                  "Antes do merge, espere o comentário \"Revisão do Codex\" no PR (sai em até 15 min do último push; "
-                  "`gh api repos/<org>/<repo>/issues/<n>/comments` (o `gh pr view --comments` falha por Projects classic)). Achado sério: corrija e faça push (ele revisa de novo). Achado que você "
-                  "julga errado: responda no PR por quê, em uma linha. " + ESPERA_FORA]
-    from hub import main_vermelho  # import tardio: main_vermelho importa linear só dentro da função
-    for repo in item["repos"]:
-        with contextlib.suppress(Exception):
-            mv = main_vermelho.aberto(repo)
-            if mv and ident != mv["issue"]:
-                corpo.append(f"\n**Main vermelho em {repo} ({mv['issue']}, teste `{mv['teste']}`):** não peça `/local-ci` nem mexa no "
-                             f"PR por causa desse teste; o conserto é a {mv['issue']}. Seu PR volta sozinho quando o main passar.")
-    if eh_issue:  # as até 3 receitas da biblioteca que se aplicam (índice híbrido, só acima do limiar); nunca falha
-        from hub import biblioteca_uso
-        bloco = biblioteca_uso.bloco_da_issue(item)
-        if bloco:
-            corpo += ["", bloco]
-        try:
-            import hub.busca as busca  # "já existe isto" (issues Done e planos parecidos), acima do limiar; nunca falha
-        except ImportError as _e:  # a busca indexa memórias e issues nossas: fora do snapshot público
-            if not faltou(_e, "hub.busca"):
-                raise
-            busca = None
-        ja_existe = busca.bloco_da_issue(item) if busca else None
-        if ja_existe:
-            corpo += ["", ja_existe]
-        try:
-            import hub.wiki as wiki  # a página da wiki do assunto (estado atual com fonte e data), no lugar de trechos soltos; nunca falha
-        except ImportError as _e:  # a wiki é do repo privado: fora do snapshot público
-            if not faltou(_e, "hub.wiki"):
-                raise
-            wiki = None
-        pagina = wiki.bloco_da_issue(item) if wiki else None
-        if pagina:
-            corpo += ["", pagina]
+    def montar():
+        corpo = [f"Pedido do {config.dono()} pelo Linear: {ident} · {item['titulo']}", item["url"], "", item["descricao"].strip()]
+        if item["comentarios"]:
+            comentarios, resumiu = conversa_enxuta(item["comentarios"])
+            corpo += ["", f"## Conversa (do mais antigo ao mais novo; responda a última fala do {config.dono()})"]
+            if resumiu:
+                corpo.append("Conversa longa: respostas antigas do Claude resumidas; o estado está na última.")
+                if prs := prs_citados(item["comentarios"]):
+                    corpo.append("PRs citados na conversa: " + ", ".join(prs))
+            corpo += [f"- {c}" for c in comentarios]
+        fixes = f' com "Fixes {ident}" na descrição (o Linear liga a issue ao PR)' if eh_issue else ""
+        alvo = ident if eh_issue else f"--update {item['id']}"
+        codex = item.get("executor") == "codex"
+        if codex:
+            corpo.append(CODEX.format(branch=ident.lower()))
+        if eh_issue and precisa_altitude(item):
+            corpo.append(ALTITUDE)
+        ci = VOLTAR_QUANDO.format(id=ident, codigo=codigo()) if eh_issue else "\n- Espere o status do CI no PR em vez de repetir."
+        corpo.append(COMO.format(dono=config.dono(), codigo=codigo(), id=ident, fixes=fixes, alvo=alvo, ci=ci))
+        if eh_issue:
+            from hub import memorias
+            if instrucoes := memorias.instrucoes_da_issue(item):
+                corpo += ["", "## Decisões vigentes do dono", instrucoes]
+        if item.get("merge"):  # vem depois do COMO: vale mais que o "não faça merge" de lá
+            corpo += ["", "## Merge liberado", f"Esta issue tem a label `merge` (o {config.dono()} liberou): com os testes dos arquivos e o CI (local-ci) verdes, "
+                      "faça o merge e confira o deploy no ar. Siga a regra de branch do repo (cliente-c: base develop; sem local-ci, "
+                      "a prova é `tsc` + `vitest` + `build` do combinado; a promoção develop → main é do orquestrador, GOVERNANCE regras 5 e 7).",
+                      "Antes do merge, espere o comentário \"Revisão do Claude\" no PR (sai em até 15 min do último push; "
+                      "`gh api repos/<org>/<repo>/issues/<n>/comments` (o `gh pr view --comments` falha por Projects classic)). Achado sério: corrija e faça push. Achado errado: responda no PR em uma "
+                      "linha. " + ESPERA_FORA if codex else
+                      "Antes do merge, espere o comentário \"Revisão do Codex\" no PR (sai em até 15 min do último push; "
+                      "`gh api repos/<org>/<repo>/issues/<n>/comments` (o `gh pr view --comments` falha por Projects classic)). Achado sério: corrija e faça push (ele revisa de novo). Achado que você "
+                      "julga errado: responda no PR por quê, em uma linha. " + ESPERA_FORA]
+        from hub import main_vermelho  # import tardio: main_vermelho importa linear só dentro da função
+        for repo in item["repos"]:
+            with contextlib.suppress(Exception):
+                mv = main_vermelho.aberto(repo)
+                if mv and ident != mv["issue"]:
+                    corpo.append(f"\n**Main vermelho em {repo} ({mv['issue']}, teste `{mv['teste']}`):** não peça `/local-ci` nem mexa no "
+                                 f"PR por causa desse teste; o conserto é a {mv['issue']}. Seu PR volta sozinho quando o main passar.")
+        if eh_issue:  # receitas, "já existe isto" e wiki; o índice delas pesa ~400 MB: num filho
+            corpo += _isolado(_blocos_pesados, item)
+        return "\n".join(corpo).strip()
+
     t = T.Tarefa(f"linear-{ident.lower()}", "manual", 1, item["modelo"], T.timeout_segundos(TIMEOUT), item["repos"],
-                 False, f"Linear {ident}: {item['titulo']}"[:200], "\n".join(corpo).strip())
+                 False, f"Linear {ident}: {item['titulo']}"[:200], montar)
     t.linear = item
     t.skills = item.get("skills") or []
     return t
@@ -793,7 +907,7 @@ ESPERA_FORA = ("Não espere o CI nem o comentário dentro da sessão por mais de
 def reabrir(ident, fala):
     """O "faz N" rodou a proposta da issue: ela volta para a fila com o resultado, sem o dono comentar."""
     item = item_da_issue(gql("query($i: String!) { issue(id: $i) {" + CAMPOS + "} }", i=ident)["issue"])
-    if token_app():
+    if not fila_issues.local() and token_app():
         with contextlib.suppress(Exception):  # Linear recusou abrir sessão: segue por comentário
             item["sessao"] = abrir_sessao(item["id"])
     item["comentarios"].append(fala)
@@ -929,12 +1043,39 @@ def _para_in_progress(issue, item):
 def puxar(rodando=None, aceitar=None, log=print, varredura=None):  # noqa: C901
     """Tudo que pede resposta no Linear → tarefas. rodando: {nome: registro} do que está na fila ou rodando (não puxa
     de novo; a execução em curso lê a fala nova com `novidades`). aceitar(t) põe na fila NA HORA e devolve se entrou;
-    só então o Linear é avisado ("Na fila", In Progress). Erro num item não derruba os outros. Sem chave: []."""
-    if not chave():
+    só então o Linear é avisado ("Na fila", In Progress). Erro num item não derruba os outros. Sem chave: [].
+    Fila local: Todo mais as abertas/fechadas mexidas em 7 dias que pedem resposta; sem sessões, updates,
+    frentes, fases finais nem plano do webhook."""
+    local = fila_issues.local()
+    if not local and not chave():
         return []
     rodando = rodando or {}
     aceitar = aceitar or (lambda t: True)
     novas, vistas = [], set()
+
+    def oferecer(t, item, issue=None, anunciar=True):
+        if not aceitar(t):
+            if not local:
+                linear_uso.hook_devolver([item.get("id")])  # fila cheia ou pausa: o próximo tick olha de novo (sem esperar 15 min)
+            return
+        novas.append(t)
+        if anunciar:
+            try:
+                if issue is not None:
+                    _para_in_progress(issue, item)
+                _na_fila(item, rodando)
+            except Exception as e:  # noqa: BLE001 — já está na fila: o aviso no Linear é só cortesia
+                log(f"{t.nome}: na fila, mas o aviso no Linear falhou: {type(e).__name__}: {str(e)[:150]}")
+
+    if local:
+        with contextlib.suppress(Exception):
+            enviar_resumo_zap()  # resumo das entregas que esperavam o intervalo
+        desde = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        issues = fila_issues.listar(["Todo"]) + [i for i in fila_issues.listar([e for e in fila_issues.ESTADOS if e != "Todo"], desde=desde)
+                                                 if quer_resposta(i)]
+        _licoes_na_hora(issues, log)
+        _oferecer_issues(issues, rodando, oferecer, vistas, {}, False, log)
+        return novas
     # com o webhook vivo o tick só consulta as issues dos eventos (ids); varredura completa (None) a cada 15 min
     # ou quando o webhook cala. Sem evento nenhum, o tick não chama a API.
     ids = linear_uso.plano_tick() if varredura is None else (None if varredura else [])
@@ -961,19 +1102,6 @@ def puxar(rodando=None, aceitar=None, log=print, varredura=None):  # noqa: C901
         if s.get("issue"):
             iid = s["issue"]["id"]
             ultima_sessao[iid] = max(ultima_sessao.get(iid, ""), s["updatedAt"])
-
-    def oferecer(t, item, issue=None, anunciar=True):
-        if not aceitar(t):
-            linear_uso.hook_devolver([item.get("id")])  # fila cheia ou pausa: o próximo tick olha de novo (sem esperar 15 min)
-            return
-        novas.append(t)
-        if anunciar:
-            try:
-                if issue is not None:
-                    _para_in_progress(issue, item)
-                _na_fila(item, rodando)
-            except Exception as e:  # noqa: BLE001 — já está na fila: o aviso no Linear é só cortesia
-                log(f"{t.nome}: na fila, mas o aviso no Linear falhou: {type(e).__name__}: {str(e)[:150]}")
 
     for s in sessoes:
         try:
@@ -1014,6 +1142,26 @@ def puxar(rodando=None, aceitar=None, log=print, varredura=None):  # noqa: C901
         linear_uso.hook_devolver(ids[50:])
         issues = [i for i in doevento if i["state"]["type"] == "unstarted" or quer_resposta(i)]
     _licoes_na_hora(issues if ids is None else doevento, log)
+    _oferecer_issues(issues, rodando, oferecer, vistas, ultima_sessao, com_app, log)
+    for u in (gql(Q_UPDATES)["projectUpdates"]["nodes"] if ids is None else []):
+        try:
+            if update_quer_resposta(u):
+                item = item_do_update(u)
+                t = tarefa(item)
+                if t.nome in rodando:
+                    cs = _ordem(u["comments"]["nodes"])
+                    if rodando[t.nome].get("pid"):
+                        disparar_status(item, rodando[t.nome], cs[-1]["body"] if cs else u.get("body") or "")
+                    continue
+                oferecer(t, item)
+        except Exception as e:  # noqa: BLE001
+            log(f"linear: update {u.get('id', '?')[:8]} pulado: {type(e).__name__}: {str(e)[:150]}")
+    return novas
+
+
+def _oferecer_issues(issues, rodando, oferecer, vistas, ultima_sessao, com_app, log):
+    """O laço das issues de `puxar` (Linear e fila local): pula a vista, a coberta por sessão e a que já roda (a fala
+    nova vira status); o resto vai para `oferecer` (com sessão nova, se há app). Erro num item não derruba os outros."""
     for issue in issues:
         try:
             if issue["id"] in vistas:
@@ -1039,20 +1187,6 @@ def puxar(rodando=None, aceitar=None, log=print, varredura=None):  # noqa: C901
             oferecer(t, item, issue)
         except Exception as e:  # noqa: BLE001
             log(f"linear: {issue.get('identifier', '?')} pulada: {type(e).__name__}: {str(e)[:150]}")
-    for u in (gql(Q_UPDATES)["projectUpdates"]["nodes"] if ids is None else []):
-        try:
-            if update_quer_resposta(u):
-                item = item_do_update(u)
-                t = tarefa(item)
-                if t.nome in rodando:
-                    cs = _ordem(u["comments"]["nodes"])
-                    if rodando[t.nome].get("pid"):
-                        disparar_status(item, rodando[t.nome], cs[-1]["body"] if cs else u.get("body") or "")
-                    continue
-                oferecer(t, item)
-        except Exception as e:  # noqa: BLE001
-            log(f"linear: update {u.get('id', '?')[:8]} pulado: {type(e).__name__}: {str(e)[:150]}")
-    return novas
 
 
 def _licoes_na_hora(issues, log=print):
@@ -1099,6 +1233,9 @@ def conferir(item, texto, chamar=None, estrito=False, extra=None):
               "Quando o pedido exige dados processados, gabarito ou medições, cobre os resultados reais, "
               "a fonte e os números; comandos para rodar depois e promessa de fase futura são pendências. "
               "Considere mudanças de escopo na conversa e não cobre massa quando só o piloto foi autorizado. "
+              "Esta conferência ocorre antes da transição para Done: a issue ainda estar em In Progress ou In Review, "
+              "ou o agente ainda não ter movido a issue para Done, não é falta de entrega. "
+              "Confira as provas materiais; recusas antigas do portão não provam pendência atual. "
               "Responda APENAS um JSON: "
               '{"completo": true|false, "faltou": "o que falta, em uma frase", "mecanica": true|false} '
               "(mecanica = o que falta é só VERIFICAR algo que um script confere: o PR foi mergeado, está no ar, a URL "
@@ -1151,7 +1288,7 @@ def reler(t):
     linhas = [f"{_quem(c)} (depois de entrar na fila): {c['body']}" for c in novas]
     item = {**item, "lido_ate": agora, "comentarios": (item.get("comentarios") or []) + [x for x in linhas if x not in ja]}
     if novas:
-        item["ultima_fala"] = max([x for x in [item.get("ultima_fala"), *(c["createdAt"] for c in novas)] if x])
+        item["ultima_fala"] = max([x for x in [item.get("ultima_fala"), *(c["createdAt"] for c in novas if _libera_freio(c))] if x], default=None)
     nova = tarefa(item)
     t.linear, t.prompt = nova.linear, nova.prompt
     return t
@@ -1173,7 +1310,7 @@ def concluir(t, reg, conferir_fn=None, log=print):
     MAX_CONFERENCIAS vezes; devolve a tarefa nova para a agenda enfileirar), senão responde no painel (ou
     comentário) e move a issue; se o dono falou durante a execução e ninguém leu, devolve a tarefa com a fala.
     Limite de uso: não mexe."""
-    if not reg or reg.get("limite") or reg.get("interrompida"):  # voltou para a fila: ninguém é avisado
+    if not reg or reg.get("limite") or reg.get("interrompida") or reg.get("login_expirado"):  # voltou para a fila: ninguém é avisado
         return None
     try:
         novas_falas = falas_nao_lidas(t.linear, reg.get("inicio"))
@@ -1245,10 +1382,34 @@ def _concluir(t, reg, conferir_fn=None, log=print):
                                        f"Claude: {texto[-3000:]}", f"Portão de Done (faça agora, KRN-973): {p['motivo']}"]})
                 texto = f"{texto}\n\nPortão de Done (KRN-973): não fecha, {p['motivo']}. Fica em In Progress."
                 esperando = True  # a issue fica em In Progress com o motivo no comentário
+    if reg.get("ok") and not esperando and item.get("tipo", "issue") == "issue" and item.get("destinos", 0) < 1:
+        # pendência sem destino (issue-filha, dono ou `voltar-em`) não vai para In Review: volta uma vez para dar destino
+        from hub import portao_done
+        abertas = portao_done.pendencia_sem_destino(texto, item["identifier"])
+        if abertas:
+            return tarefa({**item, "destinos": item.get("destinos", 0) + 1,
+                           "comentarios": item.get("comentarios", []) + [
+                               f"Claude: {texto[-3000:]}",
+                               "Pendência sem destino (KRN-1717, faça agora): " + "; ".join(f'"{a}"' for a in abertas)
+                               + ". Abra a issue-filha (cite o KRN-N), diga que depende do dono, ou declare `voltar-em: AAAA-MM-DD`; "
+                               "ou termine o que falta."]})
     if (reg.get("ok") and not esperando and item.get("tipo", "issue") == "issue"
             and item.get("conferencias", 0) < MAX_CONFERENCIAS):
         extra = {}
-        faltou = (conferir_fn or (lambda i, t: conferir(i, t, extra=extra)))(item, texto)
+        faltou = ""
+        if retomada.pular_conferencia(reg.get("tipo")):
+            # retomada de espera não abre sessão só para conferir, mas a conferência acontece: o recibo
+            # (por código) responde; sem ler o recibo (indisponivel), cai na conferência de sempre.
+            m = retomada.conferir_mecanica(item, texto)
+            if m["resultado"] in ("ok", "esperar"):
+                esperando = m["resultado"] == "esperar"
+            elif m["resultado"] == "falha":
+                faltou = "; ".join(m["faltas"])[:500]
+            else:
+                extra = {}
+                faltou = (conferir_fn or (lambda i, t: conferir(i, t, extra=extra)))(item, texto)
+        else:
+            faltou = (conferir_fn or (lambda i, t: conferir(i, t, extra=extra)))(item, texto)
         if faltou and extra.get("mecanica"):  # pergunta de código (PR entrou, no ar, URL 200): o recibo responde
             m = retomada.conferir_mecanica(item, texto)
             if m["resultado"] in ("ok", "esperar"):
@@ -1303,7 +1464,9 @@ def entregar_respostas_zap(entrada=None, comentar_fn=None, log=print):
     """Respostas do dono pelo WhatsApp ("avisei", ou respondendo em cima do aviso; o bot grava em
     linear-entrada/*.json): vira comentário dele na issue (chave do dono = fala dele, acorda o Claude). Falha de rede
     deixa o arquivo para o próximo tick. Devolve as issues comentadas."""
-    entrada, comentar_fn = Path(entrada or ENTRADA_ZAP), comentar_fn or comentar
+    # fila local: a resposta é fala do dono (fila_issues.comentar); `comentar` lá sai como o Claude
+    entrada = Path(entrada or ENTRADA_ZAP)
+    comentar_fn = comentar_fn or (fila_issues.comentar if fila_issues.local() else comentar)
     feitas = []
     for arq in sorted(entrada.glob("*.json")) if entrada.exists() else []:
         try:
@@ -1555,6 +1718,12 @@ def _mover_no_fim_(item, estado, comentario=None):
     # A ordem dos timestamps não prova quem fechou a issue. Preserve Done/Canceled;
     # só o portão de recibo pode desfazer Done com prova de entrega pendente.
     if tipo in ("completed", "canceled") or nome == estado:
+        # INC-249: uma sessão pode abrir outro PR depois do fechamento. O
+        # relato novo precisa de recibo mesmo sem nova transição de estado.
+        if tipo == "completed" and comentario and item.get("tipo", "issue") == "issue":
+            from hub import portao_done
+            if portao_done.barrar(item["identifier"], comentario):
+                return
         if comentario:
             comentar(item["id"], comentario)
         return
@@ -1617,8 +1786,11 @@ class AoVivo:
 # ---- autoaprimoramento: o próprio Claude abre issue (retro diária, backlog semanal) ----
 
 def projeto_do_repo(repo):
-    """Nome do projeto cuja descrição tem `repo: <org>/<repo>` (aceita "x" ou "<org>/x")."""
+    """Nome do projeto cuja descrição tem `repo: <org>/<repo>` (aceita "x" ou "<org>/x"). Fila local: repo novo vira o
+    projeto "x" (nasce com a primeira issue)."""
     alvo = (repo if "/" in repo else config.repo(repo)).lower()
+    if fila_issues.local():
+        return fila_issues.projeto_do_repo(alvo) or alvo.rsplit("/", 1)[-1]
     nodes = gql("{ projects(first: 100) { nodes { name description } } }", cache=CACHE_S)["projects"]["nodes"]
     for p in nodes:
         if alvo in (r.lower() for r in RE_REPO.findall(p.get("description") or "")):
@@ -1646,25 +1818,87 @@ def ligar_skills(ident, nomes):
     ruins = [n for n in nomes if not skills.nome_valido(n)]
     if ruins:
         raise SystemExit(f"skill inválida: {', '.join(ruins)}")
-    time_ = gql("{ teams(first: 1) { nodes { id labels { nodes { id name } } } } }", cache=CACHE_S)["teams"]["nodes"][0]
-    existentes = {lb["name"].lower(): lb["id"] for lb in time_["labels"]["nodes"]}
+    if not fila_issues.local():
+        time_ = gql("{ teams(first: 1) { nodes { id labels(first: 250) { nodes { id name } } } } }", cache=CACHE_S)["teams"]["nodes"][0]
+        existentes = {lb["name"].lower(): lb["id"] for lb in time_["labels"]["nodes"]}
     issue = gql("query($i: String!) { issue(id: $i) { id labels { nodes { name } } } }", cache=CACHE_S, i=ident)["issue"]
     ja = {lb["name"].lower() for lb in issue["labels"]["nodes"]}
     rotulo = lambda n: n if n.startswith("mcp:") else f"skill:{n}"  # noqa: E731 — mcp:<nome> liga MCP
     novas = [n for n in nomes if rotulo(n) not in ja]
+    if fila_issues.local():  # label da fila é só o nome: nada a criar
+        for n in novas:
+            fila_issues.por_label(ident, rotulo(n))
+        return novas
     for n in novas:
         gql("mutation($i: String!, $l: String!) { issueAddLabel(id: $i, labelId: $l) { success } }", i=issue["id"],
             l=_id_da_label(rotulo(n), existentes, time_["id"]))
     return novas
 
 
-def criar_issue(projeto, titulo, descricao, estado="Backlog", labels=(), prioridade=3):
+_STOP_TITULO = frozenset("a o as os um uma de da do das dos em na no nas nos para por com sem que ao aos e ou se the of to and for in on".split())
+_BRU = re.compile(r"\bKRN-\d+\b", re.I)
+
+
+def _origens(titulo, descricao):
+    """KRN-N de origem: a issue desta execução (TAREFA_NOME/HUB_TAREFA linear-krn-N) e as citadas no título/descrição."""
+    nome = (os.environ.get("TAREFA_NOME") or os.environ.get("HUB_TAREFA") or "").lower()
+    achadas = {m.upper() for m in _BRU.findall(f"{titulo}\n{descricao}")}
+    if m := re.fullmatch(r"linear-(krn-\d+)", nome):
+        achadas.add(m.group(1).upper())
+    return achadas
+
+
+def _palavras_titulo(titulo):
+    t = unicodedata.normalize("NFKD", titulo.lower()).encode("ascii", "ignore").decode()
+    t = re.sub(r"(?<=[a-z])-(?=[a-z])", "", t)  # e-mails = emails
+    return {w for w in re.findall(r"[a-z0-9]+", t) if len(w) > 1 and w not in _STOP_TITULO}
+
+
+def _titulo_parecido(a, b, limiar=0.6):
+    """Sobreposição de palavras (sem stopwords) sobre o menor dos dois títulos."""
+    pa, pb = _palavras_titulo(a), _palavras_titulo(b)
+    return bool(pa and pb) and len(pa & pb) / min(len(pa), len(pb)) >= limiar
+
+
+def issue_parecida(titulo, descricao, consulta=None, dias=7):
+    """issue aberta (não Done/Canceled) dos últimos `dias` dias que cita a mesma KRN-N de origem e tem título parecido:
+    (identificador, url) ou None. Sessão reenfileirada depois de SIGTERM não lembra o que a anterior abriu. Linear fora do ar: None."""
+    origens = _origens(titulo, descricao)
+    if not origens:
+        return None
+    q = ('query($d: DateTimeOrDuration!, $o: [IssueFilter!]) { issues(first: 100, filter: {createdAt: {gt: $d}, '
+         'state: {type: {nin: ["completed", "canceled"]}}, or: $o}) { nodes { identifier title description url } } }')
+    try:
+        filtros = [{"description": {"contains": o}} for o in sorted(origens)] + [{"title": {"contains": o}} for o in sorted(origens)]
+        nos = (consulta or gql)(q, d=f"-P{int(dias)}D", o=filtros)["issues"]["nodes"]
+    except (Exception, SystemExit):  # noqa: BLE001  (gql dá SystemExit; checagem de apoio nunca bloqueia a criação)
+        return None
+    for n in nos:
+        if n["identifier"].upper() in origens:
+            continue
+        citadas = {m.upper() for m in _BRU.findall(f"{n['title']}\n{n.get('description') or ''}")}
+        if citadas & origens and _titulo_parecido(titulo, n["title"]):
+            return n["identifier"], n["url"]
+    return None
+
+
+def criar_issue(projeto, titulo, descricao, estado="Backlog", labels=(), prioridade=3, repo="", deduplicar=False):
     """Abre issue como o usuário-app Claude (creator=app: no Backlog espera o orquestrador; em Todo roda sozinha).
-    Label que não existe é criada. Devolve "<url>"."""
+    Label que não existe é criada. Devolve "<url>". Fila local: "KRO-12 <url>"; `repo` liga o projeto novo ao repo.
+    (`deduplicar`, ligado pelo CLI, que é o das sessões de agente; quem lê o 1º token como id não recebe "já existe"):
+    já há issue aberta parecida da mesma origem: não cria e devolve "já existe: KRN-X <url>"."""
     from hub import esteira
     if motivo := esteira.sem_pedido(titulo, descricao, labels):  # clipe/reel/animação sem o pedido do dono
         raise SystemExit(f"criar: {motivo}")
-    time_ = gql("{ teams(first: 1) { nodes { id states { nodes { id name } } labels { nodes { id name } } } } }", cache=CACHE_S)["teams"]["nodes"][0]
+    if deduplicar and not fila_issues.local() and (achada := issue_parecida(titulo, descricao)):
+        return f"já existe: {achada[0]} {achada[1]}"
+    if fila_issues.local():  # sempre creator=app, com ou sem token do app: senão a proposta do Claude rodaria sozinha
+        try:
+            n = fila_issues.criar(projeto, titulo[:250], descricao, estado, labels, prioridade, repo=repo, app=True)
+        except ValueError as e:
+            raise SystemExit(f"criar: {e}") from None
+        return f"{n['identifier']} {n['url']}"
+    time_ = gql("{ teams(first: 1) { nodes { id states { nodes { id name } } labels(first: 250) { nodes { id name } } } } }", cache=CACHE_S)["teams"]["nodes"][0]
     projetos = {p["name"].lower(): p["id"] for p in gql("{ projects(first: 100) { nodes { id name } } }", cache=CACHE_S)["projects"]["nodes"]}
     if projeto.lower() not in projetos:
         raise SystemExit(f"projeto {projeto!r} não existe; use um de: {', '.join(sorted(projetos))}")
@@ -1707,7 +1941,21 @@ def _pr_aberto(issue, gh=None):
     return ""
 
 
-def _portao_done(ident, consulta=None, gh=None):
+def _texto_da_sessao(sessao, consulta=None):
+    """`comentar` dentro da sessão do agente vira atividade (thought/response), que não entra em issue.comments;
+    o portão de Done lê esse texto também. Sem sessão ou sem leitura: ""."""
+    if not sessao:
+        return ""
+    try:
+        s = (consulta or gql)("query($id: String!) { agentSession(id: $id) { activities(last: 100) { nodes { content { __typename "
+                              "... on AgentActivityThoughtContent { body } ... on AgentActivityResponseContent { body } } } } } }",
+                              app=True, id=sessao)["agentSession"]
+    except Exception:  # noqa: BLE001 — sem a leitura, vale só o que os comentários dizem
+        return ""
+    return "\n".join((a["content"].get("body") or "") for a in s["activities"]["nodes"])
+
+
+def _portao_done(ident, consulta=None, gh=None, sessao=None):
     """motivo para NÃO mover KRN-N para Done ("" = pode). Lê pedido e comentários; usa o texto de todos os comentários.
     PR ligado e ainda aberto também barra (Done com PR aberto, reaberta pela auditoria)."""
     i = (consulta or gql)("query($i: String!) { issue(id: $i) { identifier title description attachments { nodes { url } } "
@@ -1715,7 +1963,8 @@ def _portao_done(ident, consulta=None, gh=None):
     if aberto := _pr_aberto(i, gh):
         return (f"o PR {aberto} ainda está aberto: faça o merge (ou feche, explicando por que a issue vale sem ele) e só então "
                 "Done; esperando CI ou revisão, `voltar-quando`; esperando o dono, In Review")
-    texto = "\n".join(c["body"] for c in i["comments"]["nodes"])
+    texto = "\n".join([c["body"] for c in i["comments"]["nodes"]]
+                      + [_texto_da_sessao(sessao, consulta)])
     from hub import portao
     item = {"identifier": i["identifier"], "titulo": i["title"], "descricao": i.get("description") or ""}
     if not portao.eh_de_dado(item, portao.arquivos_do_pr(texto)):
@@ -1723,12 +1972,20 @@ def _portao_done(ident, consulta=None, gh=None):
     return portao.faltou_prova(texto)
 
 
-def mover_por_nome(ident, nome, comentario=None, consulta=None, mover_fn=None, portao_fn=None):
-    """Move KRN-N para o estado `nome` do time (sem diferença de caixa). Estado que não existe: SystemExit(1)."""
+def mover_por_nome(ident, nome, comentario=None, consulta=None, mover_fn=None, portao_fn=None, dispensar=None, comentar_fn=None):
+    """Move KRN-N para o estado `nome` do time (sem diferença de caixa). Estado que não existe: SystemExit(1).
+    `dispensar`: motivo da dispensa do gate visual; só fora da execução da própria issue (orquestrador/dono).
+    Grava o comentário de repasse "gate visual dispensado: <motivo>", que o recibo lê e registra."""
     i = (consulta or gql)("query($i: String!) { issue(id: $i) { id team { states { nodes { id name } } } } }", i=ident)["issue"]
     estado = next((s["id"] for s in i["team"]["states"]["nodes"] if s["name"].lower() == nome.lower()), None)
     if not estado:
         sys.exit(f"estado {nome!r} não existe no time")
+    if dispensar is not None:
+        if nome.lower() != "done" or not dispensar.strip():
+            sys.exit("--dispensar vale só para Done e exige o motivo")
+        if da_execucao(ident):
+            sys.exit(f"--dispensar é do orquestrador ou do dono: a execução de {ident} não dispensa o próprio gate")
+        (comentar_fn or comentar)(i["id"], f"gate visual dispensado: {dispensar.strip()}\n\n_{REPASSE}._")
     if nome.lower() == "done" and portao_fn is not None:
         motivo = portao_fn(ident)
         if motivo:  # issue de dado sem prova de execução não fecha
@@ -1737,14 +1994,20 @@ def mover_por_nome(ident, nome, comentario=None, consulta=None, mover_fn=None, p
             sys.exit(f"{ident} não vai para Done: {motivo}")
     if nome.lower() == "done" and not mover_fn:  # portão único; sem recibo a issue volta para In Progress
         from hub import portao_done
-        faltas = portao_done.barrar(ident, comentario, consulta=consulta)
+        propria = da_execucao(ident)
+        if propria and esperas.gravada_desde(ident, os.environ.get("TAREFA_INICIO") or None):
+            # `voltar-quando` gravado nesta execução: a volta da espera fecha; nada de mover nem comentar
+            sys.exit(f"{ident} tem `voltar-quando` gravado: não chame `mover Done`, a volta da espera fecha a issue")
+        faltas = portao_done.barrar(ident, comentario, consulta=consulta, silencioso=propria)
         if faltas:
             sys.exit(f"Done barrado: {'; '.join(faltas)}")
     (mover_fn or mover)(i["id"], estado, comentario)
 
 
 def arquivar_antigas(dias=14):
-    """Plano grátis do Linear = 250 issues não arquivadas: arquiva Done/Canceled sem mexer há `dias` dias."""
+    """Plano grátis do Linear = 250 issues não arquivadas: arquiva Done/Canceled sem mexer há `dias` dias. Fila local: sem teto, nada."""
+    if fila_issues.local():
+        return []
     q = ('query($d: DateTimeOrDuration!) { issues(first: 100, filter: {state: {type: {in: ["completed", "canceled"]}}, '
          'updatedAt: {lt: $d}}) { nodes { id identifier } } }')
     feitas = []
@@ -1756,6 +2019,8 @@ def arquivar_antigas(dias=14):
 
 def postar_update(projeto, corpo, saude="onTrack"):
     """Update de projeto escrito pelo Claude (status semanal). Sai como o usuário-app: a ponte não responde a ele."""
+    if fila_issues.local():
+        raise SystemExit("update: a fila local não tem update de projeto (só no Linear)")
     projetos = {p["name"].lower(): p["id"] for p in gql("{ projects(first: 100) { nodes { id name } } }")["projects"]["nodes"]}
     if projeto.lower() not in projetos:
         raise SystemExit(f"projeto {projeto!r} não existe; use um de: {', '.join(sorted(projetos))}")
@@ -1769,8 +2034,13 @@ def resumo_dia(horas=24):
     q = ('query($d: DateTimeOrDuration!) { issues(first: 100, filter: {updatedAt: {gt: $d}}) { nodes { identifier title '
          'state { name } project { name } labels { nodes { name } } creator { name app } '
          'comments(first: 100) { nodes { createdAt body user { name app } } } } } }')
+    if fila_issues.local():
+        desde = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=int(horas))).isoformat(timespec="milliseconds")
+        nos = fila_issues.listar(desde=desde.replace("+00:00", "Z"))
+    else:
+        nos = gql(q, d=f"-PT{int(horas)}H")["issues"]["nodes"]
     linhas = []
-    for i in gql(q, d=f"-PT{int(horas)}H")["issues"]["nodes"]:
+    for i in nos:
         labels = ",".join(lb["name"] for lb in i["labels"]["nodes"])
         quem = "Claude" if (i.get("creator") or {}).get("app") else (i.get("creator") or {}).get("name", "?")
         linhas.append(f"## {i['identifier']} [{i['state']['name']}] {(i.get('project') or {}).get('name', '-')} · "
@@ -1810,6 +2080,7 @@ def main(argv=None):
     mv.add_argument("alvo", help="KRN-6")
     mv.add_argument("estado")
     mv.add_argument("--comentario")
+    mv.add_argument("--dispensar", metavar="MOTIVO", help="só orquestrador/dono: dispensa o gate visual do Done e registra o motivo no recibo")
     cr = sub.add_parser("criar", help="abre issue como o Claude (descrição pela entrada padrão)")
     qual = cr.add_mutually_exclusive_group(required=True)
     qual.add_argument("--projeto")
@@ -1817,6 +2088,7 @@ def main(argv=None):
     cr.add_argument("--titulo", required=True)
     cr.add_argument("--estado", default="Backlog", help="Backlog (proposta: o orquestrador decide) ou Todo (roda sozinha)")
     cr.add_argument("--label", action="append", default=[])
+    cr.add_argument("--forcar", action="store_true", help="cria mesmo que já exista issue aberta parecida da mesma origem (KRN-1676)")
     cr.add_argument("--skill", action="append", default=[], help="skill da biblioteca (hub.skills listar); vira label skill:<nome>")
     cr.add_argument("--prioridade", type=int, default=3, help="1 urgente (opus), 2 alta, 3 média, 4 baixa; label opus força o Opus")
     sk = sub.add_parser("skill", help="liga skills da biblioteca a uma issue (label skill:<nome>)")
@@ -1874,7 +2146,9 @@ def main(argv=None):
         responder_status(json.loads(a.dados))
         return 0
     if a.cmd == "mover":
-        mover_por_nome(a.alvo, a.estado, a.comentario, portao_fn=_portao_done)
+        sessao = os.environ.get("LINEAR_SESSAO") if da_execucao(a.alvo) else None  # o texto final pode estar na sessão
+        mover_por_nome(a.alvo, a.estado, a.comentario, dispensar=a.dispensar,
+                       portao_fn=lambda i: _portao_done(i, sessao=sessao))
         print(f"{a.alvo} → {a.estado}")
         return 0
     if a.cmd == "criar":
@@ -1889,8 +2163,10 @@ def main(argv=None):
             sys.exit("criar: itens do plano inválidos: " + "; ".join(erros))
         for aviso in plano_itens.avisos(itens):
             print(f"aviso: {aviso}", file=sys.stderr)
+        repo = (a.repo if "/" in a.repo else config.repo(a.repo)) if a.repo else ""
         print(criar_issue(a.projeto or projeto_do_repo(a.repo), a.titulo, descricao,
-                          a.estado, com_proposta(a.estado, [*a.label, *(f"skill:{n}" for n in a.skill)]), a.prioridade))
+                          a.estado, com_proposta(a.estado, [*a.label, *(f"skill:{n}" for n in a.skill)]), a.prioridade, repo=repo,
+                          deduplicar=not a.forcar))
         return 0
     if a.cmd == "skill":
         novas = ligar_skills(a.alvo, a.nomes)
@@ -1922,7 +2198,7 @@ def main(argv=None):
             elif a.acao == "feito":
                 print(json.dumps(incidentes.marcar(a.id, "feito", a.nota), ensure_ascii=False))
             elif a.pendentes:
-                print("\n".join(f"{i['id']} {i['classe']} {i.get('issue', '')}: {i['falha']} → {i['peca']}"
+                print("\n".join(f"{i['id']} {i['classe']} {', '.join(incidentes._issues(i))}{' ×' + str(i['ocorrencias']) if i.get('ocorrencias', 1) > 1 else ''}: {i['falha']} → {i['peca']}"
                                 for i in incidentes.listar(so_pendentes=True)) or "nenhum pendente")
             else:
                 print(incidentes.texto_retro(a.horas or 24))

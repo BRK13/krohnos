@@ -40,11 +40,21 @@ class Prova(unittest.TestCase):
 
     def test_sem_contagem_antes_depois(self):
         txt = "## Prova de execução\n- Agendamento: cron instalado, diário."
-        self.assertIn("antes/depois", portao.faltou_prova(txt))
+        self.assertIn("Antes", portao.faltou_prova(txt))
 
     def test_sem_agendamento(self):
         txt = "## Prova de execução\n- Antes: 0. Depois: 10 linhas."
         self.assertIn("agendamento", portao.faltou_prova(txt))
+
+
+    def test_antes_agora_vale(self):
+        txt = "## Prova de execução\n- Antes: 0 teses. Agora: 12 teses.\n- Agendamento: cron instalado."
+        self.assertEqual(portao.faltou_prova(txt), "")
+
+    def test_diz_qual_parte_falta(self):
+        self.assertIn('"Depois', portao.faltou_prova("## Prova de execução\n- Antes: 0 teses. cron instalado."))
+        self.assertIn('"Antes', portao.faltou_prova("## Prova de execução\n- Depois: 5 teses. cron instalado."))
+        self.assertIn("números", portao.faltou_prova("## Prova de execução\n- Antes e depois iguais. cron instalado."))
 
 
 class Avaliar(unittest.TestCase):

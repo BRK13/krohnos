@@ -14,10 +14,10 @@ import sqlite3
 import sys
 import time
 import urllib.error
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from hub import config, citacao, data, dataforseo, google, mcp_grupos, ranking, sites as S
+from hub import config, citacao, data, dataforseo, google, mcp_grupos, ranking, snapshots_api, sites as S
 from hub.mcp_grupos import ErroUso, projetos
 from hub.mcp_grupos import alvo as _alvo, dfs as _dfs, dfs_resultado as _dfs_resultado, inteiro as _int, local as _local, palavras as _palavras, so as _so
 
@@ -26,7 +26,7 @@ INSTRUCOES = (f"Ferramentas de SEO e analytics do hub do {config.dono()}. Escolh
               "list_projects lista os sites.")
 MAX_TEXTO = 20000
 CARO = " Custa crédito do DataForSEO."
-SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite13), domínio ou nome"}}
+SITE = {"site": {"type": "string", "description": "id do site no hub (ex.: psite15), domínio ou nome"}}
 DATAS = {"dateRange": {"type": "string", "description": "last_7_days, last_28_days, last_3_months..."},
          "startDate": {"type": "string", "description": "AAAA-MM-DD"}, "endDate": {"type": "string", "description": "AAAA-MM-DD"}}
 LOCAL = {"location_code": {"type": "integer", "description": "código de local do DataForSEO (padrão: Brasil)"},
@@ -111,7 +111,7 @@ def _site(args, chaves=("site", "projectId", "domain", "dominio")):
     if valor is None:
         return None, None
     v = _norm(valor)
-    alvo = {v} if "://" not in v and "/" in v else {v, citacao.host(v)} - {""}  # "asite01/../fsite05" não vira host
+    alvo = {v} if "://" not in v and "/" in v else {v, citacao.host(v)} - {""}  # "asite01/../fsite06" não vira host
     todos = S.carregar()
     for s in todos:
         nomes = [s["id"], *s["ids_antigos"], s["dominio"], *s["hosts_alternativos"], s["nome"], s["marca"]["nome"], *s["marca"]["aliases"]]
@@ -491,6 +491,9 @@ class Servidor(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if self.server.so_snapshots:  # listener da bridge do Dokploy: nada de /mcp
+                self.close_connection = True
+                return self._enviar(404, b"nao encontrado", "text/plain")
             if self._recusa_navegador():
                 return
             if self.headers.get("Transfer-Encoding"):
@@ -513,9 +516,19 @@ class Servidor(BaseHTTPRequestHandler):
             self.close_connection = True
 
     def do_GET(self):
+        caminho = self.path.split("?")[0]
+        if caminho.startswith(("/api/snapshots/", "/api/google/")):  # app de fora da VPS: Host não é loopback; quem autentica é o token do site
+            if self.headers.get("Origin") is not None:
+                return self._enviar(403, b"origem nao permitida", "text/plain")
+            if caminho.startswith("/api/google/"):
+                status, corpo, tipo = snapshots_api.responder_google(caminho, parse_qs(urlsplit(self.path).query), self.headers.get("Authorization"))
+            else:
+                status, corpo, tipo = snapshots_api.responder(caminho, self.headers.get("Authorization"))
+            return self._enviar(status, corpo, tipo, [("Cache-Control", "no-store")])
+        if self.server.so_snapshots:
+            return self._enviar(404, b"nao encontrado", "text/plain")
         if self._recusa_navegador():
             return
-        caminho = self.path.split("?")[0]
         if caminho == "/mcp":
             return self._enviar(405, b"use POST", "text/plain", [("Allow", "POST")])
         if caminho == "/api/health":
@@ -526,8 +539,10 @@ class Servidor(BaseHTTPRequestHandler):
         self._enviar(404, b"nao encontrado", "text/plain")
 
 
-def criar_servidor(host, porta):
+def criar_servidor(host, porta, so_snapshots=False):
+    """`so_snapshots`: só `/api/snapshots/` e `/api/google/` (com token por site); `/mcp`, health e a raiz respondem 404."""
     srv = ThreadingHTTPServer((host, porta), Servidor)
+    srv.so_snapshots = so_snapshots
     srv.daemon_threads = True
     return srv
 
@@ -536,9 +551,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="python3 -m hub.mcp_proxy", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default=os.environ.get("MCP_PROXY_HOST", "127.0.0.1"))
     ap.add_argument("--porta", type=int, default=int(os.environ.get("MCP_PROXY_PORTA", "4181")))
+    ap.add_argument("--so-snapshots", action="store_true", help="só a leitura de snapshots por token de site (listener na bridge do Dokploy)")
     a = ap.parse_args(argv)
-    srv = criar_servidor(a.host, a.porta)
-    _log(f"em {a.host}:{a.porta}")
+    if a.so_snapshots and a.host in {"0.0.0.0", "::", ""}:
+        ap.error("--so-snapshots escuta só em um endereço fixo (a bridge do Dokploy, 172.19.0.1), nunca em todas as interfaces")
+    srv = criar_servidor(a.host, a.porta, a.so_snapshots)
+    _log(f"em {a.host}:{a.porta}" + (" (só snapshots)" if a.so_snapshots else ""))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

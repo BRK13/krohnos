@@ -42,6 +42,78 @@ class Base(unittest.TestCase):
         return porteiro.descarregar(self.caixa, str(self.dados), quando, gravar)
 
 
+class AvisosQueFuraram(Base):
+    """o que chegou ao zap do Fulano em 17/10 (resumo vazio 2x, FALHOU/OAuth, serviço parado)."""
+
+    def test_resumo_vazio_nao_sai(self):
+        for hora in (18, 18):
+            self.enviar(f"📋 Resumo {hora}:00: nada pendente nas últimas 24h.", quando=DIA.replace(hour=hora))
+        self.assertEqual([], self.saida)
+        self.assertEqual([], self.desviados)
+        self.assertEqual(2, sum(e["tipo"] == "vazio" for e in porteiro._ler(str(self.dados))["envios"]))
+
+    def test_um_resumo_por_janela_e_conteudo_igual_nao_repete(self):
+        r1 = "📋 Resumo das últimas 24h (2 pedidos)\n• a"
+        self.enviar(r1, quando=DIA.replace(hour=18), origem="resumo-diario")
+        self.enviar(r1.replace("2 pedidos", "3 pedidos"), quando=DIA.replace(hour=18, minute=9), origem="resumo-diario")
+        self.assertEqual(1, len(self.saida))  # mesma janela
+        dia2 = DIA + dt.timedelta(days=1)
+        self.enviar(r1, quando=dia2.replace(hour=18), origem="resumo-diario")  # outro dia, mesmo conteúdo
+        self.assertEqual(1, len(self.saida))
+        self.enviar("📋 Resumo das últimas 24h (4 pedidos)\n• b", quando=dia2.replace(hour=18, minute=5), origem="resumo-diario")
+        self.assertEqual(2, len(self.saida))
+
+    def test_resumo_de_outro_assunto_nao_e_engolido_pelo_resumo_do_dia(self):
+        self.enviar("📋 Resumo das últimas 24h (2 pedidos)\n• a", quando=DIA.replace(hour=18), origem="resumo-diario")
+        self.enviar("Resumo do contrato da Cleide: assinatura amanhã", quando=DIA.replace(hour=18, minute=20))
+        self.assertEqual(2, len(self.saida))
+
+    def test_resumo_so_marca_o_dia_quando_sai(self):
+        self.enviar("📋 Resumo das últimas 24h (2 pedidos)\n• a", quando=DIA.replace(hour=22, minute=30), origem="resumo-diario")
+        self.assertEqual([], self.saida)  # madrugada: cai na fila, sem marcar o dia
+        self.assertEqual({}, porteiro._ler(str(self.dados))["resumos"])
+        self.enviar("📋 Resumo das últimas 24h (2 pedidos)\n• a", quando=DIA.replace(hour=18), origem="resumo-diario")
+        self.assertEqual(1, len(self.saida))  # saiu agora: marca o dia
+        self.enviar("📋 Resumo das últimas 24h (3 pedidos)\n• b", quando=DIA.replace(hour=18, minute=5), origem="resumo-diario")
+        self.assertEqual(1, len(self.saida))  # mesma janela: repetido
+
+    def test_entrega_com_nextjs_parada_e_anexo_sai(self):
+        arq = self.arq("relatorio.pdf")
+        self.enviar("KRN-1 pronta: relatório do Next.js, a parada ficou boa", arquivos=[arq], tipo="entrega")
+        self.assertEqual(1, len(self.saida))
+        self.assertEqual([], self.desviados)
+    def test_hora_do_conteudo_diferencia_resumos_so_a_do_titulo_e_ignorada(self):
+        dia2 = DIA + dt.timedelta(days=1)
+        self.enviar("📋 Resumo 18:00\n• reunião às 10:00", quando=DIA.replace(hour=18))
+        self.enviar("📋 Resumo 18:05\n• reunião às 11:00", quando=dia2.replace(hour=18))  # mudou de verdade: sai
+        self.assertEqual(2, len(self.saida))
+        self.enviar("📋 Resumo 19:00\n• reunião às 11:00", quando=dia2.replace(hour=19) + dt.timedelta(days=1))
+        self.assertEqual(2, len(self.saida))  # só a hora do título mudou: repetido
+
+    def test_falhou_oauth_servico_parado_claude_vps_vao_ao_orquestrador(self):
+        textos = ["Claude VPS · resumo-diario FALHOU\nFALHOU: OAuth session expired · Please run /login",
+                  "Orquestrador: o serviço está parado há mais de 30 min.",
+                  "Deu erro ao gerar o relatório", "veja /var/lib/nimbus/reports/x.log"]
+        for t in textos:
+            self.enviar(t)
+        self.assertEqual([], self.saida)
+        self.assertEqual(textos, self.desviados)
+
+    def test_falha_de_tarefa_nao_vai_nem_com_arquivo(self):
+        self.enviar("Claude VPS · coleta FALHOU", arquivos=[self.arq("a.pdf")])
+        self.assertEqual([], self.saida)
+
+    def test_entrega_com_erro_no_titulo_passa(self):
+        self.enviar("KRN-9 pronta: corrige o erro de login do site")
+        self.assertEqual(1, len(self.saida))
+
+    def test_falha_com_tipo_explicito_e_anexo_ainda_desvia(self):
+        for texto in ("OAuth expirou", "FALHOU no coletor"):
+            self.enviar(texto, tipo="entrega", arquivos=[self.arq("prova.pdf")])
+        self.assertEqual([], self.saida)
+        self.assertEqual(2, len(self.desviados))
+
+
 class EvidenciaPronto(Base):
     def test_cabecalho_afirmativo_sem_confundir_negacao(self):
         for texto in ("KRN-9 não está pronta", "KRN-9 ainda não pronta", "Preciso de acesso (KRN-9)"):
@@ -99,6 +171,21 @@ class Horario(Base):
         self.assertIn("4 entregas prontas", texto)
         self.assertEqual(4, len(self.saida[0][1]))
         self.assertIsNone(self.descarregar(DIA.replace(hour=8, minute=5)))  # fila vazia: não repete
+
+    def test_inc241_envios_das_21h_brt_aguardam_resumo(self):
+        # Envios reais: 20/10 00:02 e 00:15 UTC = 19/10 21:02 e 21:15 BRT.
+        for minuto, origem in ((0, "hub"), (2, "destaques-semanal"), (15, "entrega_zap"), (41, "hub")):
+            quando = dt.datetime(2026, 10, 20, 0, minuto, tzinfo=dt.timezone.utc)
+            self.enviar(f"KRN-{minuto + 100} pronta: documento", quando=quando,
+                        arquivos=[self.arq(f"inc241-{minuto}.pdf", bytes([minuto]))],
+                        origem=origem, agora=True, pedido=True)
+        self.assertEqual([], self.saida)
+        est = porteiro._ler(str(self.dados))
+        self.assertEqual(4, len(est["fila"]))
+        self.assertTrue(all(f["motivo"] == "madrugada" for f in est["fila"]))
+        self.assertIsNone(self.descarregar(dt.datetime(2026, 10, 19, 21, 59, tzinfo=BRT)))
+        self.assertIn("4 entregas prontas", self.descarregar(dt.datetime(2026, 10, 20, 8, tzinfo=BRT)))
+        self.assertEqual(1, len(self.saida))
 
     def test_7h_ja_sai_direto(self):
         self.enviar("oi", quando=DIA.replace(hour=7))
@@ -289,12 +376,12 @@ class EntregaComPara(Base):
         for i, (d, h, m) in enumerate(self.HORAS):
             porteiro._numero_do_bot.cache_clear()
             r = self.escrever(dt.datetime(2026, 10, d, h, m, tzinfo=BRT), f"KRN-{1000 + i}")
-            if h >= 22 or h < 7:
+            if h >= 21 or h < 7:
                 self.assertIsNone(r, f"{h}:{m:02d} BRT não podia sair")
-            else:  # 21:50 está fora da janela 22h-7h: sai
+            else:  # fora da janela 21h-7h: sai
                 self.assertIsNotNone(r)
-        self.assertEqual(1, len(list(self.caixa.glob("*.json"))))
-        self.assertEqual(4, len(porteiro._ler(str(self.dados))["fila"]))
+        self.assertEqual(0, len(list(self.caixa.glob("*.json"))))
+        self.assertEqual(5, len(porteiro._ler(str(self.dados))["fila"]))
 
     def test_sem_saber_o_numero_do_dono_o_para_vale_como_dono(self):
         """Falha fechada: número do dono ilegível não abre a porta (o teto e a madrugada continuam valendo)."""

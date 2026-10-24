@@ -18,8 +18,8 @@ def projetos(ix):
     # Command/path evidence is local to the entity. Never infer from its VPS.
     aliases = {
         'clientej': r'clienteh|clientej', 'asite01': r'asite01(?:-wpp|-control)?',
-        'fsite05': r'fsite05(?:-clientem(?:-v2)?)?', 'clientei': r'clientei(?:psi-v2)?',
-        'clientee': r'clientee(?:-moraes-site)?', 'psite13': r'psite13',
+        'fsite06': r'fsite06(?:-clientem(?:-v2)?)?', 'clientei': r'clientei(?:psi-v2)?',
+        'clientee': r'clientee(?:-moraes-site)?', 'psite15': r'psite15',
         'evento_exemplo': r'evento_exemplo(?:-fulano-clientei)?',
         'krohnos': r'nimbus(?:-hub)?|krohnos',
         'clienten': r'clienten', 'radar': r'radar(?:-infraestrutura|-infra)?',

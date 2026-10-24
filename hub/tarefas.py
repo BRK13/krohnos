@@ -8,7 +8,7 @@
     repos: <org>/a, <org>/b    # opcional; também aceita [a, b]
     externo: false             # true = produz algo que sai para terceiros (só grava propostas)
     descricao: uma linha
-    pauta: fsite05 fsite05-gmb     # opcional: <app> <tarefa>; lote de um app do Dokploy (docs/migracao-openrouter.md)
+    pauta: fsite06 fsite06-gmb     # opcional: <app> <tarefa>; lote de um app do Dokploy (docs/migracao-openrouter.md)
     avisar: true               # opcional (padrão false): manda a saída no WhatsApp. Só o resumo diário usa;
                                # o resto aparece no resumo das 8h (regra do dono: WhatsApp sem spam)
     skills: frontend-design, x  # opcional: skills da biblioteca ligadas nesta tarefa (hub/skills.py)
@@ -54,6 +54,17 @@ class Tarefa:
         self.timeout_s, self.repos, self.externo, self.descricao = timeout_s, repos, externo, descricao
         self.prompt, self.arquivo = prompt, arquivo
         self.pauta = pauta  # (app, tarefa) ou None: lote de um app (contrato pauta/entrega)
+
+    @property
+    def prompt(self):
+        # Linear: o prompt (biblioteca, busca, wiki: ~3 s por issue) só é montado quando a tarefa vai rodar, não a cada tick
+        if callable(self._prompt):
+            self._prompt = self._prompt()
+        return self._prompt
+
+    @prompt.setter
+    def prompt(self, valor):
+        self._prompt = valor
 
     @property
     def pesada(self):
